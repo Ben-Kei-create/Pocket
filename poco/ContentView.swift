@@ -22,6 +22,9 @@ struct ContentView: View {
             hasCompletedWelcome = true
             store.open(url: url)
         }
+        .task {
+            await store.load()
+        }
     }
 }
 

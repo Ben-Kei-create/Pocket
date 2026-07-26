@@ -6,7 +6,7 @@ struct ProjectDetailView: View {
 
     @State private var showsCompose = false
     @State private var pendingFeedback: Feedback?
-    @State private var showsDrop = false
+    @State private var dropFeedback: Feedback?
 
     private var project: Project? {
         store.project(id: projectID)
@@ -76,19 +76,13 @@ struct ProjectDetailView: View {
                         showsCompose = false
                     }
                 }
-                .fullScreenCover(isPresented: $showsDrop, onDismiss: {
-                    pendingFeedback = nil
-                }) {
-                    if let feedback = pendingFeedback {
-                        BubbleDropView(
-                            project: project,
-                            feedback: feedback,
-                            existingFeedbacks: store.feedbacks(for: project.id)
-                        ) {
-                            Task {
-                                await store.submit(feedback)
-                            }
-                        }
+                .fullScreenCover(item: $dropFeedback) { feedback in
+                    BubbleDropView(
+                        project: project,
+                        feedback: feedback,
+                        existingFeedbacks: store.feedbacks(for: project.id)
+                    ) {
+                        await store.submit(feedback)
                     }
                 }
             } else {
@@ -99,7 +93,7 @@ struct ProjectDetailView: View {
 
     private func projectHeader(_ project: Project) -> some View {
         HStack(spacing: 18) {
-            ProjectArtworkView(category: project.category)
+            ProjectArtworkThumbnail(project: project)
                 .frame(width: 118, height: 128)
                 .clipShape(RoundedRectangle(cornerRadius: PocoTheme.cornerMedium, style: .continuous))
 
@@ -138,11 +132,9 @@ struct ProjectDetailView: View {
     }
 
     private func showDropIfNeeded() {
-        guard pendingFeedback != nil else { return }
-        Task {
-            try? await Task.sleep(for: .milliseconds(180))
-            showsDrop = true
-        }
+        guard let pendingFeedback else { return }
+        self.pendingFeedback = nil
+        dropFeedback = pendingFeedback
     }
 }
 

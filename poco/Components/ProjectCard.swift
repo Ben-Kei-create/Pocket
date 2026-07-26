@@ -5,7 +5,7 @@ struct ProjectCard: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            ProjectArtworkView(category: project.category)
+            ProjectArtworkThumbnail(project: project)
                 .frame(width: 108, height: 118)
                 .clipShape(RoundedRectangle(cornerRadius: PocoTheme.cornerSmall, style: .continuous))
 
@@ -46,6 +46,39 @@ struct ProjectCard: View {
         .pocoCard()
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(project.title)、\(project.creator.name)、感想\(project.feedbackCount)件")
+    }
+}
+
+struct ProjectArtworkThumbnail: View {
+    let project: Project
+
+    var body: some View {
+        if let imageURL = project.imageURL {
+            AsyncImage(
+                url: imageURL,
+                transaction: Transaction(animation: .easeInOut(duration: 0.2))
+            ) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                        .transition(.opacity)
+                case .empty:
+                    ProjectArtworkView(category: project.category)
+                        .overlay {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                case .failure:
+                    ProjectArtworkView(category: project.category)
+                @unknown default:
+                    ProjectArtworkView(category: project.category)
+                }
+            }
+        } else {
+            ProjectArtworkView(category: project.category)
+        }
     }
 }
 

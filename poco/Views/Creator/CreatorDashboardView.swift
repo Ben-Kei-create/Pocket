@@ -51,7 +51,7 @@ private struct CreatorProjectCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 13) {
-                ProjectArtworkView(category: project.category)
+                ProjectArtworkThumbnail(project: project)
                     .frame(width: 66, height: 72)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 

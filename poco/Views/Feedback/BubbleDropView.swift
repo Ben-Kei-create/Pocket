@@ -7,12 +7,13 @@ struct BubbleDropView: View {
     let project: Project
     let feedback: Feedback
     let existingFeedbacks: [Feedback]
-    let onDelivered: () -> Void
+    let onDelivered: () async -> Result<Void, AppError>
 
     @State private var dragOffset: CGSize = .zero
     @State private var isDropped = false
     @State private var showsSuccess = false
     @State private var showsWall = false
+    @State private var deliveryState = DeliveryState.idle
 
     var body: some View {
         NavigationStack {
@@ -89,17 +90,34 @@ struct BubbleDropView: View {
     private var successCard: some View {
         VStack(spacing: 12) {
             HStack(spacing: 8) {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(PocoTheme.primary)
-                Text("届きました！")
+                Image(systemName: deliveryState.symbolName)
+                    .foregroundStyle(deliveryState == .failed ? .orange : PocoTheme.primary)
+                Text(deliveryState.title)
                     .font(.headline)
             }
 
-            Button("みんなのフキダシを見る") {
-                showsWall = true
+            if deliveryState == .failed {
+                Text("フキダシはビンに残っています")
+                    .font(.caption)
+                    .foregroundStyle(PocoTheme.secondaryText)
+
+                Button("もう一度送信する") {
+                    deliver()
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(PocoTheme.primary)
+                .accessibilityHint("同じフキダシの送信を再試行します")
+            } else if deliveryState == .sending {
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityLabel("感想を送信中")
+            } else {
+                Button("みんなのフキダシを見る") {
+                    showsWall = true
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(PocoTheme.primary)
             }
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(PocoTheme.primary)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 16)
@@ -144,13 +162,58 @@ struct BubbleDropView: View {
         }
 
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-        onDelivered()
 
         Task {
-            try? await Task.sleep(for: .milliseconds(420))
+            let landingDelay = reduceMotion ? 180 : 420
+            try? await Task.sleep(for: .milliseconds(landingDelay))
+            deliver()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.78)) {
                 showsSuccess = true
             }
+        }
+    }
+
+    private func deliver() {
+        guard deliveryState != .sending else { return }
+        deliveryState = .sending
+
+        Task {
+            let result = await onDelivered()
+            switch result {
+            case .success:
+                deliveryState = .delivered
+            case .failure:
+                deliveryState = .failed
+            }
+        }
+    }
+}
+
+private enum DeliveryState: Equatable {
+    case idle
+    case sending
+    case delivered
+    case failed
+
+    var title: String {
+        switch self {
+        case .idle, .sending:
+            "送信しています"
+        case .delivered:
+            "届きました！"
+        case .failed:
+            "送信できませんでした"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .idle, .sending:
+            "arrow.up.circle.fill"
+        case .delivered:
+            "checkmark.circle.fill"
+        case .failed:
+            "exclamationmark.circle.fill"
         }
     }
 }

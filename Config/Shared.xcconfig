@@ -1,0 +1,7 @@
+// Safe defaults. Local and CI secrets may override these values.
+POCO_BACKEND = mock
+SUPABASE_URL =
+SUPABASE_ANON_KEY =
+POCO_DEVELOPMENT_USER_ID =
+
+#include? "Secrets.xcconfig"

@@ -37,6 +37,14 @@
 	<true/>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>作品のQRコードを写真ライブラリへ保存するために使用します。</string>
+	<key>PocoBackend</key>
+	<string>$(POCO_BACKEND)</string>
+	<key>PocoDevelopmentUserID</key>
+	<string>$(POCO_DEVELOPMENT_USER_ID)</string>
+	<key>SupabaseAnonKey</key>
+	<string>$(SUPABASE_ANON_KEY)</string>
+	<key>SupabaseURL</key>
+	<string>$(SUPABASE_URL)</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

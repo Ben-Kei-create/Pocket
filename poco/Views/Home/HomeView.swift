@@ -28,11 +28,17 @@ struct HomeView: View {
                     categoryFilters
                         .padding(.vertical, 4)
 
-                    ForEach(visibleProjects) { project in
-                        NavigationLink(value: project.id) {
-                            ProjectCard(project: project)
+                    if visibleProjects.isEmpty {
+                        projectLoadPlaceholder
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 48)
+                    } else {
+                        ForEach(visibleProjects) { project in
+                            NavigationLink(value: project.id) {
+                                ProjectCard(project: project)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.horizontal, PocoTheme.pagePadding)
@@ -67,6 +73,34 @@ struct HomeView: View {
                     ContentUnavailableView("作品が見つかりません", systemImage: "questionmark.folder")
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var projectLoadPlaceholder: some View {
+        switch store.projectLoadState {
+        case .idle, .loading:
+            ProgressView("作品を読み込んでいます")
+                .foregroundStyle(PocoTheme.secondaryText)
+        case .error:
+            ContentUnavailableView {
+                Label("作品を読み込めませんでした", systemImage: "wifi.exclamationmark")
+            } description: {
+                Text("通信環境を確認して、もう一度お試しください。")
+            } actions: {
+                Button("もう一度試す") {
+                    Task {
+                        await store.load()
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(PocoTheme.primary)
+            }
+        case .loaded:
+            ContentUnavailableView(
+                selectedCategory == .all ? "作品はまだありません" : "このカテゴリの作品はありません",
+                systemImage: "books.vertical"
+            )
         }
     }
 

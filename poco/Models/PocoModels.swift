@@ -1,23 +1,25 @@
 import Foundation
 
-struct Creator: Identifiable, Hashable, Codable, Sendable {
+nonisolated struct Creator: Identifiable, Hashable, Codable, Sendable {
     let id: UUID
     var name: String
     var avatarName: String?
+    var avatarURL: URL? = nil
 }
 
-struct Project: Identifiable, Hashable, Codable, Sendable {
+nonisolated struct Project: Identifiable, Hashable, Codable, Sendable {
     let id: UUID
     var title: String
     var creator: Creator
     var category: ProjectCategory
     var description: String
     var imageName: String?
+    var imageURL: URL? = nil
     var feedbackCount: Int
     let createdAt: Date
 }
 
-enum ProjectCategory: String, CaseIterable, Identifiable, Codable, Sendable {
+nonisolated enum ProjectCategory: String, CaseIterable, Identifiable, Codable, Sendable {
     case book
     case game
     case manga
@@ -46,9 +48,14 @@ enum ProjectCategory: String, CaseIterable, Identifiable, Codable, Sendable {
         case .other: "sparkles"
         }
     }
+
+    init(from decoder: any Decoder) throws {
+        let value = try decoder.singleValueContainer().decode(String.self)
+        self = Self(rawValue: value) ?? .other
+    }
 }
 
-struct Feedback: Identifiable, Hashable, Codable, Sendable {
+nonisolated struct Feedback: Identifiable, Hashable, Codable, Sendable {
     let id: UUID
     let projectID: UUID
     var message: String
@@ -59,11 +66,16 @@ struct Feedback: Identifiable, Hashable, Codable, Sendable {
     let bubbleColor: BubbleColor
 }
 
-enum BubbleColor: String, CaseIterable, Codable, Sendable {
+nonisolated enum BubbleColor: String, CaseIterable, Codable, Sendable {
     case coral
     case yellow
     case mint
     case blue
     case lavender
     case pink
+
+    init(from decoder: any Decoder) throws {
+        let value = try decoder.singleValueContainer().decode(String.self)
+        self = Self(rawValue: value) ?? .coral
+    }
 }

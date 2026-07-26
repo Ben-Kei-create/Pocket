@@ -9,7 +9,7 @@ import SwiftUI
 
 @main
 struct PocoApp: App {
-    @State private var store = PocoStore()
+    @State private var store = AppEnvironment.makeStore()
 
     var body: some Scene {
         WindowGroup {

@@ -58,6 +58,14 @@ struct BubbleWallView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
+        .task(id: projectID) {
+            await store.loadFeedbacks(for: projectID)
+            guard !Task.isCancelled else { return }
+            store.startObservingFeedbacks(for: projectID)
+        }
+        .onDisappear {
+            store.stopObservingFeedbacks(for: projectID)
+        }
     }
 }
 

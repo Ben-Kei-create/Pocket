@@ -12,7 +12,9 @@ struct CreateProjectView: View {
     @State private var isPhotoPickerPresented = false
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var selectedImage: UIImage?
+    @State private var selectedImageData: Data?
     @State private var isSaving = false
+    @State private var saveErrorMessage: String?
 
     private var isValid: Bool {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -103,8 +105,20 @@ struct CreateProjectView: View {
                 Task {
                     guard let data = try? await item?.loadTransferable(type: Data.self),
                           let image = UIImage(data: data) else { return }
+                    selectedImageData = data
                     selectedImage = image
                 }
+            }
+            .alert(
+                "作品を保存できませんでした",
+                isPresented: Binding(
+                    get: { saveErrorMessage != nil },
+                    set: { if !$0 { saveErrorMessage = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(saveErrorMessage ?? "")
             }
         }
     }
@@ -112,14 +126,20 @@ struct CreateProjectView: View {
     private func save() {
         isSaving = true
         Task {
-            await store.createProject(
+            let result = await store.createProject(
                 title: title.trimmingCharacters(in: .whitespacesAndNewlines),
                 creatorName: creatorName.trimmingCharacters(in: .whitespacesAndNewlines),
                 category: category,
-                description: projectDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+                description: projectDescription.trimmingCharacters(in: .whitespacesAndNewlines),
+                imageData: selectedImageData
             )
             isSaving = false
-            dismiss()
+            switch result {
+            case .success:
+                dismiss()
+            case .failure(let error):
+                saveErrorMessage = error.userMessage
+            }
         }
     }
 }
