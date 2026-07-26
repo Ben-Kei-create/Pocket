@@ -9,6 +9,7 @@ struct CreateProjectView: View {
     @State private var creatorName = ""
     @State private var category = ProjectCategory.book
     @State private var projectDescription = ""
+    @State private var isPhotoPickerPresented = false
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var selectedImage: UIImage?
     @State private var isSaving = false
@@ -23,7 +24,9 @@ struct CreateProjectView: View {
         NavigationStack {
             Form {
                 Section("作品画像") {
-                    PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                    Button {
+                        isPhotoPickerPresented = true
+                    } label: {
                         HStack(spacing: 14) {
                             Group {
                                 if let selectedImage {
@@ -43,6 +46,12 @@ struct CreateProjectView: View {
                             Text(selectedImage == nil ? "画像を選ぶ" : "画像を変更")
                         }
                     }
+                    .buttonStyle(.plain)
+                    .photosPicker(
+                        isPresented: $isPhotoPickerPresented,
+                        selection: $selectedPhoto,
+                        matching: .images
+                    )
                 }
 
                 Section("作品情報") {
