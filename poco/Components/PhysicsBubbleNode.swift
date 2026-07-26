@@ -181,17 +181,13 @@ enum BubblePhysicsBody {
 }
 
 enum BubblePhysicsMetrics {
-    static let wallColumnCount = 3
     static let rowSpacing: CGFloat = 52
-    static let wallBottomStartY: CGFloat = 64
+    static let wallBottomStartY: CGFloat = 82
     static let dropRowSpacing: CGFloat = 50
     static let dropPreviewLimit = 2
 
     static func wallBubbleSize(for width: CGFloat) -> CGSize {
-        CGSize(
-            width: min(116, max(96, (width - 16) / CGFloat(wallColumnCount))),
-            height: 60
-        )
+        CGSize(width: min(116, max(96, width * 0.29)), height: 60)
     }
 
     static func dropExistingBubbleSize(for width: CGFloat) -> CGSize {
@@ -200,6 +196,79 @@ enum BubblePhysicsMetrics {
 
     static func pendingBubbleSize(for width: CGFloat) -> CGSize {
         CGSize(width: min(184, width * 0.54), height: 88)
+    }
+}
+
+struct BubbleFieldPlacement: Equatable {
+    let feedbackID: UUID
+    let position: CGPoint
+    let rotation: CGFloat
+}
+
+struct BubbleFieldLayout: Equatable {
+    let placements: [BubbleFieldPlacement]
+    let contentHeight: CGFloat
+
+    static func make(feedbacks: [Feedback], availableWidth: CGFloat) -> Self {
+        guard availableWidth > 0, !feedbacks.isEmpty else {
+            return BubbleFieldLayout(
+                placements: [],
+                contentHeight: BubblePhysicsMetrics.wallBottomStartY + 18
+            )
+        }
+
+        let bubbleSize = BubblePhysicsMetrics.wallBubbleSize(for: availableWidth)
+        let halfWidth = bubbleSize.width * 0.48
+        let minimumX = halfWidth + 4
+        let maximumX = max(minimumX, availableWidth - halfWidth - 4)
+        let horizontalClearance = bubbleSize.width * 0.88
+        let verticalClearance = bubbleSize.height * 0.76
+        var placements: [BubbleFieldPlacement] = []
+        var currentTop = BubblePhysicsMetrics.wallBottomStartY
+
+        for feedback in feedbacks.reversed() {
+            let lowerBand = max(
+                BubblePhysicsMetrics.wallBottomStartY,
+                currentTop - verticalClearance * 0.78
+            )
+            var bestPosition = CGPoint(x: availableWidth / 2, y: currentTop)
+            var bestScore = CGFloat.greatestFiniteMagnitude
+
+            for attempt in 0..<9 {
+                let x = minimumX
+                    + stableUnit(feedback.id, salt: attempt) * (maximumX - minimumX)
+                var y = lowerBand
+
+                for existing in placements {
+                    let deltaX = abs(x - existing.position.x)
+                    guard deltaX < horizontalClearance else { continue }
+                    let horizontalRatio = deltaX / horizontalClearance
+                    let requiredRise = verticalClearance
+                        * sqrt(max(0, 1 - horizontalRatio * horizontalRatio))
+                    y = max(y, existing.position.y + requiredRise)
+                }
+
+                let score = y + stableUnit(feedback.id, salt: attempt + 20) * 1.5
+                if score < bestScore {
+                    bestScore = score
+                    bestPosition = CGPoint(x: x, y: y)
+                }
+            }
+
+            let seed = stableSeed(feedback.id)
+            let placement = BubbleFieldPlacement(
+                feedbackID: feedback.id,
+                position: bestPosition,
+                rotation: CGFloat((seed % 11) - 5) * .pi / 180
+            )
+            placements.append(placement)
+            currentTop = max(currentTop, bestPosition.y)
+        }
+
+        return BubbleFieldLayout(
+            placements: placements,
+            contentHeight: currentTop + bubbleSize.height / 2 + 34
+        )
     }
 }
 
@@ -260,4 +329,10 @@ func stableSeed(_ id: UUID) -> Int {
     id.uuidString.unicodeScalars.reduce(0) { partial, scalar in
         (partial &* 31 &+ Int(scalar.value)) & 0x7fff_ffff
     }
+}
+
+func stableUnit(_ id: UUID, salt: Int) -> CGFloat {
+    let seed = stableSeed(id)
+    let mixed = (seed &* 1_103_515_245 &+ salt &* 12_345) & 0x7fff_ffff
+    return CGFloat(mixed % 10_000) / 9_999
 }

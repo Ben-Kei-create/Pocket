@@ -11,10 +11,15 @@ struct PhysicsBubbleFieldView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let worldHeight = contentHeight(minimumHeight: proxy.size.height)
+            let layout = BubbleFieldLayout.make(
+                feedbacks: feedbacks,
+                availableWidth: proxy.size.width
+            )
+            let worldHeight = max(proxy.size.height, layout.contentHeight)
 
             BubbleWallPhysicsCanvas(
                 feedbacks: feedbacks,
+                layout: layout,
                 size: proxy.size,
                 worldHeight: worldHeight,
                 reduceMotion: reduceMotion,
@@ -54,16 +59,6 @@ struct PhysicsBubbleFieldView: View {
             }
         }
     }
-
-    private func contentHeight(minimumHeight: CGFloat) -> CGFloat {
-        let rows = ceil(
-            CGFloat(max(feedbacks.count, 1)) / CGFloat(BubblePhysicsMetrics.wallColumnCount)
-        )
-        return max(
-            minimumHeight,
-            rows * BubblePhysicsMetrics.rowSpacing + BubblePhysicsMetrics.wallBottomStartY + 18
-        )
-    }
 }
 
 struct PhysicsBubbleDropFieldView: View {
@@ -100,6 +95,7 @@ struct PhysicsBubbleDropFieldView: View {
 
 private struct BubbleWallPhysicsCanvas: UIViewRepresentable {
     let feedbacks: [Feedback]
+    let layout: BubbleFieldLayout
     let size: CGSize
     let worldHeight: CGFloat
     let reduceMotion: Bool
@@ -127,6 +123,7 @@ private struct BubbleWallPhysicsCanvas: UIViewRepresentable {
         view.preferredFramesPerSecond = reduceMotion ? 30 : 60
         context.coordinator.update(
             feedbacks: feedbacks,
+            layout: layout,
             size: size,
             worldHeight: worldHeight,
             reduceMotion: reduceMotion,
@@ -160,6 +157,7 @@ private struct BubbleWallPhysicsCanvas: UIViewRepresentable {
 
         func update(
             feedbacks: [Feedback],
+            layout: BubbleFieldLayout,
             size: CGSize,
             worldHeight: CGFloat,
             reduceMotion: Bool,
@@ -168,6 +166,7 @@ private struct BubbleWallPhysicsCanvas: UIViewRepresentable {
         ) {
             scene.configure(
                 feedbacks: feedbacks,
+                layout: layout,
                 size: size,
                 worldHeight: worldHeight,
                 reduceMotion: reduceMotion,
