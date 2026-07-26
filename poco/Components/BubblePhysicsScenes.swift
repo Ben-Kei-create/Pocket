@@ -106,7 +106,8 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
         feedbackByID = Dictionary(uniqueKeysWithValues: feedbacks.map { ($0.id, $0) })
         oldestFeedbacks = Array(feedbacks.reversed())
         activeBubbleNodes.removeAll(keepingCapacity: true)
-        addJarBoundaries(to: self, height: worldHeight)
+        addPhysicsBoundaries(to: self, height: worldHeight)
+        addOldestFeedbackMarker()
 
         cameraNode.position = CGPoint(
             x: size.width / 2,
@@ -121,20 +122,33 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
         guard !oldestFeedbacks.isEmpty else { return }
 
         let bubbleSize = BubblePhysicsMetrics.wallBubbleSize(for: size.width)
-        let xInset = bubbleSize.width / 2 + 8
-        let columns = [xInset, max(xInset, size.width - xInset)]
+        let columnCount = BubblePhysicsMetrics.wallColumnCount
+        let columnWidth = size.width / CGFloat(columnCount)
+        let columns = (0..<columnCount).map {
+            columnWidth * (CGFloat($0) + 0.5)
+        }
         let visibleMinimumY = cameraNode.position.y - size.height / 2 - BubblePhysicsMetrics.rowSpacing * 2
         let visibleMaximumY = cameraNode.position.y + size.height / 2 + BubblePhysicsMetrics.rowSpacing * 2
         let minimumRow = max(
             0,
-            Int(floor((visibleMinimumY - 46) / BubblePhysicsMetrics.rowSpacing))
+            Int(
+                floor(
+                    (visibleMinimumY - BubblePhysicsMetrics.wallBottomStartY)
+                        / BubblePhysicsMetrics.rowSpacing
+                )
+            )
         )
         let maximumRow = min(
-            (oldestFeedbacks.count - 1) / 2,
-            Int(ceil((visibleMaximumY - 46) / BubblePhysicsMetrics.rowSpacing))
+            (oldestFeedbacks.count - 1) / columnCount,
+            Int(
+                ceil(
+                    (visibleMaximumY - BubblePhysicsMetrics.wallBottomStartY)
+                        / BubblePhysicsMetrics.rowSpacing
+                )
+            )
         )
-        let startIndex = min(oldestFeedbacks.count, minimumRow * 2)
-        let endIndex = min(oldestFeedbacks.count, (maximumRow + 1) * 2)
+        let startIndex = min(oldestFeedbacks.count, minimumRow * columnCount)
+        let endIndex = min(oldestFeedbacks.count, (maximumRow + 1) * columnCount)
         guard startIndex < endIndex else { return }
         let visibleFeedbacks = oldestFeedbacks[startIndex..<endIndex]
         let visibleIDs = Set(visibleFeedbacks.map(\.id))
@@ -148,16 +162,18 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
         for index in startIndex..<endIndex {
             let feedback = oldestFeedbacks[index]
             guard activeBubbleNodes[feedback.id] == nil else { continue }
-            let row = index / 2
+            let row = index / columnCount
             let seed = stableSeed(feedback.id)
-            let column = (index + seed) % 2
-            let jitterX = CGFloat((seed % 9) - 4)
-            let jitterY = CGFloat((seed % 7) - 3)
+            let column = index % columnCount
+            let jitterX = CGFloat((seed % 5) - 2)
+            let jitterY = CGFloat((seed % 5) - 2)
             let node = PhysicsBubbleNode(feedback: feedback, size: bubbleSize)
 
             node.position = CGPoint(
                 x: columns[column] + jitterX,
-                y: 46 + CGFloat(row) * BubblePhysicsMetrics.rowSpacing + jitterY
+                y: BubblePhysicsMetrics.wallBottomStartY
+                    + CGFloat(row) * BubblePhysicsMetrics.rowSpacing
+                    + jitterY
             )
             node.zRotation = reduceMotion
                 ? 0
@@ -166,6 +182,19 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
             addChild(node)
             activeBubbleNodes[feedback.id] = node
         }
+    }
+
+    private func addOldestFeedbackMarker() {
+        let marker = SKLabelNode(text: "ここが最初の感想")
+        marker.name = "oldest-feedback-marker"
+        marker.fontName = UIFont.systemFont(ofSize: 10, weight: .semibold).fontName
+        marker.fontSize = 10
+        marker.fontColor = UIColor.secondaryLabel.withAlphaComponent(0.7)
+        marker.horizontalAlignmentMode = .center
+        marker.verticalAlignmentMode = .center
+        marker.position = CGPoint(x: size.width / 2, y: 22)
+        marker.zPosition = 10
+        addChild(marker)
     }
 }
 
@@ -274,7 +303,7 @@ final class BubbleDropPhysicsScene: SKScene, SKPhysicsContactDelegate {
         removeAllChildren()
         pendingHasLanded = false
         isDraggingPending = false
-        addJarBoundaries(to: self)
+        addPhysicsBoundaries(to: self)
 
         let existingSize = BubblePhysicsMetrics.dropExistingBubbleSize(for: size.width)
         let xInset = existingSize.width / 2 + 7

@@ -35,17 +35,16 @@ struct BubbleWallView: View {
                 }
                 .pickerStyle(.segmented)
 
-                PhysicsBubbleJarView(
+                PhysicsBubbleFieldView(
                     feedbacks: displayedFeedbacks,
                     onSelect: { selectedFeedback = $0 }
                 )
-                .padding(.horizontal, 4)
                 .padding(.bottom, 8)
             } else {
                 ContentUnavailableView("作品が見つかりません", systemImage: "questionmark.folder")
             }
         }
-        .padding(.horizontal, PocoTheme.pagePadding)
+        .padding(.horizontal, 8)
         .padding(.bottom, 8)
         .background(PocoTheme.background)
         .navigationTitle(project?.title ?? "みんなのフキダシ")

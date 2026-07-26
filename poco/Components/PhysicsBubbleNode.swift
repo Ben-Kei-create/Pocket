@@ -181,19 +181,25 @@ enum BubblePhysicsBody {
 }
 
 enum BubblePhysicsMetrics {
-    static let rowSpacing: CGFloat = 62
-    static let dropRowSpacing: CGFloat = 62
+    static let wallColumnCount = 3
+    static let rowSpacing: CGFloat = 52
+    static let wallBottomStartY: CGFloat = 64
+    static let dropRowSpacing: CGFloat = 50
+    static let dropPreviewLimit = 2
 
     static func wallBubbleSize(for width: CGFloat) -> CGSize {
-        CGSize(width: min(154, max(126, (width - 24) / 2)), height: 78)
+        CGSize(
+            width: min(116, max(96, (width - 16) / CGFloat(wallColumnCount))),
+            height: 60
+        )
     }
 
     static func dropExistingBubbleSize(for width: CGFloat) -> CGSize {
-        CGSize(width: min(142, max(116, (width - 22) / 2)), height: 72)
+        CGSize(width: min(112, max(96, (width - 20) / 3)), height: 58)
     }
 
     static func pendingBubbleSize(for width: CGFloat) -> CGSize {
-        CGSize(width: min(220, width * 0.66), height: 104)
+        CGSize(width: min(184, width * 0.54), height: 88)
     }
 }
 
@@ -212,13 +218,13 @@ struct ConfigurationKey: Equatable {
 }
 
 @MainActor
-func addJarBoundaries(to scene: SKScene, height: CGFloat? = nil) {
+func addPhysicsBoundaries(to scene: SKScene, height: CGFloat? = nil) {
     let inset: CGFloat = 3
     let floorY: CGFloat = 14
     let topY = max(floorY + 1, (height ?? scene.size.height) - 2)
 
     let floor = SKNode()
-    floor.name = "jar-floor"
+    floor.name = "field-floor"
     floor.physicsBody = SKPhysicsBody(
         edgeFrom: CGPoint(x: inset, y: floorY),
         to: CGPoint(x: scene.size.width - inset, y: floorY)
@@ -229,14 +235,14 @@ func addJarBoundaries(to scene: SKScene, height: CGFloat? = nil) {
     scene.addChild(floor)
 
     for (name, start, end) in [
-        ("jar-left", CGPoint(x: inset, y: floorY), CGPoint(x: inset, y: topY)),
+        ("field-left", CGPoint(x: inset, y: floorY), CGPoint(x: inset, y: topY)),
         (
-            "jar-right",
+            "field-right",
             CGPoint(x: scene.size.width - inset, y: floorY),
             CGPoint(x: scene.size.width - inset, y: topY)
         ),
         (
-            "jar-top",
+            "field-top",
             CGPoint(x: inset, y: topY),
             CGPoint(x: scene.size.width - inset, y: topY)
         )

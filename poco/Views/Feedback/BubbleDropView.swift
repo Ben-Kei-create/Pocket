@@ -11,6 +11,7 @@ struct BubbleDropView: View {
 
     @State private var isDropped = false
     @State private var showsSuccess = false
+    @State private var showsScrollableHistory = false
     @State private var showsWall = false
     @State private var deliveryState = DeliveryState.idle
     @State private var dropTrigger = 0
@@ -22,9 +23,9 @@ struct BubbleDropView: View {
                     PocoTheme.background.ignoresSafeArea()
 
                     VStack(spacing: 5) {
-                        Text(isDropped ? "あなたのことばが届きました" : "フキダシをビンへ")
+                        Text(isDropped ? "あなたのことばが届きました" : "フキダシをおとそう")
                             .font(.title2.weight(.bold))
-                        Text(isDropped ? "クリエイターのチカラになります" : "左右に動かして、指を離すとおちます")
+                        Text(instructionText)
                             .font(.subheadline)
                             .foregroundStyle(PocoTheme.secondaryText)
                             .multilineTextAlignment(.center)
@@ -32,15 +33,22 @@ struct BubbleDropView: View {
                     .frame(maxHeight: .infinity, alignment: .top)
                     .padding(.top, 20)
 
-                    PhysicsBubbleDropJarView(
-                        feedback: feedback,
-                        existingFeedbacks: existingFeedbacks,
-                        reduceMotion: reduceMotion,
-                        dropTrigger: $dropTrigger,
-                        onLanded: handleLanding
-                    )
-                    .frame(width: proxy.size.width - 36, height: min(430, proxy.size.height * 0.58))
-                    .padding(.bottom, 18)
+                    Group {
+                        if showsScrollableHistory {
+                            PhysicsBubbleFieldView(feedbacks: feedbackHistory)
+                                .transition(.opacity)
+                        } else {
+                            PhysicsBubbleDropFieldView(
+                                feedback: feedback,
+                                existingFeedbacks: existingFeedbacks,
+                                reduceMotion: reduceMotion,
+                                dropTrigger: $dropTrigger,
+                                onLanded: handleLanding
+                            )
+                            .transition(.opacity)
+                        }
+                    }
+                    .frame(width: proxy.size.width, height: min(520, proxy.size.height * 0.67))
 
                     if showsSuccess {
                         successCard
@@ -79,6 +87,20 @@ struct BubbleDropView: View {
         .interactiveDismissDisabled(!isDropped)
     }
 
+    private var instructionText: String {
+        if showsScrollableHistory {
+            return "上が最新です。下へスクロールすると最初の感想まで見られます"
+        }
+        if isDropped {
+            return "クリエイターのチカラになります"
+        }
+        return "左右に動かして、空いている場所へおとしてみよう"
+    }
+
+    private var feedbackHistory: [Feedback] {
+        [feedback] + existingFeedbacks.filter { $0.id != feedback.id }
+    }
+
     private var successCard: some View {
         VStack(spacing: 12) {
             HStack(spacing: 8) {
@@ -89,7 +111,7 @@ struct BubbleDropView: View {
             }
 
             if deliveryState == .failed {
-                Text("フキダシはビンに残っています")
+                Text("フキダシは画面に残っています")
                     .font(.caption)
                     .foregroundStyle(PocoTheme.secondaryText)
 
@@ -129,6 +151,12 @@ struct BubbleDropView: View {
             deliver()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.78)) {
                 showsSuccess = true
+            }
+
+            let historyDelay = reduceMotion ? 80 : 420
+            try? await Task.sleep(for: .milliseconds(historyDelay))
+            withAnimation(reduceMotion ? .easeOut(duration: 0.15) : .easeInOut(duration: 0.28)) {
+                showsScrollableHistory = true
             }
         }
     }

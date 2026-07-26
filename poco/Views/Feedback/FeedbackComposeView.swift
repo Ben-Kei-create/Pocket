@@ -49,9 +49,9 @@ struct FeedbackComposeView: View {
                     .buttonStyle(PocoPrimaryButtonStyle())
                     .disabled(trimmedMessage.isEmpty || trimmedNickname.isEmpty)
                     .opacity(trimmedMessage.isEmpty || trimmedNickname.isEmpty ? 0.48 : 1)
-                    .accessibilityHint("次の画面でフキダシを瓶へ落とします")
+                    .accessibilityHint("次の画面でフキダシを落とします")
 
-                    Text("送信するとフキダシをPocoのビンに追加できます")
+                    Text("送信するとフキダシをPocoに追加できます")
                         .font(.caption)
                         .foregroundStyle(PocoTheme.secondaryText)
                         .frame(maxWidth: .infinity)

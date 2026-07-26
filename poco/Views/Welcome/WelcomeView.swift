@@ -19,7 +19,7 @@ struct WelcomeView: View {
 
             Spacer(minLength: 28)
 
-            WelcomeJarIllustration()
+            WelcomeBubbleFieldIllustration()
                 .frame(height: 260)
                 .accessibilityHidden(true)
 
@@ -63,33 +63,21 @@ private struct PocoLogoView: View {
     }
 }
 
-private struct WelcomeJarIllustration: View {
-    private let bubbles: [(CGFloat, CGFloat, CGFloat, BubbleColor)] = [
-        (-52, 48, 72, .coral), (5, 54, 68, .yellow), (55, 50, 70, .blue),
-        (-31, 3, 76, .mint), (27, 9, 74, .lavender), (0, -31, 64, .yellow)
+private struct WelcomeBubbleFieldIllustration: View {
+    private let bubbles: [(CGFloat, CGFloat, CGFloat, Double, BubbleColor)] = [
+        (-94, 64, 68, -5, .coral), (-30, 72, 72, 3, .yellow), (43, 69, 70, -2, .blue),
+        (98, 53, 62, 5, .pink), (-72, 9, 74, 2, .mint), (2, 14, 76, -3, .lavender),
+        (76, -1, 70, 4, .yellow), (-38, -45, 70, -2, .blue), (38, -50, 74, 3, .coral)
     ]
 
     var body: some View {
         ZStack {
-            Ellipse()
-                .fill(.black.opacity(0.06))
-                .frame(width: 230, height: 26)
-                .offset(y: 112)
-                .blur(radius: 4)
-
-            GlassJarShape()
-                .fill(.white.opacity(0.42))
-                .overlay {
-                    GlassJarShape()
-                        .stroke(PocoTheme.glassStroke, lineWidth: 2)
-                }
-                .frame(width: 220, height: 205)
-                .offset(y: 26)
-
             ForEach(Array(bubbles.enumerated()), id: \.offset) { index, bubble in
-                BubbleCharacter(color: bubble.3, smiling: index.isMultiple(of: 2))
+                BubbleCharacter(color: bubble.4, smiling: index.isMultiple(of: 2))
                     .frame(width: bubble.2, height: bubble.2 * 0.72)
+                    .rotationEffect(.degrees(bubble.3))
                     .offset(x: bubble.0, y: bubble.1)
+                    .shadow(color: .black.opacity(0.055), radius: 5, y: 4)
             }
         }
     }

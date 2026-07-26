@@ -2,7 +2,7 @@ import SpriteKit
 import SwiftUI
 import UIKit
 
-struct PhysicsBubbleJarView: View {
+struct PhysicsBubbleFieldView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var scrollTrigger = 0
 
@@ -13,17 +13,16 @@ struct PhysicsBubbleJarView: View {
         GeometryReader { proxy in
             let worldHeight = contentHeight(minimumHeight: proxy.size.height)
 
-            GlassJarView {
-                GeometryReader { canvas in
-                    BubbleWallPhysicsCanvas(
-                        feedbacks: feedbacks,
-                        size: canvas.size,
-                        worldHeight: worldHeight,
-                        reduceMotion: reduceMotion,
-                        scrollTrigger: scrollTrigger,
-                        onSelect: onSelect
-                    )
-                }
+            BubbleWallPhysicsCanvas(
+                feedbacks: feedbacks,
+                size: proxy.size,
+                worldHeight: worldHeight,
+                reduceMotion: reduceMotion,
+                scrollTrigger: scrollTrigger,
+                onSelect: onSelect
+            )
+            .background {
+                PocoTheme.cardBackground.opacity(0.28)
             }
             .overlay(alignment: .topTrailing) {
                 Label(
@@ -43,7 +42,7 @@ struct PhysicsBubbleJarView: View {
                     guard let latest = feedbacks.first else { return }
                     onSelect?(latest)
                 } label: {
-                    Text("感想のフキダシ、\(feedbacks.count)件。最新から順に表示しています")
+                    Text("感想のフキダシ、\(feedbacks.count)件。画面の上から最新順に表示しています")
                 }
                 .accessibilityHint("上下にスクロールできます。実行すると最新の感想を開きます")
                 .accessibilityAction(named: "古い感想へ") {
@@ -57,12 +56,17 @@ struct PhysicsBubbleJarView: View {
     }
 
     private func contentHeight(minimumHeight: CGFloat) -> CGFloat {
-        let rows = ceil(CGFloat(max(feedbacks.count, 1)) / 2)
-        return max(minimumHeight, rows * BubblePhysicsMetrics.rowSpacing + 50)
+        let rows = ceil(
+            CGFloat(max(feedbacks.count, 1)) / CGFloat(BubblePhysicsMetrics.wallColumnCount)
+        )
+        return max(
+            minimumHeight,
+            rows * BubblePhysicsMetrics.rowSpacing + BubblePhysicsMetrics.wallBottomStartY + 18
+        )
     }
 }
 
-struct PhysicsBubbleDropJarView: View {
+struct PhysicsBubbleDropFieldView: View {
     let feedback: Feedback
     let existingFeedbacks: [Feedback]
     let reduceMotion: Bool
@@ -70,27 +74,26 @@ struct PhysicsBubbleDropJarView: View {
     let onLanded: () -> Void
 
     var body: some View {
-        GlassJarView {
-            GeometryReader { canvas in
-                BubbleDropPhysicsCanvas(
-                    feedback: feedback,
-                    existingFeedbacks: Array(
-                        existingFeedbacks
-                            .filter { $0.id != feedback.id }
-                            .prefix(10)
-                    ),
-                    size: canvas.size,
-                    reduceMotion: reduceMotion,
-                    dropTrigger: dropTrigger,
-                    onLanded: onLanded
-                )
-            }
+        GeometryReader { canvas in
+            BubbleDropPhysicsCanvas(
+                feedback: feedback,
+                existingFeedbacks: Array(
+                    existingFeedbacks
+                        .filter { $0.id != feedback.id }
+                        .prefix(BubblePhysicsMetrics.dropPreviewLimit)
+                ),
+                size: canvas.size,
+                reduceMotion: reduceMotion,
+                dropTrigger: dropTrigger,
+                onLanded: onLanded
+            )
         }
+        .background(PocoTheme.cardBackground.opacity(0.28))
         .accessibilityRepresentation {
-            Button("フキダシを瓶におとす") {
+            Button("フキダシをおとす") {
                 dropTrigger += 1
             }
-            .accessibilityHint("フキダシが中央から落下し、ほかのフキダシに着地します")
+            .accessibilityHint("フキダシが上から落下し、ほかのフキダシに着地します")
         }
     }
 }
