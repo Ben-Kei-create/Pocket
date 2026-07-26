@@ -9,11 +9,11 @@ struct BubbleDropView: View {
     let existingFeedbacks: [Feedback]
     let onDelivered: () async -> Result<Void, AppError>
 
-    @State private var dragOffset: CGSize = .zero
     @State private var isDropped = false
     @State private var showsSuccess = false
     @State private var showsWall = false
     @State private var deliveryState = DeliveryState.idle
+    @State private var dropTrigger = 0
 
     var body: some View {
         NavigationStack {
@@ -24,7 +24,7 @@ struct BubbleDropView: View {
                     VStack(spacing: 5) {
                         Text(isDropped ? "あなたのことばが届きました" : "フキダシをビンへ")
                             .font(.title2.weight(.bold))
-                        Text(isDropped ? "クリエイターのチカラになります" : "下へスワイプ、またはドラッグしておとしてみよう")
+                        Text(isDropped ? "クリエイターのチカラになります" : "左右に動かして、指を離すとおちます")
                             .font(.subheadline)
                             .foregroundStyle(PocoTheme.secondaryText)
                             .multilineTextAlignment(.center)
@@ -32,23 +32,15 @@ struct BubbleDropView: View {
                     .frame(maxHeight: .infinity, alignment: .top)
                     .padding(.top, 20)
 
-                    GlassJarView {
-                        BubblePileView(feedbacks: existingFeedbacks)
-                    }
+                    PhysicsBubbleDropJarView(
+                        feedback: feedback,
+                        existingFeedbacks: existingFeedbacks,
+                        reduceMotion: reduceMotion,
+                        dropTrigger: $dropTrigger,
+                        onLanded: handleLanding
+                    )
                     .frame(width: proxy.size.width - 36, height: min(430, proxy.size.height * 0.58))
                     .padding(.bottom, 18)
-
-                    BubbleView(feedback: feedback)
-                        .frame(width: min(294, proxy.size.width - 60), height: 126)
-                        .rotationEffect(.degrees(isDropped ? -2.5 : 0))
-                        .position(x: proxy.size.width / 2, y: 135)
-                        .offset(dragOffset)
-                        .gesture(dropGesture(in: proxy.size))
-                        .allowsHitTesting(!isDropped)
-                        .accessibilityHint("下方向へドラッグすると瓶に入ります")
-                        .accessibilityAction(named: "瓶におとす") {
-                            land(in: proxy.size, horizontalOffset: 0)
-                        }
 
                     if showsSuccess {
                         successCard
@@ -125,46 +117,14 @@ struct BubbleDropView: View {
         .shadow(color: .black.opacity(0.08), radius: 16, y: 8)
     }
 
-    private func dropGesture(in size: CGSize) -> some Gesture {
-        DragGesture(minimumDistance: 4)
-            .onChanged { value in
-                guard !isDropped else { return }
-                let horizontalLimit = size.width * 0.30
-                dragOffset = CGSize(
-                    width: min(max(value.translation.width, -horizontalLimit), horizontalLimit),
-                    height: max(value.translation.height, -18)
-                )
-            }
-            .onEnded { value in
-                let shouldDrop = value.translation.height > 75 || value.predictedEndTranslation.height > 145
-                if shouldDrop {
-                    land(in: size, horizontalOffset: value.translation.width)
-                } else {
-                    withAnimation(.spring(response: 0.38, dampingFraction: 0.74)) {
-                        dragOffset = .zero
-                    }
-                }
-            }
-    }
-
-    private func land(in size: CGSize, horizontalOffset: CGFloat) {
+    private func handleLanding() {
         guard !isDropped else { return }
         isDropped = true
-        let horizontalLimit = size.width * 0.26
-        let finalX = min(max(horizontalOffset * 0.42, -horizontalLimit), horizontalLimit)
-        let targetY = size.height - min(226, size.height * 0.29)
-
-        let landingAnimation: Animation = reduceMotion
-            ? .easeOut(duration: 0.18)
-            : .spring(response: 0.55, dampingFraction: 0.72)
-        withAnimation(landingAnimation) {
-            dragOffset = CGSize(width: finalX, height: targetY - 135)
-        }
 
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
 
         Task {
-            let landingDelay = reduceMotion ? 180 : 420
+            let landingDelay = reduceMotion ? 80 : 220
             try? await Task.sleep(for: .milliseconds(landingDelay))
             deliver()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.78)) {

@@ -35,39 +35,36 @@ struct BubbleView: View {
     var compact = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: compact ? 5 : 10) {
+        VStack(alignment: .leading, spacing: compact ? 3 : 10) {
             Text(feedback.message)
-                .font(compact ? .caption.weight(.medium) : .body.weight(.medium))
+                .font(compact ? .system(size: 9.5, weight: .semibold) : .body.weight(.medium))
                 .foregroundStyle(Color(uiColor: .label).opacity(0.86))
-                .lineLimit(compact ? 3 : 5)
+                .lineLimit(compact ? 2 : 5)
                 .lineSpacing(compact ? 1 : 3)
                 .minimumScaleFactor(0.82)
 
-            HStack(spacing: 6) {
+            HStack(spacing: compact ? 4 : 6) {
                 Text(String(feedback.nickname.prefix(1)))
-                    .font(.system(size: compact ? 8 : 10, weight: .bold, design: .rounded))
+                    .font(.system(size: compact ? 7 : 10, weight: .bold, design: .rounded))
                     .foregroundStyle(.white)
-                    .frame(width: compact ? 18 : 23, height: compact ? 18 : 23)
+                    .frame(width: compact ? 14 : 23, height: compact ? 14 : 23)
                     .background(.black.opacity(0.22), in: Circle())
 
                 Text(feedback.nickname)
-                    .font(compact ? .caption2 : .caption)
+                    .font(compact ? .system(size: 8, weight: .medium) : .caption)
                     .foregroundStyle(Color(uiColor: .secondaryLabel))
                     .lineLimit(1)
             }
         }
-        .padding(.horizontal, compact ? 12 : 18)
-        .padding(.top, compact ? 10 : 16)
+        .padding(.horizontal, compact ? 15 : 18)
+        .padding(.top, compact ? 12 : 16)
         .padding(.bottom, compact ? 15 : 20)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .background {
-            SpeechBubbleShape()
-                .fill(PocoTheme.bubble(feedback.bubbleColor).opacity(0.92))
+            Image("BubbleTexture")
+                .resizable()
+                .colorMultiply(PocoTheme.bubble(feedback.bubbleColor))
                 .shadow(color: .black.opacity(0.055), radius: compact ? 5 : 9, y: 4)
-        }
-        .overlay {
-            SpeechBubbleShape()
-                .stroke(.white.opacity(0.42), lineWidth: 1)
         }
         .contentShape(SpeechBubbleShape())
         .accessibilityElement(children: .combine)

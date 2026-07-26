@@ -35,13 +35,10 @@ struct BubbleWallView: View {
                 }
                 .pickerStyle(.segmented)
 
-                GlassJarView {
-                    BubblePileView(
-                        feedbacks: displayedFeedbacks,
-                        isInteractive: true,
-                        onSelect: { selectedFeedback = $0 }
-                    )
-                }
+                PhysicsBubbleJarView(
+                    feedbacks: displayedFeedbacks,
+                    onSelect: { selectedFeedback = $0 }
+                )
                 .padding(.horizontal, 4)
                 .padding(.bottom, 8)
             } else {
