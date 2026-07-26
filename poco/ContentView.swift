@@ -1,24 +1,31 @@
-//
-//  ContentView.swift
-//  poco
-//
-//  Created by 茂木史明 on 2026/07/26.
-//
-
 import SwiftUI
 
 struct ContentView: View {
+    @Environment(PocoStore.self) private var store
+    @AppStorage("poco.hasCompletedWelcome") private var hasCompletedWelcome = false
+
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        Group {
+            if hasCompletedWelcome {
+                MainTabView()
+            } else {
+                WelcomeView {
+                    withAnimation(.easeInOut(duration: 0.35)) {
+                        hasCompletedWelcome = true
+                    }
+                }
+                .transition(.opacity)
+            }
         }
-        .padding()
+        .background(PocoTheme.background)
+        .onOpenURL { url in
+            hasCompletedWelcome = true
+            store.open(url: url)
+        }
     }
 }
 
 #Preview {
     ContentView()
+        .environment(PocoStore())
 }

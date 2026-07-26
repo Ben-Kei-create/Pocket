@@ -8,10 +8,14 @@
 import SwiftUI
 
 @main
-struct pocoApp: App {
+struct PocoApp: App {
+    @State private var store = PocoStore()
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environment(store)
+                .tint(PocoTheme.primary)
         }
     }
 }
