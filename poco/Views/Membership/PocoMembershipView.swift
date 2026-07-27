@@ -20,14 +20,14 @@ struct PocoMembershipView: View {
                     .multilineTextAlignment(.center)
 
                     VStack(spacing: 12) {
-                        benefit("人気のフキダシがわかる", symbol: "chart.line.uptrend.xyaxis")
+                        benefit("共感が集まったフキダシがわかる", symbol: "heart.text.square")
                         benefit("自分の作品が受け取ったいいねを確認", symbol: "heart.text.square")
                         benefit("自分の感想についたいいねを確認", symbol: "bubble.left.and.text.bubble.right")
                         benefit("広告なしで楽しめる", symbol: "rectangle.badge.xmark")
                     }
 
                     VStack(spacing: 5) {
-                        Text("月額300円（予定）")
+                        Text(priceText)
                             .font(.title3.bold())
                         Text("いつでも解約できます")
                             .font(.caption)
@@ -43,17 +43,47 @@ struct PocoMembershipView: View {
                         }
                         .buttonStyle(PocoPrimaryButtonStyle())
                     } else {
-                        Button("App Store課金は準備中") {}
-                            .buttonStyle(PocoPrimaryButtonStyle())
-                            .disabled(true)
+                        Button {
+                            Task { await store.purchaseMembership() }
+                        } label: {
+                            if store.membershipPurchaseState == .purchasing {
+                                ProgressView()
+                                    .tint(.white)
+                            } else {
+                                Text(store.canCreateProjects ? "Pocoメンバーになる" : "登録後に利用できます")
+                            }
+                        }
+                        .buttonStyle(PocoPrimaryButtonStyle())
+                        .disabled(
+                            !store.canCreateProjects
+                                || store.membershipOffer == nil
+                                || store.membershipPurchaseState == .purchasing
+                        )
+
+                        Button("購入を復元") {
+                            Task { await store.restoreMembership() }
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(PocoTheme.primary)
+                        .disabled(!store.canCreateProjects || store.membershipPurchaseState == .loading)
                     }
 
-                    Text("本番ではStoreKitの購入確認後に会員機能が有効になります。")
+                    if case .error(let message) = store.membershipPurchaseState {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .multilineTextAlignment(.center)
+                    }
+
+                    Text("購入はApple IDに請求され、設定からいつでも解約できます。")
                         .font(.caption)
                         .foregroundStyle(PocoTheme.tertiaryText)
                         .multilineTextAlignment(.center)
                 }
                 .padding(PocoTheme.pagePadding)
+            }
+            .task {
+                await store.loadMembershipOffer()
             }
             .background(PocoTheme.background)
             .navigationTitle("メンバーシップ")
@@ -64,6 +94,11 @@ struct PocoMembershipView: View {
                 }
             }
         }
+    }
+
+    private var priceText: String {
+        guard store.backendMode == .supabase else { return "月額300円（予定）" }
+        return store.membershipOffer.map { "月額 \($0.displayPrice)" } ?? "料金を読み込み中"
     }
 
     private var memberMark: some View {

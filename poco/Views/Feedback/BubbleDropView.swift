@@ -35,7 +35,11 @@ struct BubbleDropView: View {
 
                     Group {
                         if showsScrollableHistory {
-                            PhysicsBubbleFieldView(feedbacks: feedbackHistory)
+                            PhysicsBubbleFieldView(
+                                feedbacks: feedbackHistory,
+                                highlightedFeedbackIDs: [feedback.id],
+                                focusFeedbackID: feedback.id
+                            )
                                 .transition(.opacity)
                         } else {
                             PhysicsBubbleDropFieldView(

@@ -74,9 +74,35 @@ nonisolated enum MembershipTier: String, Codable, Sendable {
     var isMember: Bool { self == .pocoMember }
 }
 
+nonisolated enum AccountStatus: String, Codable, Sendable {
+    case guest
+    case registered
+
+    var canCreateProjects: Bool { self == .registered }
+}
+
 nonisolated struct MemberLikeSummary: Equatable, Sendable {
     let projectLikes: Int
     let feedbackLikes: Int
+}
+
+nonisolated struct MembershipOffer: Equatable, Sendable {
+    let productID: String
+    let displayPrice: String
+}
+
+nonisolated enum MembershipPurchaseResult: Sendable {
+    case purchased
+    case pending
+    case cancelled
+}
+
+nonisolated enum MembershipPurchaseState: Equatable, Sendable {
+    case idle
+    case loading
+    case purchasing
+    case purchased
+    case error(String)
 }
 
 nonisolated enum BubbleColor: String, CaseIterable, Codable, Sendable {

@@ -31,6 +31,7 @@ protocol ProjectImageStorage: Sendable {
 
 protocol CurrentUserProvider: Sendable {
     func currentUserID() async -> UUID?
+    func accountStatus() async -> AccountStatus
 }
 
 protocol MembershipRepository: Sendable {
@@ -159,6 +160,12 @@ struct MockCurrentUserProvider: CurrentUserProvider {
 
     nonisolated func currentUserID() async -> UUID? {
         userID
+    }
+
+    nonisolated func accountStatus() async -> AccountStatus {
+        UserDefaults.standard.bool(forKey: "poco.previewRegisteredAccount")
+            ? .registered
+            : .guest
     }
 }
 

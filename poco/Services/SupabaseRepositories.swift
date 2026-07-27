@@ -221,13 +221,21 @@ actor SupabaseCurrentUserProvider: CurrentUserProvider {
     }
 
     func currentUserID() async -> UUID? {
-        if let userID = client.auth.currentUser?.id {
-            return userID
+        await currentOrAnonymousUser()?.id
+    }
+
+    func accountStatus() async -> AccountStatus {
+        guard let user = await currentOrAnonymousUser() else { return .guest }
+        return user.isAnonymous ? .guest : .registered
+    }
+
+    private func currentOrAnonymousUser() async -> User? {
+        if let user = client.auth.currentUser {
+            return user
         }
 
-        // Supabase anonymous auth gives each guest a stable identity. They can
-        // like once per bubble without becoming a registered Poco member.
-        return try? await client.auth.signInAnonymously().user.id
+        // Anonymous Auth gives a guest a stable identity for feedback and Likes.
+        return try? await client.auth.signInAnonymously().user
     }
 }
 
@@ -236,7 +244,22 @@ struct DevelopmentCurrentUserProvider: CurrentUserProvider {
     let fallbackUserID: UUID?
 
     nonisolated func currentUserID() async -> UUID? {
-        await authenticatedProvider.currentUserID() ?? fallbackUserID
+        let status = await authenticatedProvider.accountStatus()
+        if status == .registered {
+            return await authenticatedProvider.currentUserID()
+        }
+        if let fallbackUserID {
+            return fallbackUserID
+        }
+        return await authenticatedProvider.currentUserID()
+    }
+
+    nonisolated func accountStatus() async -> AccountStatus {
+        let authenticatedStatus = await authenticatedProvider.accountStatus()
+        if authenticatedStatus == .registered || fallbackUserID != nil {
+            return .registered
+        }
+        return .guest
     }
 }
 

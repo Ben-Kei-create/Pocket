@@ -7,6 +7,8 @@ struct PhysicsBubbleFieldView: View {
     @State private var scrollTrigger = 0
 
     let feedbacks: [Feedback]
+    var highlightedFeedbackIDs: Set<UUID> = []
+    var focusFeedbackID: UUID?
     var onSelect: ((Feedback) -> Void)?
 
     var body: some View {
@@ -24,6 +26,8 @@ struct PhysicsBubbleFieldView: View {
                 worldHeight: worldHeight,
                 reduceMotion: reduceMotion,
                 scrollTrigger: scrollTrigger,
+                highlightedFeedbackIDs: highlightedFeedbackIDs,
+                focusFeedbackID: focusFeedbackID,
                 onSelect: onSelect
             )
             .background {
@@ -100,6 +104,8 @@ private struct BubbleWallPhysicsCanvas: UIViewRepresentable {
     let worldHeight: CGFloat
     let reduceMotion: Bool
     let scrollTrigger: Int
+    let highlightedFeedbackIDs: Set<UUID>
+    let focusFeedbackID: UUID?
     let onSelect: ((Feedback) -> Void)?
 
     func makeCoordinator() -> Coordinator {
@@ -128,6 +134,8 @@ private struct BubbleWallPhysicsCanvas: UIViewRepresentable {
             worldHeight: worldHeight,
             reduceMotion: reduceMotion,
             scrollTrigger: scrollTrigger,
+            highlightedFeedbackIDs: highlightedFeedbackIDs,
+            focusFeedbackID: focusFeedbackID,
             onSelect: onSelect
         )
     }
@@ -142,6 +150,7 @@ private struct BubbleWallPhysicsCanvas: UIViewRepresentable {
         private let scene = BubbleWallPhysicsScene()
         private weak var view: SKView?
         private var handledScrollTrigger = 0
+        private var handledFocusFeedbackID: UUID?
 
         func present(in view: SKView) {
             scene.scaleMode = .resizeFill
@@ -162,6 +171,8 @@ private struct BubbleWallPhysicsCanvas: UIViewRepresentable {
             worldHeight: CGFloat,
             reduceMotion: Bool,
             scrollTrigger: Int,
+            highlightedFeedbackIDs: Set<UUID>,
+            focusFeedbackID: UUID?,
             onSelect: ((Feedback) -> Void)?
         ) {
             scene.configure(
@@ -170,6 +181,7 @@ private struct BubbleWallPhysicsCanvas: UIViewRepresentable {
                 size: size,
                 worldHeight: worldHeight,
                 reduceMotion: reduceMotion,
+                highlightedFeedbackIDs: highlightedFeedbackIDs,
                 onSelect: onSelect
             )
 
@@ -177,6 +189,12 @@ private struct BubbleWallPhysicsCanvas: UIViewRepresentable {
                 let direction: CGFloat = scrollTrigger > handledScrollTrigger ? 1 : -1
                 handledScrollTrigger = scrollTrigger
                 scene.scrollBy(direction * size.height * 0.78)
+            }
+
+
+            if let focusFeedbackID, focusFeedbackID != handledFocusFeedbackID {
+                handledFocusFeedbackID = focusFeedbackID
+                scene.scrollTo(feedbackID: focusFeedbackID)
             }
         }
 

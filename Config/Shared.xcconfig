@@ -3,5 +3,8 @@ POCO_BACKEND = mock
 SUPABASE_URL =
 SUPABASE_ANON_KEY =
 POCO_DEVELOPMENT_USER_ID =
+POCO_MEMBERSHIP_PRODUCT_ID = com.fumiakiMogi777.poco.member.monthly
+POCO_AD_PROVIDER = placeholder
+POCO_AD_UNIT_ID =
 
 #include? "Secrets.xcconfig"

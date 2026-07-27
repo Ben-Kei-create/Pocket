@@ -1,5 +1,29 @@
 import SwiftUI
 
+enum PocoAdPlacement: String, Sendable {
+    case home
+    case project
+    case bubbleWall
+}
+
+struct PocoAdPlacementView: View {
+    @Environment(PocoStore.self) private var store
+    @State private var showsMembership = false
+    let placement: PocoAdPlacement
+
+    var body: some View {
+        if !store.isPocoMember {
+            PocoAdBanner {
+                showsMembership = true
+            }
+            .sheet(isPresented: $showsMembership) {
+                PocoMembershipView()
+            }
+            .accessibilityIdentifier("poco-ad-\(placement.rawValue)")
+        }
+    }
+}
+
 struct PocoAdBanner: View {
     let onRemoveAds: () -> Void
 

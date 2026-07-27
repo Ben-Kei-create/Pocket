@@ -8,6 +8,7 @@ nonisolated enum AppError: Error, Equatable, Sendable {
     case storage
     case configuration
     case alreadyLiked
+    case purchase
     case unknown(String?)
 
     var userMessage: String {
@@ -26,6 +27,8 @@ nonisolated enum AppError: Error, Equatable, Sendable {
             "バックエンドの設定を確認してください。"
         case .alreadyLiked:
             "このフキダシにはいいね済みです。"
+        case .purchase:
+            "購入を完了できませんでした。もう一度お試しください。"
         case .unknown:
             "問題が発生しました。もう一度お試しください。"
         }

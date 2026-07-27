@@ -56,17 +56,31 @@ Migrationは次の順で再構築できます。
 - `003_storage.sql`: `project-images` BucketとStorage Policy
 - `004_realtime.sql`: `feedbacks`のRealtime publication
 - `005_memberships.sql`: Pocoメンバー資格、本人のみread可能なRLS、匿名ゲスト用プロフィール
+- `006_registered_creators.sql`: Anonymous Authゲストの作品作成・画像更新を拒否
 
 `feedback_count`は重複カラムにせず`projects_with_feedback_count` Viewで計算します。`likes_count`は`feedback_likes`のINSERT/DELETEトリガーだけで更新し、整合性を維持します。
 
 ## ゲスト・Pocoメンバー・広告
 
 - ゲスト投稿者にはSupabase Anonymous Authを使用し、登録画面なしで端末固有のユーザーIDを付与します。これにより、ゲストもRLSを保ったまま1つのフキダシへ1回いいねできます。Supabase DashboardでAnonymous Sign-Insを有効にしてください。
+- 閲覧・感想投稿・いいねはゲストでも利用できます。作品作成は登録ユーザーだけ、共感順・自分の作品/感想に届いたいいね集計・広告非表示はPocoメンバーだけが利用できます。`006_registered_creators.sql`はAnonymous Authユーザーによる作品作成と画像更新をDB側でも拒否します。
 - いいね済み状態は`feedback_likes`から復元します。画面内の連打防止だけに依存せず、DBの`unique(feedback_id, user_id)`を最終的な保証にしています。
 - `memberships`はアプリから更新できません。本番ではStoreKit 2の購入結果をApp Store Server Notificationsで検証し、service roleを持つEdge Functionなどからのみ更新します。
-- Mock環境ではマイページまたは広告バーから会員表示を試せます。本番環境の購入ボタンはStoreKit導入まで無効です。
-- `PocoAdBanner`は広告枠のUI境界です。現在はプレースホルダーで、配信開始時にGoogle Mobile Ads等の実装へ内部だけを差し替えます。
-- 人気順といいね集計はUI上で会員限定です。本番公開前には、人気順・会員集計を会員資格検証付きRPCへ移し、`likes_count`を直接ランキング用途で取得させないようにしてください。
+- Mock環境ではマイページまたは広告バーから登録・会員表示を試せます。Supabase環境ではStoreKit 2がApp Store Connectの商品情報を読み込み、購入・復元・端末上のTransaction検証を行います。
+- `PocoAdBanner`は広告枠のUI境界です。広告はHome・Project Detail・Bubble Wallだけに配置し、投稿入力・落下・完了体験には表示しません。現在はプレースホルダーで、配信開始時にGoogle Mobile Ads等の実装へ内部だけを差し替えます。
+- 共感順といいね集計はUI上で会員限定です。本番公開前には、共感順・会員集計を会員資格検証付きRPCへ移し、`likes_count`を直接ランキング用途で取得させないようにしてください。
+
+## StoreKit 2セットアップ
+
+1. App Store Connectで自動更新サブスクリプションを作成し、商品IDを`Config/Shared.xcconfig`の`POCO_MEMBERSHIP_PRODUCT_ID`へ設定します。現在の開発用IDは`com.fumiakiMogi777.poco.member.monthly`です。
+2. 価格・ローカライズ・審査用情報をApp Store Connectへ設定します。表示価格は固定文字列ではなくStoreKitの`displayPrice`を使用します。
+3. App Store Server Notifications V2の送信先をSupabase Edge Functionへ設定し、Appleの署名済みTransactionをサーバーで検証します。
+4. 検証成功後だけservice role側から`memberships`を更新します。アプリの購入成功表示だけを会員資格の永続的な根拠にしないでください。
+5. XcodeのStoreKit ConfigurationまたはSandbox Accountで新規購入・保留・取消・期限切れ・復元を確認します。
+
+## 広告配信セットアップ
+
+`POCO_AD_PROVIDER`と`POCO_AD_UNIT_ID`は広告Adapter用の設定境界です。広告事業者を決めた後、SDKをSwift Package Managerで追加し、`PocoAdBanner`内部をProvider固有Viewへ差し替えてください。開発中は必ずテスト広告ユニットIDを使い、ATT同意・プライバシーマニフェスト・子ども向けコンテンツ設定・同意管理を審査前に確認します。広告認証情報が未設定の現在は、実広告を要求せずプレースホルダーを表示します。
 
 匿名Feedbackは`sender_id = null`で投稿できます。匿名投稿は後から本人確認して更新・削除できないため、将来のAuth導入時には端末トークンまたはEdge Functionを使った所有権設計を追加してください。また、公開Anon投稿はBot対策、Rate Limit、内容モデレーションを本番公開前に追加する必要があります。
 

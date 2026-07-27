@@ -15,14 +15,14 @@ final class PhysicsBubbleNode: SKNode {
 
     private let visualContainer = SKNode()
 
-    init(feedback: Feedback, size: CGSize) {
+    init(feedback: Feedback, size: CGSize, highlighted: Bool = false) {
         feedbackID = feedback.id
         visualSize = size
         super.init()
 
         name = "feedback-\(feedback.id.uuidString)"
         addChild(visualContainer)
-        addBubbleArtwork(feedback: feedback, size: size)
+        addBubbleArtwork(feedback: feedback, size: size, highlighted: highlighted)
 
         physicsBody = BubblePhysicsBody.make(size: size)
         physicsBody?.categoryBitMask = PhysicsCategory.bubble
@@ -60,13 +60,17 @@ final class PhysicsBubbleNode: SKNode {
         visualContainer.run(action, withKey: "poyon")
     }
 
-    private func addBubbleArtwork(feedback: Feedback, size: CGSize) {
+    private func addBubbleArtwork(feedback: Feedback, size: CGSize, highlighted: Bool) {
         let bubbleSprite = SKSpriteNode(texture: Self.sharedBubbleTexture)
         bubbleSprite.size = size
         bubbleSprite.color = UIColor(PocoTheme.bubble(feedback.bubbleColor))
         bubbleSprite.colorBlendFactor = 0.70
         bubbleSprite.zPosition = 0
         visualContainer.addChild(bubbleSprite)
+
+        if highlighted {
+            addOwnerHighlight(size: size)
+        }
 
         let tier = BubbleSizeTier(message: feedback.message)
         let fontSize: CGFloat = switch tier {
@@ -131,6 +135,35 @@ final class PhysicsBubbleNode: SKNode {
         nickname.position = CGPoint(x: leadingX + avatarRadius * 2 + 5, y: authorY)
         nickname.zPosition = 2
         visualContainer.addChild(nickname)
+    }
+
+    private func addOwnerHighlight(size: CGSize) {
+        let outline = SKShapeNode(
+            rectOf: CGSize(width: size.width + 5, height: size.height + 5),
+            cornerRadius: size.height / 2
+        )
+        outline.fillColor = .clear
+        outline.strokeColor = UIColor(PocoTheme.primary).withAlphaComponent(0.72)
+        outline.lineWidth = 1.5
+        outline.glowWidth = 3
+        outline.zPosition = 1
+        visualContainer.addChild(outline)
+
+        let badgeSize = CGSize(width: 36, height: 15)
+        let badge = SKShapeNode(rectOf: badgeSize, cornerRadius: badgeSize.height / 2)
+        badge.fillColor = UIColor(PocoTheme.primary).withAlphaComponent(0.92)
+        badge.strokeColor = .clear
+        badge.position = CGPoint(x: size.width * 0.24, y: size.height * 0.29)
+        badge.zPosition = 3
+        visualContainer.addChild(badge)
+
+        let label = makeLabel(
+            text: "あなた",
+            font: .systemFont(ofSize: 7, weight: .bold),
+            color: .white
+        )
+        label.position = .zero
+        badge.addChild(label)
     }
 
     private func makeLabel(text: String, font: UIFont, color: UIColor) -> SKLabelNode {
@@ -323,6 +356,7 @@ enum PhysicsCategory {
 
 struct ConfigurationKey: Equatable {
     let ids: [UUID]
+    var highlightedIDs: [UUID] = []
     let width: Int
     let height: Int
     var worldHeight = 0

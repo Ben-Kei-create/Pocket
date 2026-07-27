@@ -20,6 +20,9 @@ enum AppEnvironment {
                 ),
                 profileRepository: SupabaseProfileRepository(client: client),
                 membershipRepository: SupabaseMembershipRepository(client: client),
+                membershipPurchaseService: StoreKitMembershipService(
+                    productID: configuration.membershipProductID
+                ),
                 currentUserProvider: creatorUserProvider,
                 projectImageStorage: SupabaseProjectImageStorage(client: client),
                 backendMode: .supabase,
@@ -30,6 +33,7 @@ enum AppEnvironment {
 
         let store = PocoStore(
             membershipRepository: MockMembershipRepository(),
+            membershipPurchaseService: DisabledMembershipPurchaseService(),
             backendMode: .mock,
             initialProjects: MockData.projects,
             initialFeedbacks: MockData.feedbacks

@@ -8,6 +8,7 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
     private var oldestFeedbacks: [Feedback] = []
     private var placementByID: [UUID: BubbleFieldPlacement] = [:]
     private var activeBubbleNodes: [UUID: PhysicsBubbleNode] = [:]
+    private var highlightedFeedbackIDs: Set<UUID> = []
     private var onSelect: ((Feedback) -> Void)?
     private var touchStart: CGPoint?
     private var reduceMotion = false
@@ -30,11 +31,13 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
         size: CGSize,
         worldHeight: CGFloat,
         reduceMotion: Bool,
+        highlightedFeedbackIDs: Set<UUID>,
         onSelect: ((Feedback) -> Void)?
     ) {
         self.onSelect = onSelect
         let key = ConfigurationKey(
             ids: feedbacks.map(\.id),
+            highlightedIDs: highlightedFeedbackIDs.sorted { $0.uuidString < $1.uuidString },
             width: Int(size.width.rounded()),
             height: Int(size.height.rounded()),
             worldHeight: Int(worldHeight.rounded()),
@@ -44,6 +47,7 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
 
         configurationKey = key
         self.reduceMotion = reduceMotion
+        self.highlightedFeedbackIDs = highlightedFeedbackIDs
         self.size = size
         self.worldHeight = max(size.height, worldHeight)
         physicsWorld.gravity = .zero
@@ -55,6 +59,14 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
         let minimumY = size.height / 2
         let maximumY = worldHeight - size.height / 2
         cameraNode.position.y = min(max(cameraNode.position.y + distance, minimumY), maximumY)
+        updateVisibleBubbleNodes()
+    }
+
+    func scrollTo(feedbackID: UUID) {
+        guard let placement = placementByID[feedbackID] else { return }
+        let minimumY = size.height / 2
+        let maximumY = max(minimumY, worldHeight - size.height / 2)
+        cameraNode.position.y = min(max(placement.position.y, minimumY), maximumY)
         updateVisibleBubbleNodes()
     }
 
@@ -144,7 +156,11 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
         for feedback in visibleFeedbacks {
             guard activeBubbleNodes[feedback.id] == nil,
                   let placement = placementByID[feedback.id] else { continue }
-            let node = PhysicsBubbleNode(feedback: feedback, size: placement.size)
+            let node = PhysicsBubbleNode(
+                feedback: feedback,
+                size: placement.size,
+                highlighted: highlightedFeedbackIDs.contains(feedback.id)
+            )
 
             node.position = placement.position
             node.zRotation = reduceMotion ? 0 : placement.rotation

@@ -4,13 +4,23 @@ struct HomeView: View {
     @Environment(PocoStore.self) private var store
     @State private var selectedCategory: CategoryFilter = .all
     @State private var showsNotifications = false
+    @State private var searchText = ""
 
     private var visibleProjects: [Project] {
-        switch selectedCategory {
+        let categoryProjects = switch selectedCategory {
         case .all:
             store.projects
         case .category(let category):
             store.projects.filter { $0.category == category }
+        }
+
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return categoryProjects }
+        return categoryProjects.filter { project in
+            project.title.localizedStandardContains(query)
+                || project.creator.name.localizedStandardContains(query)
+                || project.description.localizedStandardContains(query)
+                || project.category.title.localizedStandardContains(query)
         }
     }
 
@@ -45,6 +55,14 @@ struct HomeView: View {
                 .padding(.bottom, 24)
             }
             .background(PocoTheme.background)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                PocoAdPlacementView(placement: .home)
+            }
+            .searchable(
+                text: $searchText,
+                placement: .navigationBarDrawer(displayMode: .always),
+                prompt: "作品名・クリエイター名で検索"
+            )
             .navigationTitle("Poco")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -98,8 +116,10 @@ struct HomeView: View {
             }
         case .loaded:
             ContentUnavailableView(
-                selectedCategory == .all ? "作品はまだありません" : "このカテゴリの作品はありません",
-                systemImage: "books.vertical"
+                searchText.isEmpty
+                    ? (selectedCategory == .all ? "作品はまだありません" : "このカテゴリの作品はありません")
+                    : "検索に一致する作品がありません",
+                systemImage: searchText.isEmpty ? "books.vertical" : "magnifyingglass"
             )
         }
     }

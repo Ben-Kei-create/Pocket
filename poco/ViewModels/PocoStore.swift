@@ -10,8 +10,11 @@ final class PocoStore {
     var homePath: [UUID] = []
     var errorMessage: String?
     private(set) var membershipTier: MembershipTier = .guest
+    private(set) var accountStatus: AccountStatus = .guest
     private(set) var currentUserID: UUID?
     private(set) var likedFeedbackIDs: Set<UUID> = []
+    private(set) var membershipOffer: MembershipOffer?
+    private(set) var membershipPurchaseState: MembershipPurchaseState = .idle
     private(set) var projectLoadState: LoadState = .idle
     private(set) var feedbackLoadStates: [UUID: LoadState] = [:]
     let backendMode: BackendMode
@@ -20,6 +23,7 @@ final class PocoStore {
     private let feedbackRepository: any FeedbackRepository
     private let profileRepository: any ProfileRepository
     private let membershipRepository: any MembershipRepository
+    private let membershipPurchaseService: any MembershipPurchaseService
     private let currentUserProvider: any CurrentUserProvider
     private let projectImageStorage: (any ProjectImageStorage)?
     private var realtimeTasks: [UUID: Task<Void, Never>] = [:]
@@ -31,6 +35,7 @@ final class PocoStore {
         feedbackRepository: (any FeedbackRepository)? = nil,
         profileRepository: (any ProfileRepository)? = nil,
         membershipRepository: (any MembershipRepository)? = nil,
+        membershipPurchaseService: (any MembershipPurchaseService)? = nil,
         currentUserProvider: (any CurrentUserProvider)? = nil,
         projectImageStorage: (any ProjectImageStorage)? = nil,
         backendMode: BackendMode = .mock,
@@ -41,6 +46,7 @@ final class PocoStore {
         self.feedbackRepository = feedbackRepository ?? MockFeedbackRepository()
         self.profileRepository = profileRepository ?? MockProfileRepository()
         self.membershipRepository = membershipRepository ?? MockMembershipRepository()
+        self.membershipPurchaseService = membershipPurchaseService ?? DisabledMembershipPurchaseService()
         self.currentUserProvider = currentUserProvider ?? MockCurrentUserProvider()
         self.projectImageStorage = projectImageStorage
         self.backendMode = backendMode
@@ -52,8 +58,12 @@ final class PocoStore {
         guard projectLoadState != .loading else { return }
         projectLoadState = .loading
 
+        accountStatus = await currentUserProvider.accountStatus()
         currentUserID = await currentUserProvider.currentUserID()
         await loadMembership()
+        if membershipTier.isMember {
+            accountStatus = .registered
+        }
 
         do {
             let loadedProjects = try await projectRepository.fetchProjects()
@@ -158,6 +168,10 @@ final class PocoStore {
         membershipTier.isMember
     }
 
+    var canCreateProjects: Bool {
+        accountStatus.canCreateProjects
+    }
+
     var memberLikeSummary: MemberLikeSummary {
         guard let currentUserID else {
             return MemberLikeSummary(projectLikes: 0, feedbackLikes: 0)
@@ -180,14 +194,73 @@ final class PocoStore {
 
     func activatePreviewMembership() {
         guard backendMode == .mock else { return }
+        registerPreviewAccount()
         UserDefaults.standard.set(true, forKey: "poco.previewMembership")
         membershipTier = .pocoMember
+    }
+
+    func registerPreviewAccount() {
+        guard backendMode == .mock else { return }
+        UserDefaults.standard.set(true, forKey: "poco.previewRegisteredAccount")
+        accountStatus = .registered
     }
 
     func resetPreviewMembership() {
         guard backendMode == .mock else { return }
         UserDefaults.standard.set(false, forKey: "poco.previewMembership")
+        UserDefaults.standard.set(false, forKey: "poco.previewRegisteredAccount")
         membershipTier = .guest
+        accountStatus = .guest
+    }
+
+    func loadMembershipOffer() async {
+        guard backendMode == .supabase, membershipPurchaseState != .loading else { return }
+        membershipPurchaseState = .loading
+        do {
+            membershipOffer = try await membershipPurchaseService.fetchOffer()
+            membershipPurchaseState = .idle
+        } catch {
+            membershipPurchaseState = .error(map(error).userMessage)
+        }
+    }
+
+    func purchaseMembership() async {
+        guard canCreateProjects else {
+            membershipPurchaseState = .error("Pocoメンバーになるにはユーザー登録が必要です。")
+            return
+        }
+        membershipPurchaseState = .purchasing
+        do {
+            switch try await membershipPurchaseService.purchase() {
+            case .purchased:
+                membershipTier = .pocoMember
+                membershipPurchaseState = .purchased
+            case .pending:
+                membershipPurchaseState = .error("購入の承認を待っています。")
+            case .cancelled:
+                membershipPurchaseState = .idle
+            }
+        } catch {
+            membershipPurchaseState = .error(map(error).userMessage)
+        }
+    }
+
+    func restoreMembership() async {
+        guard canCreateProjects else {
+            membershipPurchaseState = .error("購入を復元するにはユーザー登録が必要です。")
+            return
+        }
+        membershipPurchaseState = .loading
+        do {
+            if try await membershipPurchaseService.restore() {
+                membershipTier = .pocoMember
+                membershipPurchaseState = .purchased
+            } else {
+                membershipPurchaseState = .error("復元できる購入が見つかりませんでした。")
+            }
+        } catch {
+            membershipPurchaseState = .error(map(error).userMessage)
+        }
     }
 
     func createProject(
@@ -197,6 +270,11 @@ final class PocoStore {
         description: String,
         imageData: Data?
     ) async -> Result<Project, AppError> {
+        guard canCreateProjects else {
+            let error = AppError.unauthorized
+            errorMessage = "作品を作るにはユーザー登録が必要です。"
+            return .failure(error)
+        }
         guard let creatorID = await currentUserProvider.currentUserID() else {
             let error = AppError.unauthorized
             errorMessage = error.userMessage

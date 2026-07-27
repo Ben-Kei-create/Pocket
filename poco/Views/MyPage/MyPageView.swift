@@ -4,6 +4,7 @@ struct MyPageView: View {
     @Environment(PocoStore.self) private var store
     @AppStorage("poco.hasCompletedWelcome") private var hasCompletedWelcome = true
     @State private var showsMembership = false
+    @State private var showsRegistration = false
 
     var body: some View {
         NavigationStack {
@@ -16,7 +17,7 @@ struct MyPageView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("そらのひつじ")
                                 .font(.headline)
-                            Text(store.isPocoMember ? "Pocoメンバー" : "Pocoゲスト")
+                            Text(accountLabel)
                                 .font(.caption)
                                 .foregroundStyle(PocoTheme.secondaryText)
                         }
@@ -44,6 +45,20 @@ struct MyPageView: View {
                         )
                     }
                 } else {
+                    if !store.canCreateProjects {
+                        Section {
+                            Button {
+                                showsRegistration = true
+                            } label: {
+                                Label("ユーザー登録する", systemImage: "person.badge.plus")
+                                    .font(.headline)
+                                    .foregroundStyle(PocoTheme.primary)
+                            }
+                        } footer: {
+                            Text("登録すると作品ページを作成できます。感想投稿はゲストのまま利用できます。")
+                        }
+                    }
+
                     Section {
                         Button {
                             showsMembership = true
@@ -53,7 +68,7 @@ struct MyPageView: View {
                                 .foregroundStyle(PocoTheme.primary)
                         }
                     } footer: {
-                        Text("人気のフキダシ、受け取ったいいね、広告なしを利用できます。")
+                        Text("共感のフキダシ、受け取ったいいね、広告なしを利用できます。")
                     }
                 }
 
@@ -83,7 +98,15 @@ struct MyPageView: View {
             .sheet(isPresented: $showsMembership) {
                 PocoMembershipView()
             }
+            .sheet(isPresented: $showsRegistration) {
+                RegistrationGateView()
+            }
         }
+    }
+
+    private var accountLabel: String {
+        if store.isPocoMember { return "Pocoメンバー" }
+        return store.canCreateProjects ? "登録ユーザー" : "Pocoゲスト"
     }
 }
 

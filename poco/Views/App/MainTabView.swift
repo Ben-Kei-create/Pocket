@@ -2,12 +2,10 @@ import SwiftUI
 
 struct MainTabView: View {
     @Environment(PocoStore.self) private var store
-    @State private var showsMembership = false
+    @State private var showsRegistration = false
 
     var body: some View {
-        @Bindable var store = store
-
-        TabView(selection: $store.selectedTab) {
+        TabView(selection: tabSelection) {
             HomeView()
                 .tabItem {
                     Label("ホーム", systemImage: "house.fill")
@@ -26,15 +24,23 @@ struct MainTabView: View {
                 }
                 .tag(AppTab.myPage)
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            if !store.isPocoMember {
-                PocoAdBanner {
-                    showsMembership = true
-                }
+        .sheet(isPresented: $showsRegistration) {
+            RegistrationGateView {
+                store.selectedTab = .create
             }
         }
-        .sheet(isPresented: $showsMembership) {
-            PocoMembershipView()
-        }
+    }
+
+    private var tabSelection: Binding<AppTab> {
+        Binding(
+            get: { store.selectedTab },
+            set: { newTab in
+                if newTab == .create && !store.canCreateProjects {
+                    showsRegistration = true
+                } else {
+                    store.selectedTab = newTab
+                }
+            }
+        )
     }
 }

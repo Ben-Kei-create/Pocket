@@ -10,6 +10,9 @@ struct AppConfiguration: Sendable {
     let supabaseURL: URL?
     let supabaseAnonKey: String?
     let developmentUserID: UUID?
+    let membershipProductID: String
+    let adProvider: String
+    let adUnitID: String?
 
     var hasValidSupabaseCredentials: Bool {
         guard let supabaseURL,
@@ -30,12 +33,24 @@ struct AppConfiguration: Sendable {
         let developmentUserValue = bundle.object(
             forInfoDictionaryKey: "PocoDevelopmentUserID"
         ) as? String
+        let membershipProductID = bundle.object(
+            forInfoDictionaryKey: "PocoMembershipProductID"
+        ) as? String
+        let adProvider = bundle.object(forInfoDictionaryKey: "PocoAdProvider") as? String
+        let adUnitID = bundle.object(forInfoDictionaryKey: "PocoAdUnitID") as? String
 
         return AppConfiguration(
             backendMode: BackendMode(rawValue: backendValue?.lowercased() ?? "") ?? .mock,
             supabaseURL: urlValue.flatMap(URL.init(string:)),
             supabaseAnonKey: keyValue?.trimmingCharacters(in: .whitespacesAndNewlines),
-            developmentUserID: developmentUserValue.flatMap(UUID.init(uuidString:))
+            developmentUserID: developmentUserValue.flatMap(UUID.init(uuidString:)),
+            membershipProductID: membershipProductID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+            adProvider: adProvider?.lowercased() ?? "placeholder",
+            adUnitID: adUnitID?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
         )
     }
+}
+
+private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
 }

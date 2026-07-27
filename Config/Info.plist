@@ -41,6 +41,12 @@
 	<string>$(POCO_BACKEND)</string>
 	<key>PocoDevelopmentUserID</key>
 	<string>$(POCO_DEVELOPMENT_USER_ID)</string>
+	<key>PocoMembershipProductID</key>
+	<string>$(POCO_MEMBERSHIP_PRODUCT_ID)</string>
+	<key>PocoAdProvider</key>
+	<string>$(POCO_AD_PROVIDER)</string>
+	<key>PocoAdUnitID</key>
+	<string>$(POCO_AD_UNIT_ID)</string>
 	<key>SupabaseAnonKey</key>
 	<string>$(SUPABASE_ANON_KEY)</string>
 	<key>SupabaseURL</key>
