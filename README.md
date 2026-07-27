@@ -77,6 +77,7 @@ Migrationは次の順で再構築できます。
 3. App Store Server Notifications V2の送信先をSupabase Edge Functionへ設定し、Appleの署名済みTransactionをサーバーで検証します。
 4. 検証成功後だけservice role側から`memberships`を更新します。アプリの購入成功表示だけを会員資格の永続的な根拠にしないでください。
 5. XcodeのStoreKit ConfigurationまたはSandbox Accountで新規購入・保留・取消・期限切れ・復元を確認します。
+6. Appleの署名済みTransactionを検証するEdge Functionをデプロイした後、`POCO_MEMBERSHIP_SYNC_FUNCTION = sync-storekit-membership`を設定します。未設定時も端末検証済みの購入体験は止めず、サーバー同期を保留します。
 
 ## 広告配信セットアップ
 
@@ -94,14 +95,21 @@ project-images/projects/{creatorID}/{projectID}/{imageID}.jpg
 
 DBにはBase64ではなく公開URLだけを保存します。アップロード上限は6MB、MIME typeは`image/jpeg`です。
 
-## Authの次フェーズ
+## Sign in with Apple
 
-現在は`CurrentUserProvider`が境界です。Sign in with Apple導入時は以下が必要です。
+アプリ側はAuthenticationServices、SHA-256 nonce、Supabase `AuthRepository`、ログアウト、初回氏名のプロフィール保存まで実装済みです。ゲストが登録する場合はApple Identityを現在の匿名ユーザーへリンクし、登録前の感想・いいね所有権を可能な限り維持します。
 
-1. Apple DeveloperでSign in with Apple CapabilityとService IDを設定
-2. Supabase AuthでApple Provider、Client ID、Secret、Redirect URLを設定
-3. `ASAuthorizationAppleIDProvider`のnonceをSupabase Authへ渡す
-4. Auth Sessionを`CurrentUserProvider`へ接続
-5. `profiles`作成トリガーと表示名更新を確認
-6. 開発専用匿名Creator Policyを削除し、本番RLSだけを使用
-7. Account削除、Token更新、ログアウト、Deep Link callbackを実装
+実際に接続するには以下の外部設定が必要です。
+
+1. Apple DeveloperのApp ID `com.fumiakiMogi777.poco`でSign in with Apple Capabilityを有効化
+2. Provisioning Profileを再生成
+3. Supabase AuthでApple ProviderとAnonymous Sign-Insを有効化
+4. Supabase AuthのManual Linkingを有効化（匿名ユーザー昇格に必要）
+5. Supabase Apple ProviderのClient IDsへネイティブApp IDを登録
+6. 初回Apple認証で取得した氏名が`profiles.display_name`へ保存されることを確認
+
+Apple Identityが既存Pocoユーザーに紐づいている復帰ユーザーは既存アカウントへログインします。この場合、ログイン直前に新しい匿名IDで作ったデータを統合するには、次フェーズで所有権移行用Edge Functionが必要です。本番公開前には、アプリ内アカウント削除、Apple認証状態の失効確認、退会時の作品・感想データ保持方針も実装してください。
+
+## 会員資格同期の残作業
+
+アプリはStoreKit 2の`VerificationResult`から署名済みTransaction JWSを取り出し、設定されたSupabase Edge Functionへ送信できます。関数側ではApple公式App Store Server LibraryでJWS、Bundle ID、Environment、Product ID、有効期限、取消状態を検証し、service roleで`memberships`をupsertしてください。秘密鍵・Apple Root証明書・service role keyはiOSアプリやGitへ含めません。必要な契約は`supabase/functions/sync-storekit-membership/README.md`に記載しています。

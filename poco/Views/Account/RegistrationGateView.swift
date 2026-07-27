@@ -45,9 +45,19 @@ struct RegistrationGateView: View {
                     }
                     .buttonStyle(PocoPrimaryButtonStyle())
                 } else {
-                    Button("Appleで登録（準備中）") {}
-                        .buttonStyle(PocoPrimaryButtonStyle())
-                        .disabled(true)
+                    AppleRegistrationButton()
+
+                    if store.authenticationState == .authenticating {
+                        ProgressView("登録しています…")
+                            .font(.caption)
+                    }
+
+                    if case .error(let message) = store.authenticationState {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                            .multilineTextAlignment(.center)
+                    }
                 }
 
                 Text("閲覧・感想投稿・いいねはゲストのまま利用できます。")
@@ -63,6 +73,12 @@ struct RegistrationGateView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("閉じる", action: dismiss.callAsFunction)
+                }
+            }
+            .onChange(of: store.authenticationState) { _, state in
+                if state == .authenticated {
+                    onRegistered?()
+                    dismiss()
                 }
             }
         }

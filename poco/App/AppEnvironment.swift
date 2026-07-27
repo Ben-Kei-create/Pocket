@@ -23,6 +23,10 @@ enum AppEnvironment {
                 membershipPurchaseService: StoreKitMembershipService(
                     productID: configuration.membershipProductID
                 ),
+                membershipEntitlementSynchronizer: configuration.membershipSyncFunction.map {
+                    SupabaseMembershipEntitlementSynchronizer(client: client, functionName: $0)
+                },
+                authRepository: SupabaseAuthRepository(client: client),
                 currentUserProvider: creatorUserProvider,
                 projectImageStorage: SupabaseProjectImageStorage(client: client),
                 backendMode: .supabase,
@@ -34,6 +38,7 @@ enum AppEnvironment {
         let store = PocoStore(
             membershipRepository: MockMembershipRepository(),
             membershipPurchaseService: DisabledMembershipPurchaseService(),
+            authRepository: MockAuthRepository(),
             backendMode: .mock,
             initialProjects: MockData.projects,
             initialFeedbacks: MockData.feedbacks

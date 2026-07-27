@@ -81,6 +81,24 @@ nonisolated enum AccountStatus: String, Codable, Sendable {
     var canCreateProjects: Bool { self == .registered }
 }
 
+nonisolated struct AuthenticatedAccount: Equatable, Sendable {
+    let id: UUID
+    let displayName: String?
+}
+
+nonisolated struct AppleIdentityCredential: Sendable {
+    let identityToken: String
+    let rawNonce: String
+    let displayName: String?
+}
+
+nonisolated enum AuthenticationState: Equatable, Sendable {
+    case idle
+    case authenticating
+    case authenticated
+    case error(String)
+}
+
 nonisolated struct MemberLikeSummary: Equatable, Sendable {
     let projectLikes: Int
     let feedbackLikes: Int
@@ -92,9 +110,22 @@ nonisolated struct MembershipOffer: Equatable, Sendable {
 }
 
 nonisolated enum MembershipPurchaseResult: Sendable {
-    case purchased
+    case purchased(MembershipEntitlement)
     case pending
     case cancelled
+}
+
+nonisolated struct MembershipEntitlement: Equatable, Sendable {
+    let productID: String
+    let originalTransactionID: String
+    let signedTransactionInfo: String
+}
+
+nonisolated enum MembershipSyncState: Equatable, Sendable {
+    case idle
+    case syncing
+    case synced
+    case deferred
 }
 
 nonisolated enum MembershipPurchaseState: Equatable, Sendable {

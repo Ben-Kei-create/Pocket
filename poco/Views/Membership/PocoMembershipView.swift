@@ -75,6 +75,13 @@ struct PocoMembershipView: View {
                             .multilineTextAlignment(.center)
                     }
 
+                    if store.membershipSyncState == .deferred {
+                        Text("購入は確認できました。会員情報はネットワーク復帰後に同期されます。")
+                            .font(.caption)
+                            .foregroundStyle(PocoTheme.secondaryText)
+                            .multilineTextAlignment(.center)
+                    }
+
                     Text("購入はApple IDに請求され、設定からいつでも解約できます。")
                         .font(.caption)
                         .foregroundStyle(PocoTheme.tertiaryText)

@@ -4,7 +4,7 @@ import StoreKit
 protocol MembershipPurchaseService: Sendable {
     func fetchOffer() async throws -> MembershipOffer?
     func purchase() async throws -> MembershipPurchaseResult
-    func restore() async throws -> Bool
+    func restore() async throws -> MembershipEntitlement?
 }
 
 actor StoreKitMembershipService: MembershipPurchaseService {
@@ -27,8 +27,13 @@ actor StoreKitMembershipService: MembershipPurchaseService {
         switch try await product.purchase() {
         case .success(let verification):
             let transaction = try verified(verification)
+            let entitlement = MembershipEntitlement(
+                productID: transaction.productID,
+                originalTransactionID: String(transaction.originalID),
+                signedTransactionInfo: verification.jwsRepresentation
+            )
             await transaction.finish()
-            return .purchased
+            return .purchased(entitlement)
         case .pending:
             return .pending
         case .userCancelled:
@@ -38,17 +43,21 @@ actor StoreKitMembershipService: MembershipPurchaseService {
         }
     }
 
-    func restore() async throws -> Bool {
+    func restore() async throws -> MembershipEntitlement? {
         try await AppStore.sync()
         for await entitlement in Transaction.currentEntitlements {
             let transaction = try verified(entitlement)
             if transaction.productID == productID,
                transaction.revocationDate == nil,
                transaction.expirationDate.map({ $0 > .now }) ?? true {
-                return true
+                return MembershipEntitlement(
+                    productID: transaction.productID,
+                    originalTransactionID: String(transaction.originalID),
+                    signedTransactionInfo: entitlement.jwsRepresentation
+                )
             }
         }
-        return false
+        return nil
     }
 
     private func product() async throws -> Product? {
@@ -69,5 +78,5 @@ actor StoreKitMembershipService: MembershipPurchaseService {
 struct DisabledMembershipPurchaseService: MembershipPurchaseService {
     func fetchOffer() async throws -> MembershipOffer? { nil }
     func purchase() async throws -> MembershipPurchaseResult { throw AppError.purchase }
-    func restore() async throws -> Bool { false }
+    func restore() async throws -> MembershipEntitlement? { nil }
 }

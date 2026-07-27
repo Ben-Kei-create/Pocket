@@ -239,6 +239,68 @@ actor SupabaseCurrentUserProvider: CurrentUserProvider {
     }
 }
 
+final class SupabaseAuthRepository: AuthRepository, Sendable {
+    private let client: SupabaseClient
+
+    init(client: SupabaseClient) {
+        self.client = client
+    }
+
+    func signInWithApple(
+        credential: AppleIdentityCredential
+    ) async throws -> AuthenticatedAccount {
+        do {
+            let credentials = OpenIDConnectCredentials(
+                provider: .apple,
+                idToken: credential.identityToken,
+                nonce: credential.rawNonce
+            )
+
+            // Linking upgrades the anonymous account in place, preserving its
+            // feedback ownership and one-like-per-user history.
+            let session: Session
+            if client.auth.currentUser?.isAnonymous == true {
+                do {
+                    session = try await client.auth.linkIdentityWithIdToken(
+                        credentials: credentials
+                    )
+                } catch {
+                    // A returning Apple user may already own this identity.
+                    // In that case, sign into the existing account.
+                    session = try await client.auth.signInWithIdToken(
+                        credentials: credentials
+                    )
+                }
+            } else {
+                session = try await client.auth.signInWithIdToken(
+                    credentials: credentials
+                )
+            }
+
+            if let displayName = credential.displayName, !displayName.isEmpty {
+                _ = try? await client.auth.update(
+                    user: UserAttributes(data: ["display_name": .string(displayName)])
+                )
+            }
+
+            return AuthenticatedAccount(
+                id: session.user.id,
+                displayName: credential.displayName
+            )
+        } catch {
+            throw SupabaseErrorMapper.map(error)
+        }
+    }
+
+    func signOut() async throws {
+        do {
+            try await client.auth.signOut()
+        } catch {
+            throw SupabaseErrorMapper.map(error)
+        }
+    }
+}
+
 struct DevelopmentCurrentUserProvider: CurrentUserProvider {
     let authenticatedProvider: any CurrentUserProvider
     let fallbackUserID: UUID?

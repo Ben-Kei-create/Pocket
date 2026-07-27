@@ -15,7 +15,7 @@ struct MyPageView: View {
                             .font(.system(size: 58))
                             .foregroundStyle(PocoTheme.bubble(.lavender))
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("そらのひつじ")
+                            Text(store.currentDisplayName)
                                 .font(.headline)
                             Text(accountLabel)
                                 .font(.caption)
@@ -83,6 +83,16 @@ struct MyPageView: View {
                         hasCompletedWelcome = false
                     }
                     .foregroundStyle(PocoTheme.primary)
+                }
+
+                if store.canCreateProjects {
+                    Section {
+                        Button("ログアウト", role: .destructive) {
+                            Task { await store.signOut() }
+                        }
+                    } footer: {
+                        Text("ログアウト後も、閲覧と新しい感想の投稿はゲストとして利用できます。")
+                    }
                 }
 
                 if store.backendMode == .mock && store.isPocoMember {

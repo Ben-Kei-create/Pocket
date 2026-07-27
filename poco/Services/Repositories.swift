@@ -34,6 +34,13 @@ protocol CurrentUserProvider: Sendable {
     func accountStatus() async -> AccountStatus
 }
 
+protocol AuthRepository: Sendable {
+    nonisolated func signInWithApple(
+        credential: AppleIdentityCredential
+    ) async throws -> AuthenticatedAccount
+    nonisolated func signOut() async throws
+}
+
 protocol MembershipRepository: Sendable {
     func fetchMembership(userID: UUID) async throws -> MembershipTier
 }
@@ -166,6 +173,26 @@ struct MockCurrentUserProvider: CurrentUserProvider {
         UserDefaults.standard.bool(forKey: "poco.previewRegisteredAccount")
             ? .registered
             : .guest
+    }
+}
+
+struct MockAuthRepository: AuthRepository {
+    let userID: UUID
+
+    init(userID: UUID = MockData.forestCreator.id) {
+        self.userID = userID
+    }
+
+    nonisolated func signInWithApple(
+        credential: AppleIdentityCredential
+    ) async throws -> AuthenticatedAccount {
+        UserDefaults.standard.set(true, forKey: "poco.previewRegisteredAccount")
+        return AuthenticatedAccount(id: userID, displayName: credential.displayName)
+    }
+
+    nonisolated func signOut() async throws {
+        UserDefaults.standard.set(false, forKey: "poco.previewMembership")
+        UserDefaults.standard.set(false, forKey: "poco.previewRegisteredAccount")
     }
 }
 

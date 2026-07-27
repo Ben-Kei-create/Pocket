@@ -43,6 +43,8 @@
 	<string>$(POCO_DEVELOPMENT_USER_ID)</string>
 	<key>PocoMembershipProductID</key>
 	<string>$(POCO_MEMBERSHIP_PRODUCT_ID)</string>
+	<key>PocoMembershipSyncFunction</key>
+	<string>$(POCO_MEMBERSHIP_SYNC_FUNCTION)</string>
 	<key>PocoAdProvider</key>
 	<string>$(POCO_AD_PROVIDER)</string>
 	<key>PocoAdUnitID</key>

@@ -11,6 +11,7 @@ struct AppConfiguration: Sendable {
     let supabaseAnonKey: String?
     let developmentUserID: UUID?
     let membershipProductID: String
+    let membershipSyncFunction: String?
     let adProvider: String
     let adUnitID: String?
 
@@ -36,6 +37,9 @@ struct AppConfiguration: Sendable {
         let membershipProductID = bundle.object(
             forInfoDictionaryKey: "PocoMembershipProductID"
         ) as? String
+        let membershipSyncFunction = bundle.object(
+            forInfoDictionaryKey: "PocoMembershipSyncFunction"
+        ) as? String
         let adProvider = bundle.object(forInfoDictionaryKey: "PocoAdProvider") as? String
         let adUnitID = bundle.object(forInfoDictionaryKey: "PocoAdUnitID") as? String
 
@@ -45,6 +49,8 @@ struct AppConfiguration: Sendable {
             supabaseAnonKey: keyValue?.trimmingCharacters(in: .whitespacesAndNewlines),
             developmentUserID: developmentUserValue.flatMap(UUID.init(uuidString:)),
             membershipProductID: membershipProductID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "",
+            membershipSyncFunction: membershipSyncFunction?
+                .trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
             adProvider: adProvider?.lowercased() ?? "placeholder",
             adUnitID: adUnitID?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
         )

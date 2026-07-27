@@ -32,7 +32,7 @@ struct CreatorDashboardView: View {
                                 .font(.headline)
                                 .padding(.top, 8)
 
-                            ForEach(store.projects) { project in
+                            ForEach(store.currentUserProjects) { project in
                                 CreatorProjectCard(project: project)
                             }
                         }
