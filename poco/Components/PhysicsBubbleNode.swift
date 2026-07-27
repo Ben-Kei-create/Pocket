@@ -5,7 +5,7 @@ import UIKit
 @MainActor
 final class PhysicsBubbleNode: SKNode {
     private static let sharedBubbleTexture: SKTexture = {
-        let texture = SKTexture(imageNamed: "BubbleTexture")
+        let texture = SKTexture(imageNamed: BubbleArtworkStyle.active.textureAssetName)
         texture.filteringMode = .linear
         return texture
     }()
@@ -63,7 +63,7 @@ final class PhysicsBubbleNode: SKNode {
         let bubbleSprite = SKSpriteNode(texture: Self.sharedBubbleTexture)
         bubbleSprite.size = size
         bubbleSprite.color = UIColor(PocoTheme.bubble(feedback.bubbleColor))
-        bubbleSprite.colorBlendFactor = 0.62
+        bubbleSprite.colorBlendFactor = 0.70
         bubbleSprite.zPosition = 0
         visualContainer.addChild(bubbleSprite)
 

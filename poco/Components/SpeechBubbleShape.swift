@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SpeechBubbleShape: Shape {
+    // Archived classic shape. Kept with BubbleTexture for a one-line style rollback.
     func path(in rect: CGRect) -> Path {
         let tailHeight = min(14, rect.height * 0.18)
         let bubbleRect = CGRect(
@@ -58,15 +59,15 @@ struct BubbleView: View {
         }
         .padding(.horizontal, compact ? 15 : 18)
         .padding(.top, compact ? 12 : 16)
-        .padding(.bottom, compact ? 15 : 20)
+        .padding(.bottom, compact ? 12 : 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .background {
-            Image("BubbleTexture")
+            Image(BubbleArtworkStyle.active.textureAssetName)
                 .resizable()
                 .colorMultiply(PocoTheme.bubble(feedback.bubbleColor))
                 .shadow(color: .black.opacity(0.055), radius: compact ? 5 : 9, y: 4)
         }
-        .contentShape(SpeechBubbleShape())
+        .contentShape(RoundedRectangle(cornerRadius: compact ? 20 : 28, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(feedback.nickname)さんの感想、\(feedback.message)")
     }
