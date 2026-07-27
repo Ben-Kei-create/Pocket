@@ -34,7 +34,8 @@ final class PhysicsBubbleNode: SKNode {
         physicsBody?.friction = 0.78
         physicsBody?.linearDamping = 0.68
         physicsBody?.angularDamping = 0.82
-        physicsBody?.mass = 0.18
+        let relativeArea = (size.width * size.height) / (116 * 60)
+        physicsBody?.mass = min(0.28, max(0.14, 0.18 * relativeArea))
         physicsBody?.allowsRotation = false
     }
 
@@ -67,16 +68,25 @@ final class PhysicsBubbleNode: SKNode {
         bubbleSprite.zPosition = 0
         visualContainer.addChild(bubbleSprite)
 
-        let isLarge = size.width >= 180
-        let fontSize: CGFloat = isLarge ? 11.5 : 9.5
+        let tier = BubbleSizeTier(message: feedback.message)
+        let fontSize: CGFloat = switch tier {
+        case .small: 9.2
+        case .medium: 9.8
+        case .large: 10.4
+        }
         let messageFont = UIFont.systemFont(ofSize: fontSize, weight: .semibold)
         let lines = wrappedLines(
             feedback.message,
             font: messageFont,
-            maximumWidth: size.width * 0.74
+            maximumWidth: size.width * 0.74,
+            maximumLines: tier == .large ? 3 : 2
         )
         let lineHeight = fontSize + 2
-        let firstLineY = lines.count == 1 ? 10 : 16
+        let firstLineY: CGFloat = switch lines.count {
+        case 1: 9
+        case 2: 15
+        default: 20
+        }
         let leadingX = -size.width * 0.37
 
         for (index, line) in lines.enumerated() {
@@ -95,7 +105,7 @@ final class PhysicsBubbleNode: SKNode {
         }
 
         let authorY = -size.height * 0.24
-        let avatarRadius: CGFloat = isLarge ? 8.5 : 7
+        let avatarRadius: CGFloat = tier == .large ? 8 : 7
         let avatar = SKShapeNode(circleOfRadius: avatarRadius)
         avatar.fillColor = UIColor.black.withAlphaComponent(0.22)
         avatar.strokeColor = .clear
@@ -105,7 +115,7 @@ final class PhysicsBubbleNode: SKNode {
 
         let initial = makeLabel(
             text: String(feedback.nickname.prefix(1)),
-            font: .systemFont(ofSize: isLarge ? 7.5 : 6.5, weight: .bold),
+            font: .systemFont(ofSize: tier == .large ? 7.2 : 6.5, weight: .bold),
             color: .white
         )
         initial.verticalAlignmentMode = .center
@@ -114,7 +124,7 @@ final class PhysicsBubbleNode: SKNode {
 
         let nickname = makeLabel(
             text: feedback.nickname,
-            font: .systemFont(ofSize: isLarge ? 9.5 : 8, weight: .medium),
+            font: .systemFont(ofSize: tier == .large ? 9 : 8, weight: .medium),
             color: UIColor.secondaryLabel.withAlphaComponent(0.86)
         )
         nickname.horizontalAlignmentMode = .left
@@ -134,7 +144,12 @@ final class PhysicsBubbleNode: SKNode {
         return label
     }
 
-    private func wrappedLines(_ text: String, font: UIFont, maximumWidth: CGFloat) -> [String] {
+    private func wrappedLines(
+        _ text: String,
+        font: UIFont,
+        maximumWidth: CGFloat,
+        maximumLines: Int
+    ) -> [String] {
         let attributes: [NSAttributedString.Key: Any] = [.font: font]
         var allLines: [String] = []
         var currentLine = ""
@@ -153,17 +168,17 @@ final class PhysicsBubbleNode: SKNode {
         if !currentLine.isEmpty {
             allLines.append(currentLine)
         }
-        guard allLines.count > 2 else { return allLines }
+        guard allLines.count > maximumLines else { return allLines }
 
-        var secondLine = allLines[1]
-        while !secondLine.isEmpty {
-            let candidate = secondLine + "…"
+        var finalLine = allLines[maximumLines - 1]
+        while !finalLine.isEmpty {
+            let candidate = finalLine + "…"
             if (candidate as NSString).size(withAttributes: attributes).width <= maximumWidth {
-                return [allLines[0], candidate]
+                return Array(allLines.prefix(maximumLines - 1)) + [candidate]
             }
-            secondLine.removeLast()
+            finalLine.removeLast()
         }
-        return [allLines[0], "…"]
+        return Array(allLines.prefix(maximumLines - 1)) + ["…"]
     }
 }
 
@@ -186,16 +201,39 @@ enum BubblePhysicsMetrics {
     static let dropRowSpacing: CGFloat = 50
     static let dropPreviewLimit = 2
 
-    static func wallBubbleSize(for width: CGFloat) -> CGSize {
-        CGSize(width: min(116, max(96, width * 0.29)), height: 60)
+    static func wallBubbleSize(for feedback: Feedback, width: CGFloat) -> CGSize {
+        let baseWidth = min(116, max(104, width * 0.29))
+        switch BubbleSizeTier(message: feedback.message) {
+        case .small:
+            return CGSize(width: baseWidth * 0.82, height: 50)
+        case .medium:
+            return CGSize(width: baseWidth, height: 60)
+        case .large:
+            return CGSize(width: min(width * 0.40, baseWidth * 1.24), height: 72)
+        }
     }
 
-    static func dropExistingBubbleSize(for width: CGFloat) -> CGSize {
-        CGSize(width: min(112, max(96, (width - 20) / 3)), height: 58)
+    static func dropExistingBubbleSize(for feedback: Feedback, width: CGFloat) -> CGSize {
+        let baseWidth = min(112, max(102, width * 0.28))
+        switch BubbleSizeTier(message: feedback.message) {
+        case .small:
+            return CGSize(width: baseWidth * 0.82, height: 48)
+        case .medium:
+            return CGSize(width: baseWidth, height: 58)
+        case .large:
+            return CGSize(width: min(width * 0.39, baseWidth * 1.24), height: 70)
+        }
     }
 
-    static func pendingBubbleSize(for width: CGFloat) -> CGSize {
-        CGSize(width: min(184, width * 0.54), height: 88)
+    static func pendingBubbleSize(for feedback: Feedback, width: CGFloat) -> CGSize {
+        switch BubbleSizeTier(message: feedback.message) {
+        case .small:
+            return CGSize(width: min(138, width * 0.40), height: 66)
+        case .medium:
+            return CGSize(width: min(164, width * 0.48), height: 78)
+        case .large:
+            return CGSize(width: min(190, width * 0.56), height: 92)
+        }
     }
 }
 
@@ -203,6 +241,7 @@ struct BubbleFieldPlacement: Equatable {
     let feedbackID: UUID
     let position: CGPoint
     let rotation: CGFloat
+    let size: CGSize
 }
 
 struct BubbleFieldLayout: Equatable {
@@ -217,21 +256,22 @@ struct BubbleFieldLayout: Equatable {
             )
         }
 
-        let bubbleSize = BubblePhysicsMetrics.wallBubbleSize(for: availableWidth)
-        let halfWidth = bubbleSize.width * 0.48
-        let minimumX = halfWidth + 4
-        let maximumX = max(minimumX, availableWidth - halfWidth - 4)
-        let horizontalClearance = bubbleSize.width * 0.88
-        let verticalClearance = bubbleSize.height * 0.76
         var placements: [BubbleFieldPlacement] = []
-        var currentTop = BubblePhysicsMetrics.wallBottomStartY
+        var highestEdge = BubblePhysicsMetrics.wallBottomStartY
 
         for feedback in feedbacks.reversed() {
+            let bubbleSize = BubblePhysicsMetrics.wallBubbleSize(
+                for: feedback,
+                width: availableWidth
+            )
+            let halfWidth = bubbleSize.width * 0.48
+            let minimumX = halfWidth + 4
+            let maximumX = max(minimumX, availableWidth - halfWidth - 4)
             let lowerBand = max(
                 BubblePhysicsMetrics.wallBottomStartY,
-                currentTop - verticalClearance * 0.78
+                highestEdge - bubbleSize.height * 0.72
             )
-            var bestPosition = CGPoint(x: availableWidth / 2, y: currentTop)
+            var bestPosition = CGPoint(x: availableWidth / 2, y: lowerBand)
             var bestScore = CGFloat.greatestFiniteMagnitude
 
             for attempt in 0..<9 {
@@ -241,8 +281,10 @@ struct BubbleFieldLayout: Equatable {
 
                 for existing in placements {
                     let deltaX = abs(x - existing.position.x)
+                    let horizontalClearance = (bubbleSize.width + existing.size.width) * 0.44
                     guard deltaX < horizontalClearance else { continue }
                     let horizontalRatio = deltaX / horizontalClearance
+                    let verticalClearance = (bubbleSize.height + existing.size.height) * 0.38
                     let requiredRise = verticalClearance
                         * sqrt(max(0, 1 - horizontalRatio * horizontalRatio))
                     y = max(y, existing.position.y + requiredRise)
@@ -259,15 +301,16 @@ struct BubbleFieldLayout: Equatable {
             let placement = BubbleFieldPlacement(
                 feedbackID: feedback.id,
                 position: bestPosition,
-                rotation: CGFloat((seed % 11) - 5) * .pi / 180
+                rotation: CGFloat((seed % 11) - 5) * .pi / 180,
+                size: bubbleSize
             )
             placements.append(placement)
-            currentTop = max(currentTop, bestPosition.y)
+            highestEdge = max(highestEdge, bestPosition.y + bubbleSize.height / 2)
         }
 
         return BubbleFieldLayout(
             placements: placements,
-            contentHeight: currentTop + bubbleSize.height / 2 + 34
+            contentHeight: highestEdge + 34
         )
     }
 }

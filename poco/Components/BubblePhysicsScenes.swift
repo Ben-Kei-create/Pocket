@@ -126,7 +126,6 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
     private func updateVisibleBubbleNodes() {
         guard !oldestFeedbacks.isEmpty else { return }
 
-        let bubbleSize = BubblePhysicsMetrics.wallBubbleSize(for: size.width)
         let visibleMinimumY = cameraNode.position.y - size.height / 2 - BubblePhysicsMetrics.rowSpacing * 2
         let visibleMaximumY = cameraNode.position.y + size.height / 2 + BubblePhysicsMetrics.rowSpacing * 2
         let visibleFeedbacks = oldestFeedbacks.filter { feedback in
@@ -145,7 +144,7 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
         for feedback in visibleFeedbacks {
             guard activeBubbleNodes[feedback.id] == nil,
                   let placement = placementByID[feedback.id] else { continue }
-            let node = PhysicsBubbleNode(feedback: feedback, size: bubbleSize)
+            let node = PhysicsBubbleNode(feedback: feedback, size: placement.size)
 
             node.position = placement.position
             node.zRotation = reduceMotion ? 0 : placement.rotation
@@ -276,20 +275,27 @@ final class BubbleDropPhysicsScene: SKScene, SKPhysicsContactDelegate {
         isDraggingPending = false
         addPhysicsBoundaries(to: self)
 
-        let existingSize = BubblePhysicsMetrics.dropExistingBubbleSize(for: size.width)
-        let halfWidth = existingSize.width * 0.48
-        let minimumX = halfWidth + 6
-        let maximumX = max(minimumX, size.width - halfWidth - 6)
-        var settledPositions: [CGPoint] = []
+        var settledBubbles: [(position: CGPoint, size: CGSize)] = []
 
         for existingFeedback in existingFeedbacks.reversed() {
+            let existingSize = BubblePhysicsMetrics.dropExistingBubbleSize(
+                for: existingFeedback,
+                width: size.width
+            )
+            let halfWidth = existingSize.width * 0.48
+            let minimumX = halfWidth + 6
+            let maximumX = max(minimumX, size.width - halfWidth - 6)
             let seed = stableSeed(existingFeedback.id)
             let x = minimumX
                 + stableUnit(existingFeedback.id, salt: 3) * (maximumX - minimumX)
-            var y: CGFloat = 45
-            for settledPosition in settledPositions
-            where abs(x - settledPosition.x) < existingSize.width * 0.78 {
-                y = max(y, settledPosition.y + BubblePhysicsMetrics.dropRowSpacing)
+            var y = 18 + existingSize.height / 2
+            for settled in settledBubbles {
+                let horizontalClearance = (existingSize.width + settled.size.width) * 0.39
+                guard abs(x - settled.position.x) < horizontalClearance else { continue }
+                y = max(
+                    y,
+                    settled.position.y + (existingSize.height + settled.size.height) * 0.42
+                )
             }
 
             let node = PhysicsBubbleNode(feedback: existingFeedback, size: existingSize)
@@ -297,12 +303,18 @@ final class BubbleDropPhysicsScene: SKScene, SKPhysicsContactDelegate {
             node.zRotation = reduceMotion ? 0 : CGFloat((seed % 7) - 3) * .pi / 180
             node.physicsBody?.isDynamic = !reduceMotion
             addChild(node)
-            settledPositions.append(node.position)
+            settledBubbles.append((node.position, existingSize))
         }
 
-        let pendingSize = BubblePhysicsMetrics.pendingBubbleSize(for: size.width)
+        let pendingSize = BubblePhysicsMetrics.pendingBubbleSize(
+            for: feedback,
+            width: size.width
+        )
         let pending = PhysicsBubbleNode(feedback: feedback, size: pendingSize)
-        pending.position = CGPoint(x: size.width / 2, y: size.height - 72)
+        pending.position = CGPoint(
+            x: size.width / 2,
+            y: size.height - pendingSize.height / 2 - 16
+        )
         pending.zPosition = 200
         pending.physicsBody?.isDynamic = false
         pending.physicsBody?.affectedByGravity = false
