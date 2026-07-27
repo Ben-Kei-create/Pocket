@@ -55,8 +55,18 @@ Migrationは次の順で再構築できます。
 - `002_rls.sql`: 本番用RLS Policy
 - `003_storage.sql`: `project-images` BucketとStorage Policy
 - `004_realtime.sql`: `feedbacks`のRealtime publication
+- `005_memberships.sql`: Pocoメンバー資格、本人のみread可能なRLS、匿名ゲスト用プロフィール
 
 `feedback_count`は重複カラムにせず`projects_with_feedback_count` Viewで計算します。`likes_count`は`feedback_likes`のINSERT/DELETEトリガーだけで更新し、整合性を維持します。
+
+## ゲスト・Pocoメンバー・広告
+
+- ゲスト投稿者にはSupabase Anonymous Authを使用し、登録画面なしで端末固有のユーザーIDを付与します。これにより、ゲストもRLSを保ったまま1つのフキダシへ1回いいねできます。Supabase DashboardでAnonymous Sign-Insを有効にしてください。
+- いいね済み状態は`feedback_likes`から復元します。画面内の連打防止だけに依存せず、DBの`unique(feedback_id, user_id)`を最終的な保証にしています。
+- `memberships`はアプリから更新できません。本番ではStoreKit 2の購入結果をApp Store Server Notificationsで検証し、service roleを持つEdge Functionなどからのみ更新します。
+- Mock環境ではマイページまたは広告バーから会員表示を試せます。本番環境の購入ボタンはStoreKit導入まで無効です。
+- `PocoAdBanner`は広告枠のUI境界です。現在はプレースホルダーで、配信開始時にGoogle Mobile Ads等の実装へ内部だけを差し替えます。
+- 人気順といいね集計はUI上で会員限定です。本番公開前には、人気順・会員集計を会員資格検証付きRPCへ移し、`likes_count`を直接ランキング用途で取得させないようにしてください。
 
 匿名Feedbackは`sender_id = null`で投稿できます。匿名投稿は後から本人確認して更新・削除できないため、将来のAuth導入時には端末トークンまたはEdge Functionを使った所有権設計を追加してください。また、公開Anon投稿はBot対策、Rate Limit、内容モデレーションを本番公開前に追加する必要があります。
 

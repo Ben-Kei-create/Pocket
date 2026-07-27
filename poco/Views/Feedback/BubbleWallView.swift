@@ -6,6 +6,7 @@ struct BubbleWallView: View {
 
     @State private var mode = WallMode.everyone
     @State private var selectedFeedback: Feedback?
+    @State private var showsMembership = false
 
     private var project: Project? {
         store.project(id: projectID)
@@ -28,9 +29,10 @@ struct BubbleWallView: View {
                         .foregroundStyle(PocoTheme.secondaryText)
                 }
 
-                Picker("表示するフキダシ", selection: $mode) {
+                Picker("表示するフキダシ", selection: modeSelection) {
                     ForEach(WallMode.allCases) { item in
-                        Text(item.title).tag(item)
+                        Text(item.title + (item == .popular && !store.isPocoMember ? " 🔒" : ""))
+                            .tag(item)
                     }
                 }
                 .pickerStyle(.segmented)
@@ -54,6 +56,9 @@ struct BubbleWallView: View {
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
+        .sheet(isPresented: $showsMembership) {
+            PocoMembershipView()
+        }
         .task(id: projectID) {
             await store.loadFeedbacks(for: projectID)
             guard !Task.isCancelled else { return }
@@ -62,6 +67,24 @@ struct BubbleWallView: View {
         .onDisappear {
             store.stopObservingFeedbacks(for: projectID)
         }
+        .onChange(of: store.isPocoMember) { _, isMember in
+            if !isMember {
+                mode = .everyone
+            }
+        }
+    }
+
+    private var modeSelection: Binding<WallMode> {
+        Binding(
+            get: { mode },
+            set: { newValue in
+                if newValue == .popular && !store.isPocoMember {
+                    showsMembership = true
+                } else {
+                    mode = newValue
+                }
+            }
+        )
     }
 }
 

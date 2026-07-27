@@ -10,6 +10,7 @@ protocol FeedbackRepository: Sendable {
     nonisolated func fetchFeedbacks(projectID: UUID) async throws -> [Feedback]
     nonisolated func submitFeedback(_ feedback: Feedback) async throws
     nonisolated func likeFeedback(id: UUID) async throws
+    nonisolated func fetchLikedFeedbackIDs(feedbackIDs: [UUID]) async throws -> Set<UUID>
     nonisolated func observeFeedbacks(
         projectID: UUID
     ) async -> AsyncThrowingStream<Feedback, any Error>
@@ -29,7 +30,11 @@ protocol ProjectImageStorage: Sendable {
 }
 
 protocol CurrentUserProvider: Sendable {
-    nonisolated func currentUserID() async -> UUID?
+    func currentUserID() async -> UUID?
+}
+
+protocol MembershipRepository: Sendable {
+    func fetchMembership(userID: UUID) async throws -> MembershipTier
 }
 
 actor MockProjectRepository: ProjectRepository {
@@ -80,8 +85,20 @@ actor MockFeedbackRepository: FeedbackRepository {
     }
 
     func likeFeedback(id: UUID) async throws {
+        var likedIDs = persistedLikedFeedbackIDs()
+        guard likedIDs.insert(id).inserted else {
+            throw AppError.alreadyLiked
+        }
         guard let index = feedbacks.firstIndex(where: { $0.id == id }) else { return }
         feedbacks[index].likes += 1
+        UserDefaults.standard.set(
+            likedIDs.map(\.uuidString),
+            forKey: "poco.mockLikedFeedbackIDs"
+        )
+    }
+
+    func fetchLikedFeedbackIDs(feedbackIDs: [UUID]) async throws -> Set<UUID> {
+        persistedLikedFeedbackIDs().intersection(feedbackIDs)
     }
 
     func observeFeedbacks(projectID: UUID) async -> AsyncThrowingStream<Feedback, any Error> {
@@ -101,6 +118,11 @@ actor MockFeedbackRepository: FeedbackRepository {
         if observers[projectID]?.isEmpty == true {
             observers[projectID] = nil
         }
+    }
+
+    private func persistedLikedFeedbackIDs() -> Set<UUID> {
+        let values = UserDefaults.standard.stringArray(forKey: "poco.mockLikedFeedbackIDs") ?? []
+        return Set(values.compactMap(UUID.init(uuidString:)))
     }
 }
 
@@ -137,6 +159,12 @@ struct MockCurrentUserProvider: CurrentUserProvider {
 
     nonisolated func currentUserID() async -> UUID? {
         userID
+    }
+}
+
+actor MockMembershipRepository: MembershipRepository {
+    func fetchMembership(userID: UUID) async throws -> MembershipTier {
+        UserDefaults.standard.bool(forKey: "poco.previewMembership") ? .pocoMember : .guest
     }
 }
 

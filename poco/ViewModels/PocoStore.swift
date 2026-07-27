@@ -9,6 +9,9 @@ final class PocoStore {
     var selectedTab = AppTab.home
     var homePath: [UUID] = []
     var errorMessage: String?
+    private(set) var membershipTier: MembershipTier = .guest
+    private(set) var currentUserID: UUID?
+    private(set) var likedFeedbackIDs: Set<UUID> = []
     private(set) var projectLoadState: LoadState = .idle
     private(set) var feedbackLoadStates: [UUID: LoadState] = [:]
     let backendMode: BackendMode
@@ -16,6 +19,7 @@ final class PocoStore {
     private let projectRepository: any ProjectRepository
     private let feedbackRepository: any FeedbackRepository
     private let profileRepository: any ProfileRepository
+    private let membershipRepository: any MembershipRepository
     private let currentUserProvider: any CurrentUserProvider
     private let projectImageStorage: (any ProjectImageStorage)?
     private var realtimeTasks: [UUID: Task<Void, Never>] = [:]
@@ -26,6 +30,7 @@ final class PocoStore {
         projectRepository: (any ProjectRepository)? = nil,
         feedbackRepository: (any FeedbackRepository)? = nil,
         profileRepository: (any ProfileRepository)? = nil,
+        membershipRepository: (any MembershipRepository)? = nil,
         currentUserProvider: (any CurrentUserProvider)? = nil,
         projectImageStorage: (any ProjectImageStorage)? = nil,
         backendMode: BackendMode = .mock,
@@ -35,6 +40,7 @@ final class PocoStore {
         self.projectRepository = projectRepository ?? MockProjectRepository()
         self.feedbackRepository = feedbackRepository ?? MockFeedbackRepository()
         self.profileRepository = profileRepository ?? MockProfileRepository()
+        self.membershipRepository = membershipRepository ?? MockMembershipRepository()
         self.currentUserProvider = currentUserProvider ?? MockCurrentUserProvider()
         self.projectImageStorage = projectImageStorage
         self.backendMode = backendMode
@@ -45,6 +51,9 @@ final class PocoStore {
     func load() async {
         guard projectLoadState != .loading else { return }
         projectLoadState = .loading
+
+        currentUserID = await currentUserProvider.currentUserID()
+        await loadMembership()
 
         do {
             let loadedProjects = try await projectRepository.fetchProjects()
@@ -73,6 +82,14 @@ final class PocoStore {
             for feedback in optimistic where !feedbacks.contains(where: { $0.id == feedback.id }) {
                 feedbacks.append(feedback)
             }
+            let projectFeedbackIDs = feedbacks
+                .filter { $0.projectID == projectID }
+                .map(\.id)
+            if let persistedLikes = try? await feedbackRepository.fetchLikedFeedbackIDs(
+                feedbackIDs: projectFeedbackIDs
+            ) {
+                likedFeedbackIDs.formUnion(persistedLikes)
+            }
             feedbackLoadStates[projectID] = .loaded
         } catch {
             let appError = map(error)
@@ -94,6 +111,10 @@ final class PocoStore {
     }
 
     func submit(_ feedback: Feedback) async -> Result<Void, AppError> {
+        var feedback = feedback
+        if feedback.senderID == nil {
+            feedback.senderID = currentUserID
+        }
         let isNew = !feedbacks.contains(where: { $0.id == feedback.id })
         if isNew {
             feedbacks.append(feedback)
@@ -115,14 +136,58 @@ final class PocoStore {
     }
 
     func like(_ feedback: Feedback) async {
+        guard !likedFeedbackIDs.contains(feedback.id) else { return }
+        likedFeedbackIDs.insert(feedback.id)
+
         do {
             try await feedbackRepository.likeFeedback(id: feedback.id)
             if let index = feedbacks.firstIndex(where: { $0.id == feedback.id }) {
                 feedbacks[index].likes += 1
             }
+        } catch AppError.alreadyLiked {
+            // The backend unique constraint is the source of truth. Keep the
+            // button selected without incrementing the displayed count again.
+            likedFeedbackIDs.insert(feedback.id)
         } catch {
+            likedFeedbackIDs.remove(feedback.id)
             errorMessage = map(error).userMessage
         }
+    }
+
+    var isPocoMember: Bool {
+        membershipTier.isMember
+    }
+
+    var memberLikeSummary: MemberLikeSummary {
+        guard let currentUserID else {
+            return MemberLikeSummary(projectLikes: 0, feedbackLikes: 0)
+        }
+
+        let ownedProjectIDs = Set(
+            projects.lazy
+                .filter { $0.creator.id == currentUserID }
+                .map(\.id)
+        )
+        return MemberLikeSummary(
+            projectLikes: feedbacks.lazy
+                .filter { ownedProjectIDs.contains($0.projectID) }
+                .reduce(0) { $0 + $1.likes },
+            feedbackLikes: feedbacks.lazy
+                .filter { $0.senderID == currentUserID }
+                .reduce(0) { $0 + $1.likes }
+        )
+    }
+
+    func activatePreviewMembership() {
+        guard backendMode == .mock else { return }
+        UserDefaults.standard.set(true, forKey: "poco.previewMembership")
+        membershipTier = .pocoMember
+    }
+
+    func resetPreviewMembership() {
+        guard backendMode == .mock else { return }
+        UserDefaults.standard.set(false, forKey: "poco.previewMembership")
+        membershipTier = .guest
     }
 
     func createProject(
@@ -227,6 +292,19 @@ final class PocoStore {
         feedbacks.append(feedback)
         if let index = projects.firstIndex(where: { $0.id == feedback.projectID }) {
             projects[index].feedbackCount += 1
+        }
+    }
+
+    private func loadMembership() async {
+        guard let currentUserID else {
+            membershipTier = .guest
+            return
+        }
+
+        do {
+            membershipTier = try await membershipRepository.fetchMembership(userID: currentUserID)
+        } catch {
+            membershipTier = .guest
         }
     }
 

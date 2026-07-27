@@ -109,6 +109,28 @@ final class SupabaseFeedbackRepository: FeedbackRepository, Sendable {
                     )
                 )
                 .execute()
+        } catch let error as PostgrestError where error.code == "23505" {
+            throw AppError.alreadyLiked
+        } catch {
+            throw SupabaseErrorMapper.map(error)
+        }
+    }
+
+    nonisolated func fetchLikedFeedbackIDs(feedbackIDs: [UUID]) async throws -> Set<UUID> {
+        guard !feedbackIDs.isEmpty,
+              let userID = await currentUserProvider.currentUserID() else {
+            return []
+        }
+
+        do {
+            let rows: [FeedbackLikeQueryDTO] = try await client
+                .from("feedback_likes")
+                .select("feedback_id")
+                .eq("user_id", value: userID)
+                .in("feedback_id", values: feedbackIDs.map(\.uuidString))
+                .execute()
+                .value
+            return Set(rows.map(\.feedbackID))
         } catch {
             throw SupabaseErrorMapper.map(error)
         }
@@ -191,11 +213,21 @@ final class SupabaseProfileRepository: ProfileRepository, Sendable {
     }
 }
 
-struct SupabaseCurrentUserProvider: CurrentUserProvider {
+actor SupabaseCurrentUserProvider: CurrentUserProvider {
     let client: SupabaseClient
 
-    nonisolated func currentUserID() async -> UUID? {
-        client.auth.currentUser?.id
+    init(client: SupabaseClient) {
+        self.client = client
+    }
+
+    func currentUserID() async -> UUID? {
+        if let userID = client.auth.currentUser?.id {
+            return userID
+        }
+
+        // Supabase anonymous auth gives each guest a stable identity. They can
+        // like once per bubble without becoming a registered Poco member.
+        return try? await client.auth.signInAnonymously().user.id
     }
 }
 
@@ -205,6 +237,29 @@ struct DevelopmentCurrentUserProvider: CurrentUserProvider {
 
     nonisolated func currentUserID() async -> UUID? {
         await authenticatedProvider.currentUserID() ?? fallbackUserID
+    }
+}
+
+final class SupabaseMembershipRepository: MembershipRepository, Sendable {
+    private let client: SupabaseClient
+
+    init(client: SupabaseClient) {
+        self.client = client
+    }
+
+    nonisolated func fetchMembership(userID: UUID) async throws -> MembershipTier {
+        do {
+            let rows: [MembershipDTO] = try await client
+                .from("memberships")
+                .select("tier,status,current_period_end")
+                .eq("user_id", value: userID)
+                .limit(1)
+                .execute()
+                .value
+            return rows.first?.membershipTier ?? .guest
+        } catch {
+            throw SupabaseErrorMapper.map(error)
+        }
     }
 }
 

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct MainTabView: View {
     @Environment(PocoStore.self) private var store
+    @State private var showsMembership = false
 
     var body: some View {
         @Bindable var store = store
@@ -24,6 +25,16 @@ struct MainTabView: View {
                     Label("マイページ", systemImage: "person")
                 }
                 .tag(AppTab.myPage)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if !store.isPocoMember {
+                PocoAdBanner {
+                    showsMembership = true
+                }
+            }
+        }
+        .sheet(isPresented: $showsMembership) {
+            PocoMembershipView()
         }
     }
 }

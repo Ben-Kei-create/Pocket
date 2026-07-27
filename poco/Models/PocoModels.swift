@@ -64,6 +64,19 @@ nonisolated struct Feedback: Identifiable, Hashable, Codable, Sendable {
     let createdAt: Date
     var likes: Int
     let bubbleColor: BubbleColor
+    var senderID: UUID? = nil
+}
+
+nonisolated enum MembershipTier: String, Codable, Sendable {
+    case guest
+    case pocoMember = "poco_member"
+
+    var isMember: Bool { self == .pocoMember }
+}
+
+nonisolated struct MemberLikeSummary: Equatable, Sendable {
+    let projectLikes: Int
+    let feedbackLikes: Int
 }
 
 nonisolated enum BubbleColor: String, CaseIterable, Codable, Sendable {

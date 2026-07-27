@@ -68,15 +68,17 @@ enum MockData {
             + Array(repeating: starProject.id, count: 6)
 
         return messages.enumerated().map { index, message in
-            Feedback(
+            let nickname = nicknames[index % nicknames.count]
+            return Feedback(
                 id: UUID(uuidString: String(format: "30000000-0000-0000-0000-%012d", index + 1))!,
                 projectID: projectIDs[index],
                 message: message,
-                nickname: nicknames[index % nicknames.count],
+                nickname: nickname,
                 isPublic: true,
                 createdAt: Date(timeIntervalSinceNow: TimeInterval(-index * 3_700)),
                 likes: (index * 7 + 3) % 48,
-                bubbleColor: BubbleColor.allCases[index % BubbleColor.allCases.count]
+                bubbleColor: BubbleColor.allCases[index % BubbleColor.allCases.count],
+                senderID: nickname == "そらのひつじ" ? forestCreator.id : nil
             )
         }
     }()

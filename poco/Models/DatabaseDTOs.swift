@@ -150,8 +150,30 @@ nonisolated struct FeedbackDTO: Codable, Sendable {
             isPublic: isPublic,
             createdAt: createdAt,
             likes: likesCount,
-            bubbleColor: BubbleColor(rawValue: bubbleColor) ?? .coral
+            bubbleColor: BubbleColor(rawValue: bubbleColor) ?? .coral,
+            senderID: senderID
         )
+    }
+}
+
+nonisolated struct MembershipDTO: Codable, Sendable {
+    let tier: String
+    let status: String
+    let currentPeriodEnd: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case tier
+        case status
+        case currentPeriodEnd = "current_period_end"
+    }
+
+    var membershipTier: MembershipTier {
+        guard MembershipTier(rawValue: tier) == .pocoMember,
+              ["active", "trialing"].contains(status),
+              currentPeriodEnd.map({ $0 > .now }) ?? true else {
+            return .guest
+        }
+        return .pocoMember
     }
 }
 
@@ -164,5 +186,13 @@ nonisolated struct FeedbackLikeDTO: Encodable, Sendable {
         case id
         case feedbackID = "feedback_id"
         case userID = "user_id"
+    }
+}
+
+nonisolated struct FeedbackLikeQueryDTO: Decodable, Sendable {
+    let feedbackID: UUID
+
+    enum CodingKeys: String, CodingKey {
+        case feedbackID = "feedback_id"
     }
 }

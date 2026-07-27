@@ -9,6 +9,10 @@ struct BubbleDetailSheet: View {
         store.feedbacks.first { $0.id == feedbackID }
     }
 
+    private var hasLiked: Bool {
+        store.likedFeedbackIDs.contains(feedbackID)
+    }
+
     var body: some View {
         NavigationStack {
             Group {
@@ -20,7 +24,9 @@ struct BubbleDetailSheet: View {
                         HStack {
                             Label(feedback.createdAt.formatted(date: .abbreviated, time: .shortened), systemImage: "clock")
                             Spacer()
-                            Label("\(feedback.likes)", systemImage: "heart.fill")
+                            if store.isPocoMember {
+                                Label("\(feedback.likes)", systemImage: "heart.fill")
+                            }
                         }
                         .font(.subheadline)
                         .foregroundStyle(PocoTheme.secondaryText)
@@ -30,9 +36,18 @@ struct BubbleDetailSheet: View {
                                 await store.like(feedback)
                             }
                         } label: {
-                            Label("いいね", systemImage: "heart")
+                            Label(
+                                hasLiked ? "いいねを送りました" : "いいねを送る",
+                                systemImage: hasLiked ? "heart.fill" : "heart"
+                            )
                         }
                         .buttonStyle(PocoPrimaryButtonStyle())
+                        .disabled(hasLiked)
+                        .accessibilityHint(
+                            store.isPocoMember
+                                ? "現在のいいね数は\(feedback.likes)件です"
+                                : "ゲストにはいいね数は表示されません"
+                        )
 
                         Spacer()
                     }
