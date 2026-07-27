@@ -6,6 +6,7 @@ struct BubbleWallView: View {
 
     @State private var mode = WallMode.everyone
     @State private var selectedFeedback: Feedback?
+    @State private var selectedCreator: Creator?
     @State private var showsMembership = false
     @State private var focusFeedbackID: UUID?
     @State private var previousVisitDate: Date?
@@ -81,7 +82,10 @@ struct BubbleWallView: View {
                     feedbacks: displayedFeedbacks,
                     highlightedFeedbackIDs: ownFeedbackIDs,
                     focusFeedbackID: focusFeedbackID,
-                    onSelect: { selectedFeedback = $0 }
+                    onSelect: { selectedFeedback = $0 },
+                    onSelectAuthor: { feedback in
+                        selectedCreator = feedback.senderCreator
+                    }
                 )
                 .padding(.bottom, 8)
             } else {
@@ -100,6 +104,18 @@ struct BubbleWallView: View {
             BubbleDetailSheet(feedbackID: feedback.id)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $selectedCreator) { creator in
+            NavigationStack {
+                PublicProfileView(creator: creator)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("閉じる") {
+                                selectedCreator = nil
+                            }
+                        }
+                    }
+            }
         }
         .sheet(isPresented: $showsMembership) {
             PocoMembershipView()

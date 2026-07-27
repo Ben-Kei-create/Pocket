@@ -5,15 +5,17 @@ struct MyPageView: View {
     @AppStorage("poco.hasCompletedWelcome") private var hasCompletedWelcome = true
     @State private var showsMembership = false
     @State private var showsRegistration = false
+    @State private var showsProfileEdit = false
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
                     HStack(spacing: 16) {
-                        Image(systemName: "person.crop.circle.fill")
-                            .font(.system(size: 58))
-                            .foregroundStyle(PocoTheme.bubble(.lavender))
+                        ProfileAvatarView(
+                            creator: store.currentProfile,
+                            localImageData: store.currentAvatarImageData
+                        )
                         VStack(alignment: .leading, spacing: 4) {
                             Text(store.currentDisplayName)
                                 .font(.headline)
@@ -22,6 +24,14 @@ struct MyPageView: View {
                                 .foregroundStyle(PocoTheme.secondaryText)
                         }
                         Spacer()
+                        if store.canCreateProjects {
+                            Button("編集") {
+                                showsProfileEdit = true
+                            }
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(PocoTheme.primary)
+                            .accessibilityLabel("プロフィールを編集")
+                        }
                         if store.isPocoMember {
                             Image(systemName: "checkmark.seal.fill")
                                 .foregroundStyle(PocoTheme.primary)
@@ -110,6 +120,9 @@ struct MyPageView: View {
             }
             .sheet(isPresented: $showsRegistration) {
                 RegistrationGateView()
+            }
+            .sheet(isPresented: $showsProfileEdit) {
+                ProfileEditView()
             }
         }
     }

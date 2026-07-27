@@ -10,6 +10,7 @@ struct PhysicsBubbleFieldView: View {
     var highlightedFeedbackIDs: Set<UUID> = []
     var focusFeedbackID: UUID?
     var onSelect: ((Feedback) -> Void)?
+    var onSelectAuthor: ((Feedback) -> Void)?
 
     var body: some View {
         GeometryReader { proxy in
@@ -28,7 +29,8 @@ struct PhysicsBubbleFieldView: View {
                 scrollTrigger: scrollTrigger,
                 highlightedFeedbackIDs: highlightedFeedbackIDs,
                 focusFeedbackID: focusFeedbackID,
-                onSelect: onSelect
+                onSelect: onSelect,
+                onSelectAuthor: onSelectAuthor
             )
             .background {
                 PocoTheme.cardBackground.opacity(0.28)
@@ -107,6 +109,7 @@ private struct BubbleWallPhysicsCanvas: UIViewRepresentable {
     let highlightedFeedbackIDs: Set<UUID>
     let focusFeedbackID: UUID?
     let onSelect: ((Feedback) -> Void)?
+    let onSelectAuthor: ((Feedback) -> Void)?
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -136,7 +139,8 @@ private struct BubbleWallPhysicsCanvas: UIViewRepresentable {
             scrollTrigger: scrollTrigger,
             highlightedFeedbackIDs: highlightedFeedbackIDs,
             focusFeedbackID: focusFeedbackID,
-            onSelect: onSelect
+            onSelect: onSelect,
+            onSelectAuthor: onSelectAuthor
         )
     }
 
@@ -173,7 +177,8 @@ private struct BubbleWallPhysicsCanvas: UIViewRepresentable {
             scrollTrigger: Int,
             highlightedFeedbackIDs: Set<UUID>,
             focusFeedbackID: UUID?,
-            onSelect: ((Feedback) -> Void)?
+            onSelect: ((Feedback) -> Void)?,
+            onSelectAuthor: ((Feedback) -> Void)?
         ) {
             scene.configure(
                 feedbacks: feedbacks,
@@ -182,7 +187,8 @@ private struct BubbleWallPhysicsCanvas: UIViewRepresentable {
                 worldHeight: worldHeight,
                 reduceMotion: reduceMotion,
                 highlightedFeedbackIDs: highlightedFeedbackIDs,
-                onSelect: onSelect
+                onSelect: onSelect,
+                onSelectAuthor: onSelectAuthor
             )
 
             if scrollTrigger != handledScrollTrigger {

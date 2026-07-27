@@ -3,12 +3,14 @@ import Foundation
 nonisolated struct ProfileDTO: Codable, Sendable {
     let id: UUID
     let displayName: String
+    let avatarName: String?
     let avatarURL: String?
     let createdAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case id
         case displayName = "display_name"
+        case avatarName = "avatar_name"
         case avatarURL = "avatar_url"
         case createdAt = "created_at"
     }
@@ -16,15 +18,38 @@ nonisolated struct ProfileDTO: Codable, Sendable {
     init(creator: Creator) {
         id = creator.id
         displayName = creator.name
+        avatarName = creator.avatarName
         avatarURL = creator.avatarURL?.absoluteString
         createdAt = nil
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(displayName, forKey: .displayName)
+
+        if let avatarName {
+            try container.encode(avatarName, forKey: .avatarName)
+        } else {
+            try container.encodeNil(forKey: .avatarName)
+        }
+
+        if let avatarURL {
+            try container.encode(avatarURL, forKey: .avatarURL)
+        } else {
+            try container.encodeNil(forKey: .avatarURL)
+        }
+
+        if let createdAt {
+            try container.encode(createdAt, forKey: .createdAt)
+        }
     }
 
     var domainModel: Creator {
         Creator(
             id: id,
             name: displayName,
-            avatarName: nil,
+            avatarName: avatarName,
             avatarURL: avatarURL.flatMap(URL.init(string:))
         )
     }
@@ -77,6 +102,8 @@ nonisolated struct ProjectQueryDTO: Codable, Sendable {
     let createdAt: Date
     let isPublished: Bool
     let feedbackCount: Int?
+    let creatorAvatarName: String?
+    let creatorAvatarURL: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -89,13 +116,20 @@ nonisolated struct ProjectQueryDTO: Codable, Sendable {
         case createdAt = "created_at"
         case isPublished = "is_published"
         case feedbackCount = "feedback_count"
+        case creatorAvatarName = "creator_avatar_name"
+        case creatorAvatarURL = "creator_avatar_url"
     }
 
     var domainModel: Project {
         Project(
             id: id,
             title: title,
-            creator: Creator(id: creatorID, name: creatorName, avatarName: nil),
+            creator: Creator(
+                id: creatorID,
+                name: creatorName,
+                avatarName: creatorAvatarName,
+                avatarURL: creatorAvatarURL.flatMap(URL.init(string:))
+            ),
             category: ProjectCategory(rawValue: category) ?? .other,
             description: description,
             imageName: nil,

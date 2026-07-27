@@ -7,6 +7,36 @@ nonisolated struct Creator: Identifiable, Hashable, Codable, Sendable {
     var avatarURL: URL? = nil
 }
 
+nonisolated enum BuiltInAvatar: String, CaseIterable, Identifiable, Codable, Sendable {
+    case cat = "PocoAvatarCat"
+    case pig = "PocoAvatarPig"
+    case bear = "PocoAvatarBear"
+    case dog = "PocoAvatarDog"
+    case lion = "PocoAvatarLion"
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .cat: "くろねこ"
+        case .pig: "こぶた"
+        case .bear: "くま"
+        case .dog: "こいぬ"
+        case .lion: "ライオン"
+        }
+    }
+
+    var companionAssetName: String {
+        switch self {
+        case .cat: "PocoCompanionCat"
+        case .pig: "PocoCompanionPig"
+        case .bear: "PocoCompanionBear"
+        case .dog: "PocoCompanionDog"
+        case .lion: "PocoCompanionLion"
+        }
+    }
+}
+
 nonisolated struct Project: Identifiable, Hashable, Codable, Sendable {
     let id: UUID
     var title: String
@@ -65,6 +95,20 @@ nonisolated struct Feedback: Identifiable, Hashable, Codable, Sendable {
     var likes: Int
     let bubbleColor: BubbleColor
     var senderID: UUID? = nil
+    var senderAvatarName: String? = nil
+    var senderAvatarURL: URL? = nil
+}
+
+nonisolated extension Feedback {
+    var senderCreator: Creator? {
+        guard let senderID else { return nil }
+        return Creator(
+            id: senderID,
+            name: nickname,
+            avatarName: senderAvatarName,
+            avatarURL: senderAvatarURL
+        )
+    }
 }
 
 nonisolated enum MembershipTier: String, Codable, Sendable {

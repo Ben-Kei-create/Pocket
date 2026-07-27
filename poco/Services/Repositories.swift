@@ -29,6 +29,15 @@ protocol ProjectImageStorage: Sendable {
     ) async throws -> URL
 }
 
+protocol ProfileAvatarStorage: Sendable {
+    nonisolated func uploadProfileAvatar(
+        _ data: Data,
+        userID: UUID
+    ) async throws -> URL
+
+    nonisolated func deleteProfileAvatar(at url: URL) async throws
+}
+
 protocol CurrentUserProvider: Sendable {
     func currentUserID() async -> UUID?
     func accountStatus() async -> AccountStatus
@@ -208,6 +217,19 @@ struct DisabledProjectImageStorage: ProjectImageStorage {
         projectID: UUID,
         creatorID: UUID
     ) async throws -> URL {
+        throw AppError.storage
+    }
+}
+
+struct DisabledProfileAvatarStorage: ProfileAvatarStorage {
+    nonisolated func uploadProfileAvatar(
+        _ data: Data,
+        userID: UUID
+    ) async throws -> URL {
+        throw AppError.storage
+    }
+
+    nonisolated func deleteProfileAvatar(at url: URL) async throws {
         throw AppError.storage
     }
 }

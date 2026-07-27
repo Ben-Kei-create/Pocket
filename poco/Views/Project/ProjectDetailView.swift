@@ -116,9 +116,7 @@ struct ProjectDetailView: View {
 
     private func creatorCard(_ creator: Creator) -> some View {
         HStack(spacing: 14) {
-            Image(systemName: "person.crop.circle.fill")
-                .font(.system(size: 44))
-                .foregroundStyle(PocoTheme.bubble(.blue))
+            ProfileAvatarView(creator: creator, size: 44)
             VStack(alignment: .leading, spacing: 3) {
                 Text("クリエイター")
                     .font(.caption)

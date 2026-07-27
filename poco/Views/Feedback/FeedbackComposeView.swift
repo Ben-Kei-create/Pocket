@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct FeedbackComposeView: View {
+    @Environment(PocoStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     let project: Project
     let onDrop: (Feedback) -> Void
@@ -72,6 +73,9 @@ struct FeedbackComposeView: View {
                 }
             }
             .onAppear {
+                if nickname.isEmpty, store.canCreateProjects {
+                    nickname = store.currentDisplayName
+                }
                 focusedField = .message
             }
         }
@@ -115,6 +119,7 @@ struct FeedbackComposeView: View {
     private func makeFeedback() {
         focusedField = nil
         let colorIndex = abs(trimmedMessage.hashValue) % BubbleColor.allCases.count
+        let senderID = store.canCreateProjects ? store.currentUserID : nil
         let feedback = Feedback(
             id: UUID(),
             projectID: project.id,
@@ -123,7 +128,10 @@ struct FeedbackComposeView: View {
             isPublic: isPublic,
             createdAt: .now,
             likes: 0,
-            bubbleColor: BubbleColor.allCases[colorIndex]
+            bubbleColor: BubbleColor.allCases[colorIndex],
+            senderID: senderID,
+            senderAvatarName: senderID == nil ? nil : store.currentProfile?.avatarName,
+            senderAvatarURL: senderID == nil ? nil : store.currentProfile?.avatarURL
         )
         onDrop(feedback)
     }

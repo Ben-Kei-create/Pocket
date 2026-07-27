@@ -15,7 +15,11 @@ final class PhysicsBubbleNode: SKNode {
 
     private let visualContainer = SKNode()
 
-    init(feedback: Feedback, size: CGSize, highlighted: Bool = false) {
+    init(
+        feedback: Feedback,
+        size: CGSize,
+        highlighted: Bool = false
+    ) {
         feedbackID = feedback.id
         visualSize = size
         super.init()
@@ -27,6 +31,7 @@ final class PhysicsBubbleNode: SKNode {
         physicsBody = BubblePhysicsBody.make(size: size)
         physicsBody?.categoryBitMask = PhysicsCategory.bubble
         physicsBody?.collisionBitMask = PhysicsCategory.bubble
+            | PhysicsCategory.companion
             | PhysicsCategory.floor
             | PhysicsCategory.wall
         physicsBody?.contactTestBitMask = PhysicsCategory.bubble
@@ -110,12 +115,16 @@ final class PhysicsBubbleNode: SKNode {
 
         let authorY = -size.height * 0.24
         let avatarRadius: CGFloat = tier == .large ? 8 : 7
-        let avatar = SKShapeNode(circleOfRadius: avatarRadius)
-        avatar.fillColor = UIColor.black.withAlphaComponent(0.22)
-        avatar.strokeColor = .clear
+        let avatar = SKNode()
+        avatar.name = "feedback-author"
         avatar.position = CGPoint(x: leadingX + avatarRadius, y: authorY)
         avatar.zPosition = 2
         visualContainer.addChild(avatar)
+
+        let avatarBackground = SKShapeNode(circleOfRadius: avatarRadius)
+        avatarBackground.fillColor = UIColor.black.withAlphaComponent(0.22)
+        avatarBackground.strokeColor = .clear
+        avatar.addChild(avatarBackground)
 
         let initial = makeLabel(
             text: String(feedback.nickname.prefix(1)),
@@ -126,15 +135,64 @@ final class PhysicsBubbleNode: SKNode {
         initial.position = .zero
         avatar.addChild(initial)
 
+        let avatarDiameter = avatarRadius * 2
+        if let avatarName = feedback.senderAvatarName,
+           BuiltInAvatar(rawValue: avatarName) != nil,
+           let image = UIImage(named: avatarName) {
+            addAvatarImage(image, to: avatar, diameter: avatarDiameter)
+        } else if let avatarURL = feedback.senderAvatarURL {
+            loadRemoteAvatar(avatarURL, into: avatar, diameter: avatarDiameter)
+        }
+
         let nickname = makeLabel(
             text: feedback.nickname,
             font: .systemFont(ofSize: tier == .large ? 9 : 8, weight: .medium),
             color: UIColor.secondaryLabel.withAlphaComponent(0.86)
         )
         nickname.horizontalAlignmentMode = .left
+        nickname.name = "feedback-author"
         nickname.position = CGPoint(x: leadingX + avatarRadius * 2 + 5, y: authorY)
         nickname.zPosition = 2
         visualContainer.addChild(nickname)
+
+        let authorHitTarget = SKShapeNode(
+            rectOf: CGSize(width: size.width * 0.54, height: max(20, avatarRadius * 2 + 6)),
+            cornerRadius: 10
+        )
+        authorHitTarget.name = "feedback-author"
+        authorHitTarget.fillColor = UIColor.white.withAlphaComponent(0.001)
+        authorHitTarget.strokeColor = .clear
+        authorHitTarget.position = CGPoint(x: leadingX + size.width * 0.27, y: authorY)
+        authorHitTarget.zPosition = 5
+        visualContainer.addChild(authorHitTarget)
+    }
+
+    private func loadRemoteAvatar(_ url: URL, into container: SKNode, diameter: CGFloat) {
+        Task { [weak self, weak container] in
+            guard let data = await RemoteAvatarDataCache.shared.data(for: url),
+                  let image = UIImage(data: data),
+                  let self,
+                  let container,
+                  container.parent != nil else { return }
+            self.addAvatarImage(image, to: container, diameter: diameter)
+        }
+    }
+
+    private func addAvatarImage(_ image: UIImage, to container: SKNode, diameter: CGFloat) {
+        container.childNode(withName: "profile-avatar")?.removeFromParent()
+
+        let crop = SKCropNode()
+        crop.name = "profile-avatar"
+        let mask = SKShapeNode(circleOfRadius: diameter / 2)
+        mask.fillColor = .white
+        mask.strokeColor = .clear
+        crop.maskNode = mask
+
+        let sprite = SKSpriteNode(texture: SKTexture(image: image))
+        sprite.size = CGSize(width: diameter, height: diameter)
+        crop.addChild(sprite)
+        crop.zPosition = 3
+        container.addChild(crop)
     }
 
     private func addOwnerHighlight(size: CGSize) {
@@ -230,7 +288,7 @@ enum BubblePhysicsBody {
 
 enum BubblePhysicsMetrics {
     static let rowSpacing: CGFloat = 52
-    static let wallBottomStartY: CGFloat = 82
+    static let wallBottomStartY: CGFloat = 46
     static let dropRowSpacing: CGFloat = 50
     static let dropPreviewLimit = 2
 
@@ -352,6 +410,7 @@ enum PhysicsCategory {
     static let bubble: UInt32 = 1 << 0
     static let floor: UInt32 = 1 << 1
     static let wall: UInt32 = 1 << 2
+    static let companion: UInt32 = 1 << 3
 }
 
 struct ConfigurationKey: Equatable {
@@ -376,8 +435,8 @@ func addPhysicsBoundaries(to scene: SKScene, height: CGFloat? = nil) {
         to: CGPoint(x: scene.size.width - inset, y: floorY)
     )
     floor.physicsBody?.categoryBitMask = PhysicsCategory.floor
-    floor.physicsBody?.collisionBitMask = PhysicsCategory.bubble
-    floor.physicsBody?.contactTestBitMask = PhysicsCategory.bubble
+    floor.physicsBody?.collisionBitMask = PhysicsCategory.bubble | PhysicsCategory.companion
+    floor.physicsBody?.contactTestBitMask = PhysicsCategory.bubble | PhysicsCategory.companion
     scene.addChild(floor)
 
     for (name, start, end) in [
@@ -397,7 +456,7 @@ func addPhysicsBoundaries(to scene: SKScene, height: CGFloat? = nil) {
         wall.name = name
         wall.physicsBody = SKPhysicsBody(edgeFrom: start, to: end)
         wall.physicsBody?.categoryBitMask = PhysicsCategory.wall
-        wall.physicsBody?.collisionBitMask = PhysicsCategory.bubble
+        wall.physicsBody?.collisionBitMask = PhysicsCategory.bubble | PhysicsCategory.companion
         scene.addChild(wall)
     }
 }

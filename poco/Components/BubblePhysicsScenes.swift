@@ -8,8 +8,10 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
     private var oldestFeedbacks: [Feedback] = []
     private var placementByID: [UUID: BubbleFieldPlacement] = [:]
     private var activeBubbleNodes: [UUID: PhysicsBubbleNode] = [:]
+    private var activeCompanionNodes: [UUID: PhysicsCompanionNode] = [:]
     private var highlightedFeedbackIDs: Set<UUID> = []
     private var onSelect: ((Feedback) -> Void)?
+    private var onSelectAuthor: ((Feedback) -> Void)?
     private var touchStart: CGPoint?
     private var reduceMotion = false
     private var worldHeight: CGFloat = 0
@@ -32,9 +34,11 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
         worldHeight: CGFloat,
         reduceMotion: Bool,
         highlightedFeedbackIDs: Set<UUID>,
-        onSelect: ((Feedback) -> Void)?
+        onSelect: ((Feedback) -> Void)?,
+        onSelectAuthor: ((Feedback) -> Void)?
     ) {
         self.onSelect = onSelect
+        self.onSelectAuthor = onSelectAuthor
         let key = ConfigurationKey(
             ids: feedbacks.map(\.id),
             highlightedIDs: highlightedFeedbackIDs.sorted { $0.uuidString < $1.uuidString },
@@ -83,8 +87,26 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
             return
         }
 
+        if let companion = companionNode(at: point) {
+            if !reduceMotion {
+                companion.physicsBody?.applyImpulse(CGVector(dx: 0, dy: 0.10))
+                companion.playPoyon()
+            }
+            return
+        }
+
         guard let bubble = bubbleNode(at: point),
               let feedback = feedbackByID[bubble.feedbackID] else { return }
+
+        if containsNode(named: "feedback-author", at: point),
+           feedback.senderID != nil {
+            if !reduceMotion {
+                bubble.playPoyon()
+            }
+            onSelectAuthor?(feedback)
+            return
+        }
+
         if !reduceMotion {
             bubble.physicsBody?.applyImpulse(CGVector(dx: 0, dy: 0.18))
             bubble.playPoyon()
@@ -100,6 +122,8 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
         guard !reduceMotion else { return }
         (contact.bodyA.node as? PhysicsBubbleNode)?.playPoyon()
         (contact.bodyB.node as? PhysicsBubbleNode)?.playPoyon()
+        (contact.bodyA.node as? PhysicsCompanionNode)?.playPoyon()
+        (contact.bodyB.node as? PhysicsCompanionNode)?.playPoyon()
     }
 
     private func bubbleNode(at point: CGPoint) -> PhysicsBubbleNode? {
@@ -115,6 +139,30 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
         return nil
     }
 
+    private func companionNode(at point: CGPoint) -> PhysicsCompanionNode? {
+        for hitNode in nodes(at: point) {
+            var currentNode: SKNode? = hitNode
+            while let node = currentNode {
+                if let companion = node as? PhysicsCompanionNode {
+                    return companion
+                }
+                currentNode = node.parent
+            }
+        }
+        return nil
+    }
+
+    private func containsNode(named name: String, at point: CGPoint) -> Bool {
+        for hitNode in nodes(at: point) {
+            var currentNode: SKNode? = hitNode
+            while let node = currentNode {
+                if node.name == name { return true }
+                currentNode = node.parent
+            }
+        }
+        return false
+    }
+
     private func rebuild(feedbacks: [Feedback], layout: BubbleFieldLayout) {
         removeAllChildren()
         feedbackByID = Dictionary(uniqueKeysWithValues: feedbacks.map { ($0.id, $0) })
@@ -123,8 +171,8 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
             uniqueKeysWithValues: layout.placements.map { ($0.feedbackID, $0) }
         )
         activeBubbleNodes.removeAll(keepingCapacity: true)
+        activeCompanionNodes.removeAll(keepingCapacity: true)
         addPhysicsBoundaries(to: self, height: worldHeight)
-        addOldestFeedbackMarker()
 
         cameraNode.position = CGPoint(
             x: size.width / 2,
@@ -151,6 +199,8 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
         for id in idsToRemove {
             activeBubbleNodes[id]?.removeFromParent()
             activeBubbleNodes[id] = nil
+            activeCompanionNodes[id]?.removeFromParent()
+            activeCompanionNodes[id] = nil
         }
 
         for feedback in visibleFeedbacks {
@@ -167,29 +217,40 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
             node.physicsBody?.isDynamic = !reduceMotion
             addChild(node)
             activeBubbleNodes[feedback.id] = node
+
+            let companionHeight = CompanionPhysicsMetrics.height(for: placement.size)
+            let companion = PhysicsCompanionNode(
+                feedback: feedback,
+                height: companionHeight
+            )
+            let direction: CGFloat = stableUnit(feedback.id, salt: 71) < 0.5 ? -1 : 1
+            let proposedX = placement.position.x
+                + direction * (placement.size.width * 0.43 + companion.visualSize.width * 0.25)
+            companion.position = CGPoint(
+                x: min(
+                    max(proposedX, companion.visualSize.width * 0.42 + 5),
+                    size.width - companion.visualSize.width * 0.42 - 5
+                ),
+                y: placement.position.y
+                    + (stableUnit(feedback.id, salt: 73) - 0.5) * placement.size.height * 0.36
+            )
+            companion.physicsBody?.isDynamic = !reduceMotion
+            companion.zPosition = 6
+            addChild(companion)
+            activeCompanionNodes[feedback.id] = companion
         }
     }
 
-    private func addOldestFeedbackMarker() {
-        let marker = SKLabelNode(text: "ここが最初の感想")
-        marker.name = "oldest-feedback-marker"
-        marker.fontName = UIFont.systemFont(ofSize: 10, weight: .semibold).fontName
-        marker.fontSize = 10
-        marker.fontColor = UIColor.secondaryLabel.withAlphaComponent(0.7)
-        marker.horizontalAlignmentMode = .center
-        marker.verticalAlignmentMode = .center
-        marker.position = CGPoint(x: size.width / 2, y: 22)
-        marker.zPosition = 10
-        addChild(marker)
-    }
 }
 
 @MainActor
 final class BubbleDropPhysicsScene: SKScene, SKPhysicsContactDelegate {
     private var configurationKey: ConfigurationKey?
     private var pendingNode: PhysicsBubbleNode?
+    private var pendingFeedback: Feedback?
     private var pendingHasLanded = false
     private var isDraggingPending = false
+    private var touchStart: CGPoint?
     private var reduceMotion = false
     private var onLanded: (() -> Void)?
 
@@ -237,10 +298,12 @@ final class BubbleDropPhysicsScene: SKScene, SKPhysicsContactDelegate {
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let touch = touches.first,
+        guard let touch = touches.first else { return }
+        let point = touch.location(in: self)
+        touchStart = point
+        guard
               let pendingNode,
               pendingNode.physicsBody?.isDynamic == false else { return }
-        let point = touch.location(in: self)
         isDraggingPending = pendingNode.contains(point)
     }
 
@@ -255,12 +318,27 @@ final class BubbleDropPhysicsScene: SKScene, SKPhysicsContactDelegate {
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard isDraggingPending else { return }
-        releasePendingBubble()
+        guard let touch = touches.first else { return }
+        let point = touch.location(in: self)
+        defer { touchStart = nil }
+
+        if isDraggingPending {
+            releasePendingBubble()
+            return
+        }
+
+        if let touchStart,
+           hypot(point.x - touchStart.x, point.y - touchStart.y) <= 14,
+           let companion = companionNode(at: point),
+           !reduceMotion {
+            companion.playPoyon()
+            companion.physicsBody?.applyImpulse(CGVector(dx: 0, dy: 0.10))
+        }
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
         isDraggingPending = false
+        touchStart = nil
     }
 
     func didBegin(_ contact: SKPhysicsContact) {
@@ -270,6 +348,8 @@ final class BubbleDropPhysicsScene: SKScene, SKPhysicsContactDelegate {
         if !reduceMotion {
             bubbleA?.playPoyon()
             bubbleB?.playPoyon()
+            (contact.bodyA.node as? PhysicsCompanionNode)?.playPoyon()
+            (contact.bodyB.node as? PhysicsCompanionNode)?.playPoyon()
         }
 
         guard !pendingHasLanded,
@@ -282,13 +362,16 @@ final class BubbleDropPhysicsScene: SKScene, SKPhysicsContactDelegate {
         guard otherBody.categoryBitMask & landedCategory != 0 else { return }
 
         pendingHasLanded = true
+        spawnCompanion(for: pendingNode)
         onLanded?()
     }
 
     private func rebuild(feedback: Feedback, existingFeedbacks: [Feedback]) {
         removeAllChildren()
+        pendingFeedback = feedback
         pendingHasLanded = false
         isDraggingPending = false
+        touchStart = nil
         addPhysicsBoundaries(to: self)
 
         var settledBubbles: [(position: CGPoint, size: CGSize)] = []
@@ -319,6 +402,25 @@ final class BubbleDropPhysicsScene: SKScene, SKPhysicsContactDelegate {
             node.zRotation = reduceMotion ? 0 : CGFloat((seed % 7) - 3) * .pi / 180
             node.physicsBody?.isDynamic = !reduceMotion
             addChild(node)
+
+            let companion = PhysicsCompanionNode(
+                feedback: existingFeedback,
+                height: CompanionPhysicsMetrics.height(for: existingSize)
+            )
+            let direction: CGFloat = stableUnit(existingFeedback.id, salt: 81) < 0.5 ? -1 : 1
+            companion.position = CGPoint(
+                x: min(
+                    max(
+                        x + direction * existingSize.width * 0.42,
+                        companion.visualSize.width * 0.42 + 5
+                    ),
+                    size.width - companion.visualSize.width * 0.42 - 5
+                ),
+                y: y + existingSize.height * 0.10
+            )
+            companion.physicsBody?.isDynamic = !reduceMotion
+            companion.zPosition = 6
+            addChild(companion)
             settledBubbles.append((node.position, existingSize))
         }
 
@@ -329,7 +431,7 @@ final class BubbleDropPhysicsScene: SKScene, SKPhysicsContactDelegate {
         let pending = PhysicsBubbleNode(feedback: feedback, size: pendingSize)
         pending.position = CGPoint(
             x: size.width / 2,
-            y: size.height - pendingSize.height / 2 - 16
+            y: size.height - pendingSize.height / 2 - 6
         )
         pending.zPosition = 200
         pending.physicsBody?.isDynamic = false
@@ -337,5 +439,43 @@ final class BubbleDropPhysicsScene: SKScene, SKPhysicsContactDelegate {
         pending.physicsBody?.contactTestBitMask = PhysicsCategory.bubble | PhysicsCategory.floor
         addChild(pending)
         pendingNode = pending
+    }
+
+    private func spawnCompanion(for bubble: PhysicsBubbleNode) {
+        guard let pendingFeedback else { return }
+
+        let companion = PhysicsCompanionNode(
+            feedback: pendingFeedback,
+            height: CompanionPhysicsMetrics.height(for: bubble.visualSize) * 1.08
+        )
+        let hasSpaceOnRight = bubble.position.x + bubble.visualSize.width * 0.65 < size.width
+        let direction: CGFloat = hasSpaceOnRight ? 1 : -1
+        companion.position = CGPoint(
+            x: min(
+                max(
+                    bubble.position.x + direction * bubble.visualSize.width * 0.46,
+                    companion.visualSize.width * 0.42 + 5
+                ),
+                size.width - companion.visualSize.width * 0.42 - 5
+            ),
+            y: bubble.position.y + bubble.visualSize.height * 0.12
+        )
+        companion.zPosition = 220
+        companion.physicsBody?.isDynamic = !reduceMotion
+        addChild(companion)
+        companion.playSpawn(reduceMotion: reduceMotion, horizontalDirection: direction)
+    }
+
+    private func companionNode(at point: CGPoint) -> PhysicsCompanionNode? {
+        for hitNode in nodes(at: point) {
+            var currentNode: SKNode? = hitNode
+            while let node = currentNode {
+                if let companion = node as? PhysicsCompanionNode {
+                    return companion
+                }
+                currentNode = node.parent
+            }
+        }
+        return nil
     }
 }

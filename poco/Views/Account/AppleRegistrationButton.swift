@@ -2,6 +2,9 @@ import AuthenticationServices
 import SwiftUI
 
 struct AppleRegistrationButton: View {
+    let avatarName: String?
+    let avatarImageData: Data?
+
     @Environment(PocoStore.self) private var store
     @State private var rawNonce: String?
 
@@ -40,7 +43,9 @@ struct AppleRegistrationButton: View {
                 await store.signInWithApple(
                     identityToken: identityToken,
                     rawNonce: rawNonce,
-                    displayName: displayName?.isEmpty == false ? displayName : nil
+                    displayName: displayName?.isEmpty == false ? displayName : nil,
+                    avatarName: avatarName,
+                    avatarImageData: avatarImageData
                 )
             }
         case .failure(let error):

@@ -4,6 +4,7 @@ struct BubbleDetailSheet: View {
     @Environment(PocoStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     let feedbackID: UUID
+    @State private var selectedCreator: Creator?
 
     private var feedback: Feedback? {
         store.feedbacks.first { $0.id == feedbackID }
@@ -18,7 +19,10 @@ struct BubbleDetailSheet: View {
             Group {
                 if let feedback {
                     VStack(alignment: .leading, spacing: 24) {
-                        BubbleView(feedback: feedback)
+                        BubbleView(
+                            feedback: feedback,
+                            onSelectAuthor: { selectedCreator = $0 }
+                        )
                             .frame(maxWidth: .infinity, minHeight: 190)
 
                         HStack {
@@ -63,6 +67,9 @@ struct BubbleDetailSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("閉じる", action: dismiss.callAsFunction)
                 }
+            }
+            .navigationDestination(item: $selectedCreator) { creator in
+                PublicProfileView(creator: creator)
             }
         }
     }

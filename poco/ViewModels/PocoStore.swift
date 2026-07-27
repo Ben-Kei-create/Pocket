@@ -13,6 +13,7 @@ final class PocoStore {
     private(set) var accountStatus: AccountStatus = .guest
     private(set) var currentUserID: UUID?
     private(set) var currentProfile: Creator?
+    private(set) var currentAvatarImageData: Data?
     private(set) var likedFeedbackIDs: Set<UUID> = []
     private(set) var membershipOffer: MembershipOffer?
     private(set) var membershipPurchaseState: MembershipPurchaseState = .idle
@@ -31,7 +32,9 @@ final class PocoStore {
     private let authRepository: any AuthRepository
     private let currentUserProvider: any CurrentUserProvider
     private let projectImageStorage: (any ProjectImageStorage)?
+    private let profileAvatarStorage: (any ProfileAvatarStorage)?
     private var realtimeTasks: [UUID: Task<Void, Never>] = [:]
+    private var profileCache: [UUID: Creator] = [:]
     private var optimisticFeedbackIDs: Set<UUID> = []
     private var pendingDeepLinkProjectID: UUID?
 
@@ -45,6 +48,7 @@ final class PocoStore {
         authRepository: (any AuthRepository)? = nil,
         currentUserProvider: (any CurrentUserProvider)? = nil,
         projectImageStorage: (any ProjectImageStorage)? = nil,
+        profileAvatarStorage: (any ProfileAvatarStorage)? = nil,
         backendMode: BackendMode = .mock,
         initialProjects: [Project]? = nil,
         initialFeedbacks: [Feedback]? = nil
@@ -58,6 +62,7 @@ final class PocoStore {
         self.authRepository = authRepository ?? MockAuthRepository()
         self.currentUserProvider = currentUserProvider ?? MockCurrentUserProvider()
         self.projectImageStorage = projectImageStorage
+        self.profileAvatarStorage = profileAvatarStorage
         self.backendMode = backendMode
         projects = initialProjects ?? MockData.projects
         feedbacks = initialFeedbacks ?? MockData.feedbacks
@@ -92,7 +97,8 @@ final class PocoStore {
         feedbackLoadStates[projectID] = .loading
 
         do {
-            let remoteFeedbacks = try await feedbackRepository.fetchFeedbacks(projectID: projectID)
+            let fetchedFeedbacks = try await feedbackRepository.fetchFeedbacks(projectID: projectID)
+            let remoteFeedbacks = await hydrateFeedbacks(fetchedFeedbacks)
             let optimistic = feedbacks.filter {
                 $0.projectID == projectID && optimisticFeedbackIDs.contains($0.id)
             }
@@ -132,8 +138,14 @@ final class PocoStore {
 
     func submit(_ feedback: Feedback) async -> Result<Void, AppError> {
         var feedback = feedback
-        if feedback.senderID == nil {
+        if feedback.senderID == nil, canCreateProjects {
             feedback.senderID = currentUserID
+        }
+        if let senderID = feedback.senderID,
+           let profile = profileCache[senderID]
+                ?? (currentProfile?.id == senderID ? currentProfile : nil) {
+            feedback.senderAvatarName = profile.avatarName
+            feedback.senderAvatarURL = profile.avatarURL
         }
         let isNew = !feedbacks.contains(where: { $0.id == feedback.id })
         if isNew {
@@ -220,16 +232,33 @@ final class PocoStore {
         membershipTier = .pocoMember
     }
 
-    func registerPreviewAccount() {
+    func registerPreviewAccount(
+        avatarName: String? = BuiltInAvatar.cat.rawValue,
+        avatarImageData: Data? = nil
+    ) {
         guard backendMode == .mock else { return }
         UserDefaults.standard.set(true, forKey: "poco.previewRegisteredAccount")
         accountStatus = .registered
+        let profileID = currentUserID ?? MockData.forestCreator.id
+        currentUserID = profileID
+        currentAvatarImageData = avatarImageData
+        currentProfile = Creator(
+            id: profileID,
+            name: currentProfile?.name ?? "そらのひつじ",
+            avatarName: avatarImageData == nil ? avatarName : nil
+        )
+        if let currentProfile {
+            profileCache[profileID] = currentProfile
+            applyProfile(currentProfile)
+        }
     }
 
     func signInWithApple(
         identityToken: String,
         rawNonce: String,
-        displayName: String?
+        displayName: String?,
+        avatarName: String?,
+        avatarImageData: Data?
     ) async {
         guard authenticationState != .authenticating else { return }
         authenticationState = .authenticating
@@ -244,19 +273,51 @@ final class PocoStore {
             )
             currentUserID = account.id
             accountStatus = .registered
-            currentProfile = Creator(
-                id: account.id,
-                name: account.displayName ?? "Pocoユーザー",
-                avatarName: nil
-            )
-
-            if let displayName = account.displayName?.trimmingCharacters(
+            let existingProfile = try? await profileRepository.fetchProfile(id: account.id)
+            let normalizedDisplayName = account.displayName?.trimmingCharacters(
                 in: .whitespacesAndNewlines
-            ), !displayName.isEmpty {
-                try? await profileRepository.saveProfile(
-                    Creator(id: account.id, name: displayName, avatarName: nil)
-                )
+            )
+            let profileName: String
+            if let normalizedDisplayName, !normalizedDisplayName.isEmpty {
+                profileName = normalizedDisplayName
+            } else {
+                profileName = existingProfile?.name ?? "Pocoユーザー"
             }
+            var selectedAvatarName = avatarName ?? existingProfile?.avatarName
+            var avatarURL = avatarName == nil ? existingProfile?.avatarURL : nil
+            currentAvatarImageData = nil
+
+            if let avatarImageData, let profileAvatarStorage {
+                do {
+                    let compressedData = try await Task.detached(priority: .userInitiated) {
+                        try ProjectImageProcessor.compressedJPEG(
+                            from: avatarImageData,
+                            maximumDimension: 512,
+                            quality: 0.82
+                        )
+                    }.value
+                    avatarURL = try await profileAvatarStorage.uploadProfileAvatar(
+                        compressedData,
+                        userID: account.id
+                    )
+                    currentAvatarImageData = compressedData
+                    selectedAvatarName = nil
+                } catch {
+                    errorMessage = "登録は完了しましたが、プロフィール画像を保存できませんでした。"
+                }
+            }
+
+            let profile = Creator(
+                id: account.id,
+                name: profileName,
+                avatarName: selectedAvatarName,
+                avatarURL: avatarURL
+            )
+            currentProfile = profile
+            profileCache[account.id] = profile
+            applyProfile(profile)
+
+            try? await profileRepository.saveProfile(profile)
 
             await loadMembership()
             authenticationState = .authenticated
@@ -271,12 +332,78 @@ final class PocoStore {
         authenticationState = .error(message)
     }
 
+    func updateProfile(
+        displayName: String,
+        avatarName: String?,
+        avatarImageData: Data?
+    ) async -> Result<Void, AppError> {
+        let normalizedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard canCreateProjects,
+              let userID = currentUserID,
+              !normalizedName.isEmpty,
+              normalizedName.count <= 80 else {
+            return .failure(.unauthorized)
+        }
+
+        let previousProfile = currentProfile
+        var selectedAvatarName = avatarName ?? previousProfile?.avatarName
+        var avatarURL = avatarName == nil ? previousProfile?.avatarURL : nil
+        var displayImageData: Data?
+
+        do {
+            if let avatarImageData {
+                let compressedData = try await Task.detached(priority: .userInitiated) {
+                    try ProjectImageProcessor.compressedJPEG(
+                        from: avatarImageData,
+                        maximumDimension: 512,
+                        quality: 0.82
+                    )
+                }.value
+                displayImageData = compressedData
+                selectedAvatarName = nil
+                if let profileAvatarStorage {
+                    avatarURL = try await profileAvatarStorage.uploadProfileAvatar(
+                        compressedData,
+                        userID: userID
+                    )
+                } else {
+                    avatarURL = nil
+                }
+            }
+
+            let profile = Creator(
+                id: userID,
+                name: normalizedName,
+                avatarName: selectedAvatarName,
+                avatarURL: avatarURL
+            )
+            try await profileRepository.saveProfile(profile)
+            currentProfile = profile
+            currentAvatarImageData = displayImageData
+            profileCache[userID] = profile
+            applyProfile(profile)
+
+            if let previousURL = previousProfile?.avatarURL,
+               previousURL != avatarURL,
+               let profileAvatarStorage {
+                try? await profileAvatarStorage.deleteProfileAvatar(at: previousURL)
+            }
+            return .success(())
+        } catch {
+            let appError = map(error)
+            errorMessage = appError.userMessage
+            return .failure(appError)
+        }
+    }
+
     func signOut() async {
         do {
             try await authRepository.signOut()
             accountStatus = await currentUserProvider.accountStatus()
             currentUserID = await currentUserProvider.currentUserID()
             currentProfile = nil
+            currentAvatarImageData = nil
+            profileCache.removeAll()
             membershipTier = .guest
             likedFeedbackIDs.removeAll()
             authenticationState = .idle
@@ -293,6 +420,9 @@ final class PocoStore {
         UserDefaults.standard.set(false, forKey: "poco.previewRegisteredAccount")
         membershipTier = .guest
         accountStatus = .guest
+        currentProfile = nil
+        currentAvatarImageData = nil
+        profileCache.removeAll()
     }
 
     func loadMembershipOffer() async {
@@ -398,7 +528,12 @@ final class PocoStore {
                 )
             }
 
-            let creator = Creator(id: creatorID, name: creatorName, avatarName: nil)
+            let creator = Creator(
+                id: creatorID,
+                name: creatorName,
+                avatarName: currentProfile?.id == creatorID ? currentProfile?.avatarName : nil,
+                avatarURL: currentProfile?.id == creatorID ? currentProfile?.avatarURL : nil
+            )
             let project = Project(
                 id: projectID,
                 title: title,
@@ -426,18 +561,20 @@ final class PocoStore {
         let repository = feedbackRepository
 
         realtimeTasks[projectID] = Task { [weak self] in
+            guard let self else { return }
             let stream = await repository.observeFeedbacks(projectID: projectID)
             do {
                 for try await feedback in stream {
                     guard !Task.isCancelled else { break }
-                    self?.mergeRealtimeFeedback(feedback)
+                    let hydrated = await self.hydrateFeedbacks([feedback]).first ?? feedback
+                    self.mergeRealtimeFeedback(hydrated)
                 }
             } catch is CancellationError {
                 return
             } catch {
                 guard !Task.isCancelled else { return }
-                if self?.feedbacks(for: projectID).isEmpty == true {
-                    self?.errorMessage = self?.map(error).userMessage
+                if self.feedbacks(for: projectID).isEmpty {
+                    self.errorMessage = self.map(error).userMessage
                 }
             }
         }
@@ -491,6 +628,48 @@ final class PocoStore {
     private func loadCurrentProfile() async {
         guard backendMode == .supabase, let currentUserID else { return }
         currentProfile = try? await profileRepository.fetchProfile(id: currentUserID)
+        currentAvatarImageData = nil
+        if let currentProfile {
+            profileCache[currentUserID] = currentProfile
+        }
+    }
+
+    private func hydrateFeedbacks(_ values: [Feedback]) async -> [Feedback] {
+        let senderIDs = Set(values.compactMap(\.senderID))
+        let missingIDs = senderIDs.filter { profileCache[$0] == nil }
+        let repository = profileRepository
+
+        await withTaskGroup(of: (UUID, Creator?).self) { group in
+            for id in missingIDs {
+                group.addTask {
+                    (id, try? await repository.fetchProfile(id: id))
+                }
+            }
+            for await (id, profile) in group {
+                if let profile {
+                    profileCache[id] = profile
+                }
+            }
+        }
+
+        return values.map { value in
+            guard let senderID = value.senderID,
+                  let profile = profileCache[senderID] else { return value }
+            var hydrated = value
+            hydrated.senderAvatarName = profile.avatarName
+            hydrated.senderAvatarURL = profile.avatarURL
+            return hydrated
+        }
+    }
+
+    private func applyProfile(_ profile: Creator) {
+        for index in feedbacks.indices where feedbacks[index].senderID == profile.id {
+            feedbacks[index].senderAvatarName = profile.avatarName
+            feedbacks[index].senderAvatarURL = profile.avatarURL
+        }
+        for index in projects.indices where projects[index].creator.id == profile.id {
+            projects[index].creator = profile
+        }
     }
 
     private func openPendingDeepLinkIfPossible() {

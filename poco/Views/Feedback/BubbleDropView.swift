@@ -13,6 +13,7 @@ struct BubbleDropView: View {
     @State private var showsSuccess = false
     @State private var showsScrollableHistory = false
     @State private var showsWall = false
+    @State private var selectedCreator: Creator?
     @State private var deliveryState = DeliveryState.idle
     @State private var dropTrigger = 0
 
@@ -38,7 +39,10 @@ struct BubbleDropView: View {
                             PhysicsBubbleFieldView(
                                 feedbacks: feedbackHistory,
                                 highlightedFeedbackIDs: [feedback.id],
-                                focusFeedbackID: feedback.id
+                                focusFeedbackID: feedback.id,
+                                onSelectAuthor: { selectedFeedback in
+                                    selectedCreator = selectedFeedback.senderCreator
+                                }
                             )
                                 .transition(.opacity)
                         } else {
@@ -52,7 +56,12 @@ struct BubbleDropView: View {
                             .transition(.opacity)
                         }
                     }
-                    .frame(width: proxy.size.width, height: min(520, proxy.size.height * 0.67))
+                    .frame(
+                        width: proxy.size.width,
+                        height: showsScrollableHistory
+                            ? min(520, proxy.size.height * 0.67)
+                            : min(700, proxy.size.height * 0.84)
+                    )
 
                     if showsSuccess {
                         successCard
@@ -82,6 +91,18 @@ struct BubbleDropView: View {
                                 Button("閉じる") {
                                     showsWall = false
                                     dismiss()
+                                }
+                            }
+                        }
+                }
+            }
+            .sheet(item: $selectedCreator) { creator in
+                NavigationStack {
+                    PublicProfileView(creator: creator)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("閉じる") {
+                                    selectedCreator = nil
                                 }
                             }
                         }

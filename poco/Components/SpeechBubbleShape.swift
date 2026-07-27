@@ -34,6 +34,7 @@ struct SpeechBubbleShape: Shape {
 struct BubbleView: View {
     let feedback: Feedback
     var compact = false
+    var onSelectAuthor: ((Creator) -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? 3 : 10) {
@@ -44,18 +45,7 @@ struct BubbleView: View {
                 .lineSpacing(compact ? 1 : 3)
                 .minimumScaleFactor(0.82)
 
-            HStack(spacing: compact ? 4 : 6) {
-                Text(String(feedback.nickname.prefix(1)))
-                    .font(.system(size: compact ? 7 : 10, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white)
-                    .frame(width: compact ? 14 : 23, height: compact ? 14 : 23)
-                    .background(.black.opacity(0.22), in: Circle())
-
-                Text(feedback.nickname)
-                    .font(compact ? .system(size: 8, weight: .medium) : .caption)
-                    .foregroundStyle(Color(uiColor: .secondaryLabel))
-                    .lineLimit(1)
-            }
+            authorControl
         }
         .padding(.horizontal, compact ? 15 : 18)
         .padding(.top, compact ? 12 : 16)
@@ -68,7 +58,55 @@ struct BubbleView: View {
                 .shadow(color: .black.opacity(0.055), radius: compact ? 5 : 9, y: 4)
         }
         .contentShape(RoundedRectangle(cornerRadius: compact ? 20 : 28, style: .continuous))
+        .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder
+    private var authorControl: some View {
+        if let creator = feedback.senderCreator, let onSelectAuthor {
+            Button {
+                onSelectAuthor(creator)
+            } label: {
+                authorLabel
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("公開プロフィールを開きます")
+        } else {
+            authorLabel
+        }
+    }
+
+    private var authorLabel: some View {
+        HStack(spacing: compact ? 4 : 6) {
+            feedbackAvatar
+
+            Text(feedback.nickname)
+                .font(compact ? .system(size: 8, weight: .medium) : .caption)
+                .foregroundStyle(Color(uiColor: .secondaryLabel))
+                .lineLimit(1)
+        }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(feedback.nickname)さんの感想、\(feedback.message)")
+        .accessibilityLabel("投稿者、\(feedback.nickname)")
+    }
+
+    @ViewBuilder
+    private var feedbackAvatar: some View {
+        if feedback.senderAvatarName != nil || feedback.senderAvatarURL != nil {
+            ProfileAvatarView(
+                creator: Creator(
+                    id: feedback.senderID ?? feedback.id,
+                    name: feedback.nickname,
+                    avatarName: feedback.senderAvatarName,
+                    avatarURL: feedback.senderAvatarURL
+                ),
+                size: compact ? 14 : 23
+            )
+        } else {
+            Text(String(feedback.nickname.prefix(1)))
+                .font(.system(size: compact ? 7 : 10, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .frame(width: compact ? 14 : 23, height: compact ? 14 : 23)
+                .background(.black.opacity(0.22), in: Circle())
+        }
     }
 }

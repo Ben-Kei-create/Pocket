@@ -33,7 +33,7 @@ SwiftUIで作られた、クリエイターへパステルカラーのフキダ�
    supabase db push
    ```
 
-6. `003_storage.sql`によって公開Bucket `project-images`が作成されていることをStorage画面で確認します。
+6. `003_storage.sql`と`007_profile_avatars.sql`によって公開Bucket `project-images`、`profile-avatars`が作成されていることをStorage画面で確認します。
 7. Table Editorで全テーブルのRLSが有効であること、Realtime画面で`feedbacks`がpublicationへ追加されていることを確認します。
 8. `poco.xcodeproj`を開き、DebugまたはReleaseで起動します。
 
@@ -57,6 +57,7 @@ Migrationは次の順で再構築できます。
 - `004_realtime.sql`: `feedbacks`のRealtime publication
 - `005_memberships.sql`: Pocoメンバー資格、本人のみread可能なRLS、匿名ゲスト用プロフィール
 - `006_registered_creators.sql`: Anonymous Authゲストの作品作成・画像更新を拒否
+- `007_profile_avatars.sql`: 標準アバター名、プロフィール画像Bucket、本番用Storage Policy
 
 `feedback_count`は重複カラムにせず`projects_with_feedback_count` Viewで計算します。`likes_count`は`feedback_likes`のINSERT/DELETEトリガーだけで更新し、整合性を維持します。
 
@@ -94,6 +95,20 @@ project-images/projects/{creatorID}/{projectID}/{imageID}.jpg
 ```
 
 DBにはBase64ではなく公開URLだけを保存します。アップロード上限は6MB、MIME typeは`image/jpeg`です。
+
+登録時のプロフィール画像は、アプリ同梱の5種類または写真ライブラリから選択できます。同梱画像は`profiles.avatar_name`、ユーザー画像は長辺512px・JPEG品質0.82へ変換して次のパスへ保存し、`profiles.avatar_url`へ公開URLだけを保持します。
+
+```text
+profile-avatars/profiles/{userID}/{imageID}.jpg
+```
+
+プロフィール画像のアップロード上限は2MBです。Storage Policyにより、読み取りは公開、追加・更新・削除は本人かつ匿名ではない登録ユーザーだけに制限します。
+
+登録ユーザーはマイページから表示名・標準アバター・自分の写真を変更できます。新しいプロフィールのDB保存が成功した後だけ、不要になった旧Storage画像を削除します。ログイン投稿者のフキダシは`sender_id`からプロフィールを補完してアバターを表示し、匿名投稿は従来どおりニックネームの頭文字を表示します。
+
+各Feedbackにはフキダシとは独立した物理オブジェクト「顔ぷよ」を1匹表示します。標準アバター利用者は同じ動物、写真利用者・匿名投稿はFeedback UUIDから安定して選ばれる動物を使用します。新規投稿ではフキダシ着地後に顔ぷよが横から飛び出し、フキダシや他の顔ぷよと衝突します。顔ぷよをタップすると顔ぷよだけが「ぷよっ」と反応します。投稿者アイコン／表示名は登録ユーザーの場合、作品一覧を含む公開プロフィールへ遷移します。感想フィールドの最下部はスクロール範囲のクランプで示し、説明ラベルは表示しません。
+
+ホーム検索は作品名・作者名・説明・カテゴリを対象とし、カテゴリFilterと併用できます。検索結果件数と条件クリア導線も提供します。
 
 ## Sign in with Apple
 

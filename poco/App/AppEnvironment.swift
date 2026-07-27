@@ -29,6 +29,7 @@ enum AppEnvironment {
                 authRepository: SupabaseAuthRepository(client: client),
                 currentUserProvider: creatorUserProvider,
                 projectImageStorage: SupabaseProjectImageStorage(client: client),
+                profileAvatarStorage: SupabaseProfileAvatarStorage(client: client),
                 backendMode: .supabase,
                 initialProjects: [],
                 initialFeedbacks: []

@@ -38,6 +38,21 @@ struct HomeView: View {
                     categoryFilters
                         .padding(.vertical, 4)
 
+                    if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                       !visibleProjects.isEmpty {
+                        HStack {
+                            Text("\(visibleProjects.count)件見つかりました")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(PocoTheme.secondaryText)
+                            Spacer()
+                            Button("検索をクリア") {
+                                searchText = ""
+                            }
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(PocoTheme.primary)
+                        }
+                    }
+
                     if visibleProjects.isEmpty {
                         projectLoadPlaceholder
                             .frame(maxWidth: .infinity)
@@ -61,7 +76,7 @@ struct HomeView: View {
             .searchable(
                 text: $searchText,
                 placement: .navigationBarDrawer(displayMode: .always),
-                prompt: "作品名・クリエイター名で検索"
+                prompt: "作品名・作者名・説明から検索"
             )
             .navigationTitle("Poco")
             .navigationBarTitleDisplayMode(.inline)
@@ -115,12 +130,23 @@ struct HomeView: View {
                 .tint(PocoTheme.primary)
             }
         case .loaded:
-            ContentUnavailableView(
-                searchText.isEmpty
-                    ? (selectedCategory == .all ? "作品はまだありません" : "このカテゴリの作品はありません")
-                    : "検索に一致する作品がありません",
-                systemImage: searchText.isEmpty ? "books.vertical" : "magnifyingglass"
-            )
+            ContentUnavailableView {
+                Label(
+                    searchText.isEmpty
+                        ? (selectedCategory == .all ? "作品はまだありません" : "このカテゴリの作品はありません")
+                        : "検索に一致する作品がありません",
+                    systemImage: searchText.isEmpty ? "books.vertical" : "magnifyingglass"
+                )
+            } actions: {
+                if !searchText.isEmpty || selectedCategory != .all {
+                    Button("条件をクリア") {
+                        searchText = ""
+                        selectedCategory = .all
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(PocoTheme.primary)
+                }
+            }
         }
     }
 
