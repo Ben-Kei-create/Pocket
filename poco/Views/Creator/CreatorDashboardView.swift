@@ -26,7 +26,12 @@ struct CreatorDashboardView: View {
                                 Label("新しい作品を作る", systemImage: "plus")
                             }
                             .buttonStyle(PocoPrimaryButtonStyle())
+                            .disabled(!store.canCreateAnotherProject)
                             .padding(.vertical, 4)
+
+                            Text("\(store.currentUserProjects.count) / \(store.capabilities.maximumProjectCount)作品")
+                                .font(.caption)
+                                .foregroundStyle(PocoTheme.secondaryText)
 
                             Text("あなたの作品")
                                 .font(.headline)

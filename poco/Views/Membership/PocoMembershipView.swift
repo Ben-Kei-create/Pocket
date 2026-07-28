@@ -11,7 +11,7 @@ struct PocoMembershipView: View {
                     memberMark
 
                     VStack(spacing: 8) {
-                        Text("Pocoメンバー")
+                        Text("Poco Pro")
                             .font(.largeTitle.bold())
                         Text("届いたことばの反響を、もっと近くに。")
                             .font(.subheadline)
@@ -50,7 +50,7 @@ struct PocoMembershipView: View {
                                 ProgressView()
                                     .tint(.white)
                             } else {
-                                Text(store.canCreateProjects ? "Pocoメンバーになる" : "登録後に利用できます")
+                                Text(store.canCreateProjects ? "Poco Proになる" : "登録後に利用できます")
                             }
                         }
                         .buttonStyle(PocoPrimaryButtonStyle())

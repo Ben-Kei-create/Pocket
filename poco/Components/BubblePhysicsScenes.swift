@@ -42,6 +42,10 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
         let key = ConfigurationKey(
             ids: feedbacks.map(\.id),
             highlightedIDs: highlightedFeedbackIDs.sorted { $0.uuidString < $1.uuidString },
+            creatorReceivedIDs: feedbacks
+                .filter { $0.creatorReceivedAt != nil }
+                .map(\.id)
+                .sorted { $0.uuidString < $1.uuidString },
             width: Int(size.width.rounded()),
             height: Int(size.height.rounded()),
             worldHeight: Int(worldHeight.rounded()),

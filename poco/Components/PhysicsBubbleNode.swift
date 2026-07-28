@@ -76,6 +76,9 @@ final class PhysicsBubbleNode: SKNode {
         if highlighted {
             addOwnerHighlight(size: size)
         }
+        if feedback.creatorReceivedAt != nil {
+            addCreatorReceipt(size: size)
+        }
 
         let tier = BubbleSizeTier(message: feedback.message)
         let fontSize: CGFloat = switch tier {
@@ -222,6 +225,25 @@ final class PhysicsBubbleNode: SKNode {
         )
         label.position = .zero
         badge.addChild(label)
+    }
+
+    private func addCreatorReceipt(size: CGSize) {
+        let mark = SKShapeNode(circleOfRadius: 9)
+        mark.fillColor = UIColor.systemYellow.withAlphaComponent(0.96)
+        mark.strokeColor = UIColor.white.withAlphaComponent(0.95)
+        mark.lineWidth = 1.5
+        mark.glowWidth = 2
+        mark.position = CGPoint(x: size.width * 0.39, y: size.height * 0.31)
+        mark.zPosition = 4
+        visualContainer.addChild(mark)
+
+        let symbol = makeLabel(
+            text: "✦",
+            font: .systemFont(ofSize: 9, weight: .bold),
+            color: .white
+        )
+        symbol.position = .zero
+        mark.addChild(symbol)
     }
 
     private func makeLabel(text: String, font: UIFont, color: UIColor) -> SKLabelNode {
@@ -416,6 +438,7 @@ enum PhysicsCategory {
 struct ConfigurationKey: Equatable {
     let ids: [UUID]
     var highlightedIDs: [UUID] = []
+    var creatorReceivedIDs: [UUID] = []
     let width: Int
     let height: Int
     var worldHeight = 0

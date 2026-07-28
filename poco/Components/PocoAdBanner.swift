@@ -12,7 +12,7 @@ struct PocoAdPlacementView: View {
     let placement: PocoAdPlacement
 
     var body: some View {
-        if !store.isPocoMember {
+        if store.capabilities.shouldShowAds {
             PocoAdBanner {
                 showsMembership = true
             }
@@ -59,6 +59,6 @@ struct PocoAdBanner: View {
             Divider()
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("スポンサー広告。Pocoメンバーになると広告を非表示にできます")
+        .accessibilityLabel("スポンサー広告。Poco Proになると広告を非表示にできます")
     }
 }

@@ -97,6 +97,34 @@ nonisolated struct Feedback: Identifiable, Hashable, Codable, Sendable {
     var senderID: UUID? = nil
     var senderAvatarName: String? = nil
     var senderAvatarURL: URL? = nil
+    var creatorReceivedAt: Date? = nil
+}
+
+nonisolated struct CreatorReceipt: Equatable, Sendable {
+    let feedbackID: UUID
+    let createdAt: Date
+}
+
+nonisolated enum FeedbackReportReason: String, CaseIterable, Identifiable, Codable, Sendable {
+    case harassment
+    case spam
+    case personalInformation = "personal_information"
+    case sexualOrViolent = "sexual_or_violent"
+    case copyright
+    case other
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .harassment: "嫌がらせ・攻撃的な内容"
+        case .spam: "スパム・宣伝"
+        case .personalInformation: "個人情報が含まれている"
+        case .sexualOrViolent: "性的・暴力的な内容"
+        case .copyright: "著作権・権利侵害"
+        case .other: "その他"
+        }
+    }
 }
 
 nonisolated extension Feedback {
@@ -116,6 +144,69 @@ nonisolated enum MembershipTier: String, Codable, Sendable {
     case pocoMember = "poco_member"
 
     var isMember: Bool { self == .pocoMember }
+}
+
+nonisolated enum PocoRole: String, Codable, Sendable {
+    case guest
+    case user
+    case pro
+
+    var title: String {
+        switch self {
+        case .guest: "Pocoゲスト"
+        case .user: "Pocoユーザー"
+        case .pro: "Poco Pro"
+        }
+    }
+}
+
+nonisolated struct AppCapabilities: Equatable, Sendable {
+    let canCreateProject: Bool
+    let maximumProjectCount: Int
+    let canSeePopularFeedbacks: Bool
+    let canSeeOwnReactionCounts: Bool
+    let canUseProReactions: Bool
+    let canUseCodeProtectedProjects: Bool
+    let canCustomizeProjectTheme: Bool
+    let shouldShowAds: Bool
+
+    static func forRole(_ role: PocoRole) -> Self {
+        switch role {
+        case .guest:
+            Self(
+                canCreateProject: false,
+                maximumProjectCount: 0,
+                canSeePopularFeedbacks: false,
+                canSeeOwnReactionCounts: false,
+                canUseProReactions: false,
+                canUseCodeProtectedProjects: false,
+                canCustomizeProjectTheme: false,
+                shouldShowAds: true
+            )
+        case .user:
+            Self(
+                canCreateProject: true,
+                maximumProjectCount: 3,
+                canSeePopularFeedbacks: false,
+                canSeeOwnReactionCounts: false,
+                canUseProReactions: false,
+                canUseCodeProtectedProjects: false,
+                canCustomizeProjectTheme: false,
+                shouldShowAds: true
+            )
+        case .pro:
+            Self(
+                canCreateProject: true,
+                maximumProjectCount: 30,
+                canSeePopularFeedbacks: true,
+                canSeeOwnReactionCounts: true,
+                canUseProReactions: true,
+                canUseCodeProtectedProjects: true,
+                canCustomizeProjectTheme: true,
+                shouldShowAds: false
+            )
+        }
+    }
 }
 
 nonisolated enum AccountStatus: String, Codable, Sendable {

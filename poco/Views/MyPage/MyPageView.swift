@@ -35,7 +35,7 @@ struct MyPageView: View {
                         if store.isPocoMember {
                             Image(systemName: "checkmark.seal.fill")
                                 .foregroundStyle(PocoTheme.primary)
-                                .accessibilityLabel("Pocoメンバー")
+                                .accessibilityLabel("Poco Pro")
                         }
                     }
                     .padding(.vertical, 6)
@@ -73,7 +73,7 @@ struct MyPageView: View {
                         Button {
                             showsMembership = true
                         } label: {
-                            Label("Pocoメンバーになる", systemImage: "heart.circle.fill")
+                            Label("Poco Proになる", systemImage: "heart.circle.fill")
                                 .font(.headline)
                                 .foregroundStyle(PocoTheme.primary)
                         }
@@ -128,8 +128,7 @@ struct MyPageView: View {
     }
 
     private var accountLabel: String {
-        if store.isPocoMember { return "Pocoメンバー" }
-        return store.canCreateProjects ? "登録ユーザー" : "Pocoゲスト"
+        store.role.title
     }
 }
 

@@ -15,6 +15,8 @@ final class PocoStore {
     private(set) var currentProfile: Creator?
     private(set) var currentAvatarImageData: Data?
     private(set) var likedFeedbackIDs: Set<UUID> = []
+    private(set) var ownedFeedbackIDs: Set<UUID> = []
+    private(set) var blockedProfileIDs: Set<UUID> = []
     private(set) var membershipOffer: MembershipOffer?
     private(set) var membershipPurchaseState: MembershipPurchaseState = .idle
     private(set) var membershipSyncState: MembershipSyncState = .idle
@@ -27,6 +29,7 @@ final class PocoStore {
     private let feedbackRepository: any FeedbackRepository
     private let profileRepository: any ProfileRepository
     private let membershipRepository: any MembershipRepository
+    private let moderationRepository: any ModerationRepository
     private let membershipPurchaseService: any MembershipPurchaseService
     private let membershipEntitlementSynchronizer: (any MembershipEntitlementSynchronizing)?
     private let authRepository: any AuthRepository
@@ -34,6 +37,7 @@ final class PocoStore {
     private let projectImageStorage: (any ProjectImageStorage)?
     private let profileAvatarStorage: (any ProfileAvatarStorage)?
     private var realtimeTasks: [UUID: Task<Void, Never>] = [:]
+    private var realtimeReceiptTasks: [UUID: Task<Void, Never>] = [:]
     private var profileCache: [UUID: Creator] = [:]
     private var optimisticFeedbackIDs: Set<UUID> = []
     private var pendingDeepLinkProjectID: UUID?
@@ -43,6 +47,7 @@ final class PocoStore {
         feedbackRepository: (any FeedbackRepository)? = nil,
         profileRepository: (any ProfileRepository)? = nil,
         membershipRepository: (any MembershipRepository)? = nil,
+        moderationRepository: (any ModerationRepository)? = nil,
         membershipPurchaseService: (any MembershipPurchaseService)? = nil,
         membershipEntitlementSynchronizer: (any MembershipEntitlementSynchronizing)? = nil,
         authRepository: (any AuthRepository)? = nil,
@@ -57,6 +62,7 @@ final class PocoStore {
         self.feedbackRepository = feedbackRepository ?? MockFeedbackRepository()
         self.profileRepository = profileRepository ?? MockProfileRepository()
         self.membershipRepository = membershipRepository ?? MockMembershipRepository()
+        self.moderationRepository = moderationRepository ?? MockModerationRepository()
         self.membershipPurchaseService = membershipPurchaseService ?? DisabledMembershipPurchaseService()
         self.membershipEntitlementSynchronizer = membershipEntitlementSynchronizer
         self.authRepository = authRepository ?? MockAuthRepository()
@@ -76,6 +82,7 @@ final class PocoStore {
         currentUserID = await currentUserProvider.currentUserID()
         await loadCurrentProfile()
         await loadMembership()
+        await loadModerationState()
         if membershipTier.isMember {
             accountStatus = .registered
         }
@@ -116,6 +123,11 @@ final class PocoStore {
             ) {
                 likedFeedbackIDs.formUnion(persistedLikes)
             }
+            if let receipts = try? await feedbackRepository.fetchCreatorReceipts(
+                feedbackIDs: projectFeedbackIDs
+            ) {
+                applyCreatorReceipts(receipts)
+            }
             feedbackLoadStates[projectID] = .loaded
         } catch {
             let appError = map(error)
@@ -128,7 +140,11 @@ final class PocoStore {
 
     func feedbacks(for projectID: UUID) -> [Feedback] {
         feedbacks
-            .filter { $0.projectID == projectID && $0.isPublic }
+            .filter {
+                $0.projectID == projectID
+                    && $0.isPublic
+                    && !($0.senderID.map(blockedProfileIDs.contains) ?? false)
+            }
             .sorted { $0.createdAt > $1.createdAt }
     }
 
@@ -150,6 +166,7 @@ final class PocoStore {
         let isNew = !feedbacks.contains(where: { $0.id == feedback.id })
         if isNew {
             feedbacks.append(feedback)
+            ownedFeedbackIDs.insert(feedback.id)
             optimisticFeedbackIDs.insert(feedback.id)
             if let index = projects.firstIndex(where: { $0.id == feedback.projectID }) {
                 projects[index].feedbackCount += 1
@@ -187,11 +204,24 @@ final class PocoStore {
     }
 
     var isPocoMember: Bool {
-        membershipTier.isMember
+        role == .pro
+    }
+
+    var role: PocoRole {
+        if membershipTier.isMember { return .pro }
+        return accountStatus == .registered ? .user : .guest
+    }
+
+    var capabilities: AppCapabilities {
+        .forRole(role)
     }
 
     var canCreateProjects: Bool {
-        accountStatus.canCreateProjects
+        capabilities.canCreateProject
+    }
+
+    var canCreateAnotherProject: Bool {
+        canCreateProjects && currentUserProjects.count < capabilities.maximumProjectCount
     }
 
     var currentUserProjects: [Project] {
@@ -220,9 +250,97 @@ final class PocoStore {
                 .filter { ownedProjectIDs.contains($0.projectID) }
                 .reduce(0) { $0 + $1.likes },
             feedbackLikes: feedbacks.lazy
-                .filter { $0.senderID == currentUserID }
+                .filter { self.ownedFeedbackIDs.contains($0.id) }
                 .reduce(0) { $0 + $1.likes }
         )
+    }
+
+    func canMarkReceived(_ feedback: Feedback) -> Bool {
+        guard feedback.creatorReceivedAt == nil,
+              let currentUserID,
+              let project = project(id: feedback.projectID) else { return false }
+        return project.creator.id == currentUserID
+    }
+
+    func markReceived(_ feedback: Feedback) async {
+        guard canMarkReceived(feedback) else { return }
+        do {
+            let receivedAt = try await feedbackRepository.markReceivedByCreator(
+                feedbackID: feedback.id
+            )
+            applyCreatorReceipts([feedback.id: receivedAt])
+        } catch {
+            errorMessage = map(error).userMessage
+        }
+    }
+
+    func owns(_ feedback: Feedback) -> Bool {
+        ownedFeedbackIDs.contains(feedback.id)
+    }
+
+    func canHideAsCreator(_ feedback: Feedback) -> Bool {
+        guard let currentUserID,
+              let project = project(id: feedback.projectID) else { return false }
+        return project.creator.id == currentUserID && !owns(feedback)
+    }
+
+    func report(
+        _ feedback: Feedback,
+        reason: FeedbackReportReason,
+        details: String?
+    ) async -> Result<Void, AppError> {
+        let normalizedDetails = details?.trimmingCharacters(in: .whitespacesAndNewlines)
+        do {
+            try await moderationRepository.reportFeedback(
+                id: feedback.id,
+                reason: reason,
+                details: normalizedDetails?.isEmpty == false ? normalizedDetails : nil
+            )
+            return .success(())
+        } catch {
+            let appError = map(error)
+            errorMessage = appError.userMessage
+            return .failure(appError)
+        }
+    }
+
+    func deleteOwnFeedback(_ feedback: Feedback) async -> Result<Void, AppError> {
+        guard owns(feedback) else { return .failure(.unauthorized) }
+        do {
+            try await moderationRepository.deleteOwnFeedback(id: feedback.id)
+            removeFeedbackFromLocalState(feedback)
+            return .success(())
+        } catch {
+            let appError = map(error)
+            errorMessage = appError.userMessage
+            return .failure(appError)
+        }
+    }
+
+    func hideAsCreator(_ feedback: Feedback) async -> Result<Void, AppError> {
+        guard canHideAsCreator(feedback) else { return .failure(.unauthorized) }
+        do {
+            try await moderationRepository.hideFeedbackAsCreator(id: feedback.id)
+            removeFeedbackFromLocalState(feedback)
+            return .success(())
+        } catch {
+            let appError = map(error)
+            errorMessage = appError.userMessage
+            return .failure(appError)
+        }
+    }
+
+    func block(_ creator: Creator) async -> Result<Void, AppError> {
+        guard creator.id != currentUserID else { return .failure(.unauthorized) }
+        do {
+            try await moderationRepository.blockProfile(id: creator.id)
+            blockedProfileIDs.insert(creator.id)
+            return .success(())
+        } catch {
+            let appError = map(error)
+            errorMessage = appError.userMessage
+            return .failure(appError)
+        }
     }
 
     func activatePreviewMembership() {
@@ -406,6 +524,8 @@ final class PocoStore {
             profileCache.removeAll()
             membershipTier = .guest
             likedFeedbackIDs.removeAll()
+            ownedFeedbackIDs.removeAll()
+            blockedProfileIDs.removeAll()
             authenticationState = .idle
         } catch {
             let message = map(error).userMessage
@@ -438,7 +558,7 @@ final class PocoStore {
 
     func purchaseMembership() async {
         guard canCreateProjects else {
-            membershipPurchaseState = .error("Pocoメンバーになるにはユーザー登録が必要です。")
+            membershipPurchaseState = .error("Poco Proになるにはユーザー登録が必要です。")
             return
         }
         membershipPurchaseState = .purchasing
@@ -505,6 +625,11 @@ final class PocoStore {
         guard canCreateProjects else {
             let error = AppError.unauthorized
             errorMessage = "作品を作るにはユーザー登録が必要です。"
+            return .failure(error)
+        }
+        guard canCreateAnotherProject else {
+            let error = AppError.unauthorized
+            errorMessage = "現在のプランで作成できる作品数の上限に達しました。"
             return .failure(error)
         }
         guard let creatorID = await currentUserProvider.currentUserID() else {
@@ -578,11 +703,30 @@ final class PocoStore {
                 }
             }
         }
+
+
+        realtimeReceiptTasks[projectID] = Task { [weak self] in
+            guard let self else { return }
+            let stream = await repository.observeCreatorReceipts()
+            do {
+                for try await receipt in stream {
+                    guard !Task.isCancelled else { break }
+                    guard self.feedbacks.contains(where: {
+                        $0.id == receipt.feedbackID && $0.projectID == projectID
+                    }) else { continue }
+                    self.applyCreatorReceipts([receipt.feedbackID: receipt.createdAt])
+                }
+            } catch {
+                // Feedbacks remain usable if the optional receipt stream drops.
+            }
+        }
     }
 
     func stopObservingFeedbacks(for projectID: UUID) {
         realtimeTasks[projectID]?.cancel()
         realtimeTasks[projectID] = nil
+        realtimeReceiptTasks[projectID]?.cancel()
+        realtimeReceiptTasks[projectID] = nil
     }
 
     func open(url: URL) {
@@ -609,6 +753,31 @@ final class PocoStore {
         feedbacks.append(feedback)
         if let index = projects.firstIndex(where: { $0.id == feedback.projectID }) {
             projects[index].feedbackCount += 1
+        }
+    }
+
+    private func applyCreatorReceipts(_ receipts: [UUID: Date]) {
+        guard !receipts.isEmpty else { return }
+        for index in feedbacks.indices {
+            if let receivedAt = receipts[feedbacks[index].id] {
+                feedbacks[index].creatorReceivedAt = receivedAt
+            }
+        }
+    }
+
+    private func loadModerationState() async {
+        async let owned = try? moderationRepository.fetchOwnedFeedbackIDs()
+        async let blocked = try? moderationRepository.fetchBlockedProfileIDs()
+        ownedFeedbackIDs = await owned ?? []
+        blockedProfileIDs = await blocked ?? []
+    }
+
+    private func removeFeedbackFromLocalState(_ feedback: Feedback) {
+        feedbacks.removeAll { $0.id == feedback.id }
+        likedFeedbackIDs.remove(feedback.id)
+        ownedFeedbackIDs.remove(feedback.id)
+        if let index = projects.firstIndex(where: { $0.id == feedback.projectID }) {
+            projects[index].feedbackCount = max(0, projects[index].feedbackCount - 1)
         }
     }
 

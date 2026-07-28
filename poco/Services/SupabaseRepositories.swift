@@ -69,6 +69,7 @@ final class SupabaseFeedbackRepository: FeedbackRepository, Sendable {
                 .select()
                 .eq("project_id", value: projectID)
                 .eq("is_public", value: true)
+                .eq("moderation_status", value: "visible")
                 .order("created_at", ascending: false)
                 .execute()
                 .value
@@ -79,15 +80,25 @@ final class SupabaseFeedbackRepository: FeedbackRepository, Sendable {
     }
 
     nonisolated func submitFeedback(_ feedback: Feedback) async throws {
-        let senderID = await currentUserProvider.currentUserID()
+        guard await currentUserProvider.currentUserID() != nil else {
+            throw AppError.unauthorized
+        }
+        let publishesProfile = await currentUserProvider.accountStatus() == .registered
         do {
             try await client
-                .from("feedbacks")
-                .insert(FeedbackDTO(feedback: feedback, senderID: senderID))
+                .rpc(
+                    "submit_feedback",
+                    params: SubmitFeedbackParameters(
+                        feedbackID: feedback.id,
+                        projectID: feedback.projectID,
+                        nickname: feedback.nickname,
+                        message: feedback.message,
+                        isPublic: feedback.isPublic,
+                        bubbleColor: feedback.bubbleColor.rawValue,
+                        publishesProfile: publishesProfile
+                    )
+                )
                 .execute()
-        } catch let error as PostgrestError where error.code == "23505" {
-            // A retry after an ambiguous network response is idempotent by UUID.
-            return
         } catch {
             throw SupabaseErrorMapper.map(error)
         }
@@ -133,6 +144,85 @@ final class SupabaseFeedbackRepository: FeedbackRepository, Sendable {
             return Set(rows.map(\.feedbackID))
         } catch {
             throw SupabaseErrorMapper.map(error)
+        }
+    }
+
+    nonisolated func fetchCreatorReceipts(feedbackIDs: [UUID]) async throws -> [UUID: Date] {
+        guard !feedbackIDs.isEmpty else { return [:] }
+
+        do {
+            let rows: [CreatorReceiptDTO] = try await client
+                .from("feedback_creator_receipts")
+                .select("feedback_id,created_at")
+                .in("feedback_id", values: feedbackIDs.map(\.uuidString))
+                .execute()
+                .value
+            return Dictionary(uniqueKeysWithValues: rows.map { ($0.feedbackID, $0.createdAt) })
+        } catch {
+            throw SupabaseErrorMapper.map(error)
+        }
+    }
+
+    nonisolated func markReceivedByCreator(feedbackID: UUID) async throws -> Date {
+        do {
+            let rows: [CreatorReceiptDTO] = try await client
+                .from("feedback_creator_receipts")
+                .insert(CreatorReceiptInsertDTO(feedbackID: feedbackID))
+                .select("feedback_id,created_at")
+                .execute()
+                .value
+            guard let createdAt = rows.first?.createdAt else {
+                throw AppError.decoding
+            }
+            return createdAt
+        } catch let error as PostgrestError where error.code == "23505" {
+            let row: CreatorReceiptDTO = try await client
+                .from("feedback_creator_receipts")
+                .select("feedback_id,created_at")
+                .eq("feedback_id", value: feedbackID)
+                .single()
+                .execute()
+                .value
+            return row.createdAt
+        } catch {
+            throw SupabaseErrorMapper.map(error)
+        }
+    }
+
+    nonisolated func observeCreatorReceipts() async -> AsyncThrowingStream<CreatorReceipt, any Error> {
+        let client = client
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                let channel = client.channel("feedback-creator-receipts")
+                let insertions = channel.postgresChange(
+                    InsertAction.self,
+                    schema: "public",
+                    table: "feedback_creator_receipts"
+                )
+
+                do {
+                    try await channel.subscribeWithError()
+                    for await insertion in insertions {
+                        try Task.checkCancellation()
+                        let dto = try insertion.decodeRecord(
+                            as: CreatorReceiptDTO.self,
+                            decoder: DatabaseCoding.decoder()
+                        )
+                        continuation.yield(
+                            CreatorReceipt(feedbackID: dto.feedbackID, createdAt: dto.createdAt)
+                        )
+                    }
+                    continuation.finish()
+                } catch is CancellationError {
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: SupabaseErrorMapper.map(error))
+                }
+
+                await client.removeChannel(channel)
+            }
+
+            continuation.onTermination = { _ in task.cancel() }
         }
     }
 
@@ -206,6 +296,104 @@ final class SupabaseProfileRepository: ProfileRepository, Sendable {
             try await client
                 .from("profiles")
                 .upsert(ProfileDTO(creator: creator), onConflict: "id")
+                .execute()
+        } catch {
+            throw SupabaseErrorMapper.map(error)
+        }
+    }
+}
+
+final class SupabaseModerationRepository: ModerationRepository, Sendable {
+    private let client: SupabaseClient
+    private let currentUserProvider: any CurrentUserProvider
+
+    init(client: SupabaseClient, currentUserProvider: any CurrentUserProvider) {
+        self.client = client
+        self.currentUserProvider = currentUserProvider
+    }
+
+    nonisolated func fetchOwnedFeedbackIDs() async throws -> Set<UUID> {
+        guard await currentUserProvider.currentUserID() != nil else { return [] }
+        do {
+            let rows: [FeedbackOwnershipDTO] = try await client
+                .from("feedback_ownership")
+                .select("feedback_id")
+                .execute()
+                .value
+            return Set(rows.map(\.feedbackID))
+        } catch {
+            throw SupabaseErrorMapper.map(error)
+        }
+    }
+
+    nonisolated func fetchBlockedProfileIDs() async throws -> Set<UUID> {
+        guard let userID = await currentUserProvider.currentUserID() else { return [] }
+        do {
+            let rows: [UserBlockDTO] = try await client
+                .from("user_blocks")
+                .select("blocked_profile_id")
+                .eq("blocker_id", value: userID)
+                .execute()
+                .value
+            return Set(rows.map(\.blockedProfileID))
+        } catch {
+            throw SupabaseErrorMapper.map(error)
+        }
+    }
+
+    nonisolated func reportFeedback(
+        id: UUID,
+        reason: FeedbackReportReason,
+        details: String?
+    ) async throws {
+        do {
+            try await client
+                .rpc(
+                    "report_feedback",
+                    params: ReportFeedbackParameters(
+                        feedbackID: id,
+                        reason: reason.rawValue,
+                        details: details
+                    )
+                )
+                .execute()
+        } catch {
+            throw SupabaseErrorMapper.map(error)
+        }
+    }
+
+    nonisolated func deleteOwnFeedback(id: UUID) async throws {
+        try await moderate(id: id, action: "delete_by_author")
+    }
+
+    nonisolated func hideFeedbackAsCreator(id: UUID) async throws {
+        try await moderate(id: id, action: "hide_by_creator")
+    }
+
+    nonisolated func blockProfile(id: UUID) async throws {
+        guard let userID = await currentUserProvider.currentUserID(), userID != id else {
+            throw AppError.unauthorized
+        }
+        do {
+            try await client
+                .from("user_blocks")
+                .upsert(
+                    UserBlockInsertDTO(blockerID: userID, blockedProfileID: id),
+                    onConflict: "blocker_id,blocked_profile_id"
+                )
+                .execute()
+        } catch {
+            throw SupabaseErrorMapper.map(error)
+        }
+    }
+
+    private nonisolated func moderate(id: UUID, action: String) async throws {
+        do {
+            try await client
+                .rpc(
+                    "moderate_feedback",
+                    params: ModerateFeedbackParameters(feedbackID: id, action: action)
+                )
                 .execute()
         } catch {
             throw SupabaseErrorMapper.map(error)

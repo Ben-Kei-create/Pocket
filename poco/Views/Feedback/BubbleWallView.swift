@@ -48,7 +48,12 @@ struct BubbleWallView: View {
 
                 Picker("表示するフキダシ", selection: modeSelection) {
                     ForEach(WallMode.allCases) { item in
-                        Text(item.title + (item == .resonated && !store.isPocoMember ? " 🔒" : ""))
+                        Text(
+                            item.title
+                                + (item == .resonated && !store.capabilities.canSeePopularFeedbacks
+                                    ? " 🔒"
+                                    : "")
+                        )
                             .tag(item)
                     }
                 }
@@ -140,8 +145,8 @@ struct BubbleWallView: View {
             )
             store.stopObservingFeedbacks(for: projectID)
         }
-        .onChange(of: store.isPocoMember) { _, isMember in
-            if !isMember {
+        .onChange(of: store.capabilities.canSeePopularFeedbacks) { _, canSeePopular in
+            if !canSeePopular {
                 mode = .everyone
             }
         }
@@ -151,7 +156,7 @@ struct BubbleWallView: View {
         Binding(
             get: { mode },
             set: { newValue in
-                if newValue == .resonated && !store.isPocoMember {
+                if newValue == .resonated && !store.capabilities.canSeePopularFeedbacks {
                     showsMembership = true
                 } else {
                     mode = newValue

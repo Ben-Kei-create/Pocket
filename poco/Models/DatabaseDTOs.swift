@@ -143,7 +143,7 @@ nonisolated struct ProjectQueryDTO: Codable, Sendable {
 nonisolated struct FeedbackDTO: Codable, Sendable {
     let id: UUID
     let projectID: UUID
-    let senderID: UUID?
+    let authorProfileID: UUID?
     let nickname: String
     let message: String
     let isPublic: Bool
@@ -154,7 +154,7 @@ nonisolated struct FeedbackDTO: Codable, Sendable {
     enum CodingKeys: String, CodingKey {
         case id
         case projectID = "project_id"
-        case senderID = "sender_id"
+        case authorProfileID = "author_profile_id"
         case nickname
         case message
         case isPublic = "is_public"
@@ -163,10 +163,10 @@ nonisolated struct FeedbackDTO: Codable, Sendable {
         case createdAt = "created_at"
     }
 
-    init(feedback: Feedback, senderID: UUID?) {
+    init(feedback: Feedback, authorProfileID: UUID?) {
         id = feedback.id
         projectID = feedback.projectID
-        self.senderID = senderID
+        self.authorProfileID = authorProfileID
         nickname = feedback.nickname
         message = feedback.message
         isPublic = feedback.isPublic
@@ -185,8 +185,94 @@ nonisolated struct FeedbackDTO: Codable, Sendable {
             createdAt: createdAt,
             likes: likesCount,
             bubbleColor: BubbleColor(rawValue: bubbleColor) ?? .coral,
-            senderID: senderID
+            senderID: authorProfileID
         )
+    }
+}
+
+nonisolated struct SubmitFeedbackParameters: Encodable, Sendable {
+    let feedbackID: UUID
+    let projectID: UUID
+    let nickname: String
+    let message: String
+    let isPublic: Bool
+    let bubbleColor: String
+    let publishesProfile: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case feedbackID = "p_feedback_id"
+        case projectID = "p_project_id"
+        case nickname = "p_nickname"
+        case message = "p_message"
+        case isPublic = "p_is_public"
+        case bubbleColor = "p_bubble_color"
+        case publishesProfile = "p_publishes_profile"
+    }
+}
+
+nonisolated struct CreatorReceiptDTO: Codable, Sendable {
+    let feedbackID: UUID
+    let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case feedbackID = "feedback_id"
+        case createdAt = "created_at"
+    }
+}
+
+nonisolated struct CreatorReceiptInsertDTO: Encodable, Sendable {
+    let feedbackID: UUID
+
+    enum CodingKeys: String, CodingKey {
+        case feedbackID = "feedback_id"
+    }
+}
+
+nonisolated struct FeedbackOwnershipDTO: Decodable, Sendable {
+    let feedbackID: UUID
+
+    enum CodingKeys: String, CodingKey {
+        case feedbackID = "feedback_id"
+    }
+}
+
+nonisolated struct UserBlockDTO: Decodable, Sendable {
+    let blockedProfileID: UUID
+
+    enum CodingKeys: String, CodingKey {
+        case blockedProfileID = "blocked_profile_id"
+    }
+}
+
+nonisolated struct ReportFeedbackParameters: Encodable, Sendable {
+    let feedbackID: UUID
+    let reason: String
+    let details: String?
+
+    enum CodingKeys: String, CodingKey {
+        case feedbackID = "p_feedback_id"
+        case reason = "p_reason"
+        case details = "p_details"
+    }
+}
+
+nonisolated struct ModerateFeedbackParameters: Encodable, Sendable {
+    let feedbackID: UUID
+    let action: String
+
+    enum CodingKeys: String, CodingKey {
+        case feedbackID = "p_feedback_id"
+        case action = "p_action"
+    }
+}
+
+nonisolated struct UserBlockInsertDTO: Encodable, Sendable {
+    let blockerID: UUID
+    let blockedProfileID: UUID
+
+    enum CodingKeys: String, CodingKey {
+        case blockerID = "blocker_id"
+        case blockedProfileID = "blocked_profile_id"
     }
 }
 

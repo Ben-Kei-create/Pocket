@@ -57,6 +57,18 @@ struct BubbleView: View {
                 .colorMultiply(PocoTheme.bubble(feedback.bubbleColor))
                 .shadow(color: .black.opacity(0.055), radius: compact ? 5 : 9, y: 4)
         }
+        .overlay(alignment: .topTrailing) {
+            if feedback.creatorReceivedAt != nil {
+                Image(systemName: "sparkles")
+                    .font(.caption2.bold())
+                    .foregroundStyle(.white)
+                    .frame(width: compact ? 18 : 24, height: compact ? 18 : 24)
+                    .background(.yellow, in: Circle())
+                    .overlay(Circle().stroke(.white.opacity(0.9), lineWidth: 1))
+                    .padding(compact ? 5 : 8)
+                    .accessibilityLabel("作者にとどきました")
+            }
+        }
         .contentShape(RoundedRectangle(cornerRadius: compact ? 20 : 28, style: .continuous))
         .accessibilityElement(children: .contain)
     }

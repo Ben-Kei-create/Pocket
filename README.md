@@ -58,13 +58,21 @@ Migrationは次の順で再構築できます。
 - `005_memberships.sql`: Pocoメンバー資格、本人のみread可能なRLS、匿名ゲスト用プロフィール
 - `006_registered_creators.sql`: Anonymous Authゲストの作品作成・画像更新を拒否
 - `007_profile_avatars.sql`: 標準アバター名、プロフィール画像Bucket、本番用Storage Policy
+- `008_feedback_ownership_and_creator_receipts.sql`: 匿名投稿の非公開所有権、投稿RPC、送信レート制限、作者の「とどいた！」
+- `009_moderation_and_blocks.sql`: 全ユーザーの通報、投稿者削除、作者のソフト非表示、ブロック、監査履歴
 
 `feedback_count`は重複カラムにせず`projects_with_feedback_count` Viewで計算します。`likes_count`は`feedback_likes`のINSERT/DELETEトリガーだけで更新し、整合性を維持します。
 
-## ゲスト・Pocoメンバー・広告
+`008`以降、投稿の所有者は非公開の`feedback_ownership`へ保存し、公開プロフィールは`author_profile_id`へ分離します。匿名AuthのUUIDは公開プロフィールとして使用しません。投稿は`submit_feedback` RPCだけを許可し、`feedbacks`への直接INSERT/UPDATE/DELETEは無効です。
+
+作者の「とどいた！」は通常のいいねと合算せず、`feedback_creator_receipts`へ1感想1件で保存します。RLSにより、その作品の登録クリエイター本人だけが追加できます。
+
+`009`以降、通報はAnonymous Authを含む全ユーザーが利用できます。同じユーザーから同じ感想への通報は1件に集約し、1日20件の基本レート制限を設けます。投稿者本人の削除は公開本文・投稿者名・プロフィール参照を消去し、作者の操作は監査可能な`hidden_by_creator`として保持します。通報内容と`feedback_moderation_events`は公開されません。ブロック情報も本人だけが読み書きできます。
+
+## ゲスト・Pocoユーザー・Poco Pro・広告
 
 - ゲスト投稿者にはSupabase Anonymous Authを使用し、登録画面なしで端末固有のユーザーIDを付与します。これにより、ゲストもRLSを保ったまま1つのフキダシへ1回いいねできます。Supabase DashboardでAnonymous Sign-Insを有効にしてください。
-- 閲覧・感想投稿・いいねはゲストでも利用できます。作品作成は登録ユーザーだけ、共感順・自分の作品/感想に届いたいいね集計・広告非表示はPocoメンバーだけが利用できます。`006_registered_creators.sql`はAnonymous Authユーザーによる作品作成と画像更新をDB側でも拒否します。
+- 閲覧・感想投稿・いいねはゲストでも利用できます。作品作成はPocoユーザー以上、共感順・自分の作品/感想に届いたいいね集計・広告非表示はPoco Proだけが利用できます。無料ユーザーは3作品、Proは30作品を上限とするCapabilityをアプリ側に持ちます。本番公開前に同じ上限をDB側RPCでも検証してください。`006_registered_creators.sql`はAnonymous Authユーザーによる作品作成と画像更新をDB側でも拒否します。
 - いいね済み状態は`feedback_likes`から復元します。画面内の連打防止だけに依存せず、DBの`unique(feedback_id, user_id)`を最終的な保証にしています。
 - `memberships`はアプリから更新できません。本番ではStoreKit 2の購入結果をApp Store Server Notificationsで検証し、service roleを持つEdge Functionなどからのみ更新します。
 - Mock環境ではマイページまたは広告バーから登録・会員表示を試せます。Supabase環境ではStoreKit 2がApp Store Connectの商品情報を読み込み、購入・復元・端末上のTransaction検証を行います。
@@ -104,7 +112,7 @@ profile-avatars/profiles/{userID}/{imageID}.jpg
 
 プロフィール画像のアップロード上限は2MBです。Storage Policyにより、読み取りは公開、追加・更新・削除は本人かつ匿名ではない登録ユーザーだけに制限します。
 
-登録ユーザーはマイページから表示名・標準アバター・自分の写真を変更できます。新しいプロフィールのDB保存が成功した後だけ、不要になった旧Storage画像を削除します。ログイン投稿者のフキダシは`sender_id`からプロフィールを補完してアバターを表示し、匿名投稿は従来どおりニックネームの頭文字を表示します。
+登録ユーザーはマイページから表示名・標準アバター・自分の写真を変更できます。新しいプロフィールのDB保存が成功した後だけ、不要になった旧Storage画像を削除します。公開投稿者のフキダシは`author_profile_id`からプロフィールを補完してアバターを表示し、匿名投稿の所有者IDは非公開のままニックネームの頭文字を表示します。
 
 各Feedbackにはフキダシとは独立した物理オブジェクト「顔ぷよ」を1匹表示します。標準アバター利用者は同じ動物、写真利用者・匿名投稿はFeedback UUIDから安定して選ばれる動物を使用します。新規投稿ではフキダシ着地後に顔ぷよが横から飛び出し、フキダシや他の顔ぷよと衝突します。顔ぷよをタップすると顔ぷよだけが「ぷよっ」と反応します。投稿者アイコン／表示名は登録ユーザーの場合、作品一覧を含む公開プロフィールへ遷移します。感想フィールドの最下部はスクロール範囲のクランプで示し、説明ラベルは表示しません。
 

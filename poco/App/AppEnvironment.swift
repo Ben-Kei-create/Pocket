@@ -20,6 +20,10 @@ enum AppEnvironment {
                 ),
                 profileRepository: SupabaseProfileRepository(client: client),
                 membershipRepository: SupabaseMembershipRepository(client: client),
+                moderationRepository: SupabaseModerationRepository(
+                    client: client,
+                    currentUserProvider: authenticatedUserProvider
+                ),
                 membershipPurchaseService: StoreKitMembershipService(
                     productID: configuration.membershipProductID
                 ),

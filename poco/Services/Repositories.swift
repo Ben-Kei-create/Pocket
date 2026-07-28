@@ -11,6 +11,9 @@ protocol FeedbackRepository: Sendable {
     nonisolated func submitFeedback(_ feedback: Feedback) async throws
     nonisolated func likeFeedback(id: UUID) async throws
     nonisolated func fetchLikedFeedbackIDs(feedbackIDs: [UUID]) async throws -> Set<UUID>
+    nonisolated func fetchCreatorReceipts(feedbackIDs: [UUID]) async throws -> [UUID: Date]
+    nonisolated func markReceivedByCreator(feedbackID: UUID) async throws -> Date
+    nonisolated func observeCreatorReceipts() async -> AsyncThrowingStream<CreatorReceipt, any Error>
     nonisolated func observeFeedbacks(
         projectID: UUID
     ) async -> AsyncThrowingStream<Feedback, any Error>
@@ -54,6 +57,19 @@ protocol MembershipRepository: Sendable {
     func fetchMembership(userID: UUID) async throws -> MembershipTier
 }
 
+protocol ModerationRepository: Sendable {
+    nonisolated func fetchOwnedFeedbackIDs() async throws -> Set<UUID>
+    nonisolated func fetchBlockedProfileIDs() async throws -> Set<UUID>
+    nonisolated func reportFeedback(
+        id: UUID,
+        reason: FeedbackReportReason,
+        details: String?
+    ) async throws
+    nonisolated func deleteOwnFeedback(id: UUID) async throws
+    nonisolated func hideFeedbackAsCreator(id: UUID) async throws
+    nonisolated func blockProfile(id: UUID) async throws
+}
+
 actor MockProjectRepository: ProjectRepository {
     private var projects: [Project]
 
@@ -79,6 +95,7 @@ actor MockProjectRepository: ProjectRepository {
 actor MockFeedbackRepository: FeedbackRepository {
     private var feedbacks: [Feedback]
     private var observers: [UUID: [UUID: AsyncThrowingStream<Feedback, any Error>.Continuation]] = [:]
+    private var receiptObservers: [UUID: AsyncThrowingStream<CreatorReceipt, any Error>.Continuation] = [:]
 
     init(feedbacks: [Feedback]? = nil) {
         self.feedbacks = feedbacks ?? MockData.feedbacks
@@ -118,6 +135,39 @@ actor MockFeedbackRepository: FeedbackRepository {
         persistedLikedFeedbackIDs().intersection(feedbackIDs)
     }
 
+    func fetchCreatorReceipts(feedbackIDs: [UUID]) async throws -> [UUID: Date] {
+        Dictionary(
+            uniqueKeysWithValues: feedbacks.compactMap { feedback in
+                guard feedbackIDs.contains(feedback.id),
+                      let receivedAt = feedback.creatorReceivedAt else { return nil }
+                return (feedback.id, receivedAt)
+            }
+        )
+    }
+
+    func markReceivedByCreator(feedbackID: UUID) async throws -> Date {
+        guard let index = feedbacks.firstIndex(where: { $0.id == feedbackID }) else {
+            throw AppError.notFound
+        }
+        let receivedAt = feedbacks[index].creatorReceivedAt ?? .now
+        feedbacks[index].creatorReceivedAt = receivedAt
+        let receipt = CreatorReceipt(feedbackID: feedbackID, createdAt: receivedAt)
+        for continuation in receiptObservers.values {
+            continuation.yield(receipt)
+        }
+        return receivedAt
+    }
+
+    func observeCreatorReceipts() async -> AsyncThrowingStream<CreatorReceipt, any Error> {
+        let observerID = UUID()
+        return AsyncThrowingStream { continuation in
+            receiptObservers[observerID] = continuation
+            continuation.onTermination = { [weak self] _ in
+                Task { await self?.removeReceiptObserver(id: observerID) }
+            }
+        }
+    }
+
     func observeFeedbacks(projectID: UUID) async -> AsyncThrowingStream<Feedback, any Error> {
         let observerID = UUID()
         return AsyncThrowingStream { continuation in
@@ -135,6 +185,10 @@ actor MockFeedbackRepository: FeedbackRepository {
         if observers[projectID]?.isEmpty == true {
             observers[projectID] = nil
         }
+    }
+
+    private func removeReceiptObserver(id: UUID) {
+        receiptObservers[id] = nil
     }
 
     private func persistedLikedFeedbackIDs() -> Set<UUID> {
@@ -208,6 +262,39 @@ struct MockAuthRepository: AuthRepository {
 actor MockMembershipRepository: MembershipRepository {
     func fetchMembership(userID: UUID) async throws -> MembershipTier {
         UserDefaults.standard.bool(forKey: "poco.previewMembership") ? .pocoMember : .guest
+    }
+}
+
+actor MockModerationRepository: ModerationRepository {
+    private var ownedFeedbackIDs: Set<UUID>
+    private var blockedProfileIDs: Set<UUID> = []
+
+    init(ownedFeedbackIDs: Set<UUID>? = nil) {
+        self.ownedFeedbackIDs = ownedFeedbackIDs ?? Set(
+            MockData.feedbacks
+                .filter { $0.senderID == MockData.forestCreator.id }
+                .map(\.id)
+        )
+    }
+
+    func fetchOwnedFeedbackIDs() async throws -> Set<UUID> { ownedFeedbackIDs }
+    func fetchBlockedProfileIDs() async throws -> Set<UUID> { blockedProfileIDs }
+
+    func reportFeedback(
+        id: UUID,
+        reason: FeedbackReportReason,
+        details: String?
+    ) async throws {}
+
+    func deleteOwnFeedback(id: UUID) async throws {
+        guard ownedFeedbackIDs.contains(id) else { throw AppError.unauthorized }
+        ownedFeedbackIDs.remove(id)
+    }
+
+    func hideFeedbackAsCreator(id: UUID) async throws {}
+
+    func blockProfile(id: UUID) async throws {
+        blockedProfileIDs.insert(id)
     }
 }
 
