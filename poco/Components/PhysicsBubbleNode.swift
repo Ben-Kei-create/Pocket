@@ -442,6 +442,7 @@ struct ConfigurationKey: Equatable {
     let width: Int
     let height: Int
     var worldHeight = 0
+    var enablesCompanionEvolution = false
     let reduceMotion: Bool
 }
 

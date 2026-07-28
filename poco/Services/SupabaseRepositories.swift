@@ -326,6 +326,22 @@ final class SupabaseModerationRepository: ModerationRepository, Sendable {
         }
     }
 
+    nonisolated func fetchOwnFeedbackCount(projectID: UUID) async throws -> Int {
+        guard await currentUserProvider.currentUserID() != nil else { return 0 }
+        do {
+            let count: Int = try await client
+                .rpc(
+                    "feedback_submission_count",
+                    params: FeedbackProjectParameters(projectID: projectID)
+                )
+                .execute()
+                .value
+            return count
+        } catch {
+            throw SupabaseErrorMapper.map(error)
+        }
+    }
+
     nonisolated func fetchBlockedProfileIDs() async throws -> Set<UUID> {
         guard let userID = await currentUserProvider.currentUserID() else { return [] }
         do {

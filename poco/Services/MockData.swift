@@ -16,6 +16,39 @@ enum MockData {
         name: "Hoshiko",
         avatarName: nil
     )
+    static let feedbackAuthors: [String: Creator] = [
+        "はな": Creator(
+            id: UUID(uuidString: "10000000-0000-0000-0000-000000000010")!,
+            name: "はな",
+            avatarName: BuiltInAvatar.cat.rawValue
+        ),
+        "rena": Creator(
+            id: UUID(uuidString: "10000000-0000-0000-0000-000000000011")!,
+            name: "rena",
+            avatarName: BuiltInAvatar.pig.rawValue
+        ),
+        "パパくま": Creator(
+            id: UUID(uuidString: "10000000-0000-0000-0000-000000000012")!,
+            name: "パパくま",
+            avatarName: BuiltInAvatar.bear.rawValue
+        ),
+        "さくら": Creator(
+            id: UUID(uuidString: "10000000-0000-0000-0000-000000000013")!,
+            name: "さくら",
+            avatarName: BuiltInAvatar.dog.rawValue
+        ),
+        "みどり": Creator(
+            id: UUID(uuidString: "10000000-0000-0000-0000-000000000014")!,
+            name: "みどり",
+            avatarName: BuiltInAvatar.lion.rawValue
+        ),
+        "そらのひつじ": forestCreator,
+        "ちい": Creator(
+            id: UUID(uuidString: "10000000-0000-0000-0000-000000000015")!,
+            name: "ちい",
+            avatarName: BuiltInAvatar.cat.rawValue
+        )
+    ]
 
     static let forestProject = Project(
         id: UUID(uuidString: "20000000-0000-0000-0000-000000000001")!,
@@ -69,6 +102,7 @@ enum MockData {
 
         return messages.enumerated().map { index, message in
             let nickname = nicknames[index % nicknames.count]
+            let author = feedbackAuthors[nickname]
             return Feedback(
                 id: UUID(uuidString: String(format: "30000000-0000-0000-0000-%012d", index + 1))!,
                 projectID: projectIDs[index],
@@ -78,7 +112,9 @@ enum MockData {
                 createdAt: Date(timeIntervalSinceNow: TimeInterval(-index * 3_700)),
                 likes: (index * 7 + 3) % 48,
                 bubbleColor: BubbleColor.allCases[index % BubbleColor.allCases.count],
-                senderID: nickname == "そらのひつじ" ? forestCreator.id : nil
+                senderID: author?.id,
+                senderAvatarName: author?.avatarName,
+                senderAvatarURL: author?.avatarURL
             )
         }
     }()

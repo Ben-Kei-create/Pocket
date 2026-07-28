@@ -236,6 +236,14 @@ nonisolated struct FeedbackOwnershipDTO: Decodable, Sendable {
     }
 }
 
+nonisolated struct FeedbackProjectParameters: Encodable, Sendable {
+    let projectID: UUID
+
+    enum CodingKeys: String, CodingKey {
+        case projectID = "p_project_id"
+    }
+}
+
 nonisolated struct UserBlockDTO: Decodable, Sendable {
     let blockedProfileID: UUID
 

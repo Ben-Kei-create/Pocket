@@ -5,6 +5,7 @@ struct ProjectDetailView: View {
     let projectID: UUID
 
     @State private var showsCompose = false
+    @State private var showsFeedbackLimitAlert = false
     @State private var pendingFeedback: Feedback?
     @State private var dropFeedback: Feedback?
 
@@ -35,11 +36,21 @@ struct ProjectDetailView: View {
 
                         VStack(spacing: 12) {
                             Button {
-                                showsCompose = true
+                                if store.canSubmitFeedback(to: project.id) {
+                                    showsCompose = true
+                                } else {
+                                    showsFeedbackLimitAlert = true
+                                }
                             } label: {
                                 Label("感想を送る", systemImage: "bubble.left.and.bubble.right.fill")
                             }
                             .buttonStyle(PocoPrimaryButtonStyle())
+
+                            Text(
+                                "この作品には1人\(PocoLimits.feedbacksPerProject)件まで送れます（現在\(store.ownFeedbackCount(for: project.id))件）"
+                            )
+                            .font(.caption)
+                            .foregroundStyle(PocoTheme.secondaryText)
 
                             NavigationLink {
                                 BubbleWallView(projectID: project.id)
@@ -87,6 +98,14 @@ struct ProjectDetailView: View {
                     ) {
                         await store.submit(feedback)
                     }
+                }
+                .task(id: project.id) {
+                    await store.refreshOwnFeedbackCount(for: project.id)
+                }
+                .alert("感想は3件までです", isPresented: $showsFeedbackLimitAlert) {
+                    Button("OK", role: .cancel) {}
+                } message: {
+                    Text("同じ作品へ送れる感想は、1人につき3件までです。")
                 }
             } else {
                 ContentUnavailableView("作品が見つかりません", systemImage: "questionmark.folder")

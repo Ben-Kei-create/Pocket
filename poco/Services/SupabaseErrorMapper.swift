@@ -24,6 +24,8 @@ enum SupabaseErrorMapper {
                 return .unauthorized
             case "PGRST116":
                 return .notFound
+            case "P0003":
+                return .feedbackLimitReached
             default:
                 return .unknown(postgrestError.message)
             }

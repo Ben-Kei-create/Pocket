@@ -9,6 +9,7 @@ struct FeedbackComposeView: View {
     @State private var message = ""
     @State private var nickname = ""
     @State private var isPublic = true
+    @State private var showsFeedbackLimitAlert = false
     @FocusState private var focusedField: Field?
 
     private let limit = 500
@@ -78,6 +79,11 @@ struct FeedbackComposeView: View {
                 }
                 focusedField = .message
             }
+            .alert("感想は3件までです", isPresented: $showsFeedbackLimitAlert) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("同じ作品へ送れる感想は、1人につき3件までです。")
+            }
         }
     }
 
@@ -117,6 +123,10 @@ struct FeedbackComposeView: View {
     }
 
     private func makeFeedback() {
+        guard store.canSubmitFeedback(to: project.id) else {
+            showsFeedbackLimitAlert = true
+            return
+        }
         focusedField = nil
         let colorIndex = abs(trimmedMessage.hashValue) % BubbleColor.allCases.count
         let senderID = store.canCreateProjects ? store.currentUserID : nil

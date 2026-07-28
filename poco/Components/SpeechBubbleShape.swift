@@ -97,6 +97,8 @@ struct BubbleView: View {
                 .foregroundStyle(Color(uiColor: .secondaryLabel))
                 .lineLimit(1)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel("投稿者、\(feedback.nickname)")
     }

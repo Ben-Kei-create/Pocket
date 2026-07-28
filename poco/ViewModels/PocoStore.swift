@@ -16,6 +16,7 @@ final class PocoStore {
     private(set) var currentAvatarImageData: Data?
     private(set) var likedFeedbackIDs: Set<UUID> = []
     private(set) var ownedFeedbackIDs: Set<UUID> = []
+    private(set) var ownFeedbackCountsByProject: [UUID: Int] = [:]
     private(set) var blockedProfileIDs: Set<UUID> = []
     private(set) var membershipOffer: MembershipOffer?
     private(set) var membershipPurchaseState: MembershipPurchaseState = .idle
@@ -23,6 +24,7 @@ final class PocoStore {
     private(set) var authenticationState: AuthenticationState = .idle
     private(set) var projectLoadState: LoadState = .idle
     private(set) var feedbackLoadStates: [UUID: LoadState] = [:]
+    private(set) var starCoinBalance = 0
     let backendMode: BackendMode
 
     private let projectRepository: any ProjectRepository
@@ -41,6 +43,10 @@ final class PocoStore {
     private var profileCache: [UUID: Creator] = [:]
     private var optimisticFeedbackIDs: Set<UUID> = []
     private var pendingDeepLinkProjectID: UUID?
+    private var rewardedCoinEventKeys: Set<String> = []
+
+    private static let starCoinBalanceKey = "poco.starCoinBalance"
+    private static let rewardedCoinEventsKey = "poco.rewardedCoinEvents"
 
     init(
         projectRepository: (any ProjectRepository)? = nil,
@@ -72,6 +78,13 @@ final class PocoStore {
         self.backendMode = backendMode
         projects = initialProjects ?? MockData.projects
         feedbacks = initialFeedbacks ?? MockData.feedbacks
+        starCoinBalance = max(
+            0,
+            UserDefaults.standard.integer(forKey: Self.starCoinBalanceKey)
+        )
+        rewardedCoinEventKeys = Set(
+            UserDefaults.standard.stringArray(forKey: Self.rewardedCoinEventsKey) ?? []
+        )
     }
 
     func load() async {
@@ -152,6 +165,25 @@ final class PocoStore {
         projects.first { $0.id == id }
     }
 
+    func ownFeedbackCount(for projectID: UUID) -> Int {
+        ownFeedbackCountsByProject[projectID]
+            ?? feedbacks.lazy.filter {
+                $0.projectID == projectID && self.ownedFeedbackIDs.contains($0.id)
+            }.count
+    }
+
+    func canSubmitFeedback(to projectID: UUID) -> Bool {
+        ownFeedbackCount(for: projectID) < PocoLimits.feedbacksPerProject
+    }
+
+    func refreshOwnFeedbackCount(for projectID: UUID) async {
+        if let count = try? await moderationRepository.fetchOwnFeedbackCount(
+            projectID: projectID
+        ) {
+            ownFeedbackCountsByProject[projectID] = count
+        }
+    }
+
     func submit(_ feedback: Feedback) async -> Result<Void, AppError> {
         var feedback = feedback
         if feedback.senderID == nil, canCreateProjects {
@@ -164,9 +196,14 @@ final class PocoStore {
             feedback.senderAvatarURL = profile.avatarURL
         }
         let isNew = !feedbacks.contains(where: { $0.id == feedback.id })
+        let currentOwnFeedbackCount = ownFeedbackCount(for: feedback.projectID)
+        if isNew, currentOwnFeedbackCount >= PocoLimits.feedbacksPerProject {
+            return .failure(.feedbackLimitReached)
+        }
         if isNew {
             feedbacks.append(feedback)
             ownedFeedbackIDs.insert(feedback.id)
+            ownFeedbackCountsByProject[feedback.projectID] = currentOwnFeedbackCount + 1
             optimisticFeedbackIDs.insert(feedback.id)
             if let index = projects.firstIndex(where: { $0.id == feedback.projectID }) {
                 projects[index].feedbackCount += 1
@@ -176,6 +213,10 @@ final class PocoStore {
         do {
             try await feedbackRepository.submitFeedback(feedback)
             optimisticFeedbackIDs.remove(feedback.id)
+            awardStarCoins(
+                3,
+                eventKey: "feedback-delivered:\(feedback.id.uuidString)"
+            )
             return .success(())
         } catch {
             let appError = map(error)
@@ -218,6 +259,21 @@ final class PocoStore {
 
     var canCreateProjects: Bool {
         capabilities.canCreateProject
+    }
+
+    @discardableResult
+    func awardStarCoins(_ amount: Int, eventKey: String) -> Bool {
+        guard amount > 0,
+              !eventKey.isEmpty,
+              rewardedCoinEventKeys.insert(eventKey).inserted else { return false }
+
+        starCoinBalance += amount
+        UserDefaults.standard.set(starCoinBalance, forKey: Self.starCoinBalanceKey)
+        UserDefaults.standard.set(
+            Array(rewardedCoinEventKeys),
+            forKey: Self.rewardedCoinEventsKey
+        )
+        return true
     }
 
     var canCreateAnotherProject: Bool {
@@ -308,6 +364,10 @@ final class PocoStore {
         guard owns(feedback) else { return .failure(.unauthorized) }
         do {
             try await moderationRepository.deleteOwnFeedback(id: feedback.id)
+            ownFeedbackCountsByProject[feedback.projectID] = max(
+                0,
+                ownFeedbackCount(for: feedback.projectID) - 1
+            )
             removeFeedbackFromLocalState(feedback)
             return .success(())
         } catch {
@@ -525,6 +585,7 @@ final class PocoStore {
             membershipTier = .guest
             likedFeedbackIDs.removeAll()
             ownedFeedbackIDs.removeAll()
+            ownFeedbackCountsByProject.removeAll()
             blockedProfileIDs.removeAll()
             authenticationState = .idle
         } catch {

@@ -4,6 +4,7 @@ import UIKit
 struct BubbleDropView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(PocoStore.self) private var store
     let project: Project
     let feedback: Feedback
     let existingFeedbacks: [Feedback]
@@ -11,7 +12,6 @@ struct BubbleDropView: View {
 
     @State private var isDropped = false
     @State private var showsSuccess = false
-    @State private var showsScrollableHistory = false
     @State private var showsWall = false
     @State private var selectedCreator: Creator?
     @State private var deliveryState = DeliveryState.idle
@@ -34,33 +34,30 @@ struct BubbleDropView: View {
                     .frame(maxHeight: .infinity, alignment: .top)
                     .padding(.top, 20)
 
-                    Group {
-                        if showsScrollableHistory {
-                            PhysicsBubbleFieldView(
-                                feedbacks: feedbackHistory,
-                                highlightedFeedbackIDs: [feedback.id],
-                                focusFeedbackID: feedback.id,
-                                onSelectAuthor: { selectedFeedback in
-                                    selectedCreator = selectedFeedback.senderCreator
-                                }
-                            )
-                                .transition(.opacity)
-                        } else {
-                            PhysicsBubbleDropFieldView(
-                                feedback: feedback,
-                                existingFeedbacks: existingFeedbacks,
-                                reduceMotion: reduceMotion,
-                                dropTrigger: $dropTrigger,
-                                onLanded: handleLanding
-                            )
-                            .transition(.opacity)
+                    PhysicsBubbleDropFieldView(
+                        feedback: feedback,
+                        existingFeedbacks: existingFeedbacks,
+                        reduceMotion: reduceMotion,
+                        isScrollEnabled: isDropped,
+                        enablesCompanionEvolution: store.capabilities.canUseCompanionEvolution,
+                        dropTrigger: $dropTrigger,
+                        onLanded: handleLanding,
+                        onSelectAuthor: { selectedFeedback in
+                            selectedCreator = selectedFeedback.senderCreator
+                        },
+                        onCompanionTapped: { eventKey in
+                            store.awardStarCoins(1, eventKey: eventKey)
+                        },
+                        onRareCompanionBorn: { eventKey in
+                            store.awardStarCoins(5, eventKey: eventKey)
+                        },
+                        onRareCompanionTapped: { eventKey in
+                            store.awardStarCoins(1, eventKey: eventKey)
                         }
-                    }
+                    )
                     .frame(
                         width: proxy.size.width,
-                        height: showsScrollableHistory
-                            ? min(520, proxy.size.height * 0.67)
-                            : min(700, proxy.size.height * 0.84)
+                        height: min(700, proxy.size.height * 0.84)
                     )
 
                     if showsSuccess {
@@ -81,6 +78,9 @@ struct BubbleDropView: View {
                         Image(systemName: "xmark")
                     }
                     .accessibilityLabel("閉じる")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    StarCoinBadge(balance: store.starCoinBalance)
                 }
             }
             .fullScreenCover(isPresented: $showsWall) {
@@ -113,17 +113,10 @@ struct BubbleDropView: View {
     }
 
     private var instructionText: String {
-        if showsScrollableHistory {
+        if isDropped {
             return "上が最新です。下へスクロールすると最初の感想まで見られます"
         }
-        if isDropped {
-            return "クリエイターのチカラになります"
-        }
         return "左右に動かして、空いている場所へおとしてみよう"
-    }
-
-    private var feedbackHistory: [Feedback] {
-        [feedback] + existingFeedbacks.filter { $0.id != feedback.id }
     }
 
     private var successCard: some View {
@@ -176,12 +169,6 @@ struct BubbleDropView: View {
             deliver()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.78)) {
                 showsSuccess = true
-            }
-
-            let historyDelay = reduceMotion ? 80 : 420
-            try? await Task.sleep(for: .milliseconds(historyDelay))
-            withAnimation(reduceMotion ? .easeOut(duration: 0.15) : .easeInOut(duration: 0.28)) {
-                showsScrollableHistory = true
             }
         }
     }

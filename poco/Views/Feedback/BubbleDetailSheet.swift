@@ -31,7 +31,10 @@ struct BubbleDetailSheet: View {
                             .frame(maxWidth: .infinity, minHeight: 190)
 
                         HStack {
-                            Label(feedback.createdAt.formatted(date: .abbreviated, time: .shortened), systemImage: "clock")
+                            Label(
+                                PocoDateFormatting.feedbackTimestamp.string(from: feedback.createdAt),
+                                systemImage: "clock"
+                            )
                             Spacer()
                             if store.capabilities.canSeePopularFeedbacks {
                                 Label("\(feedback.likes)", systemImage: "heart.fill")

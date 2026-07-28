@@ -59,6 +59,7 @@ protocol MembershipRepository: Sendable {
 
 protocol ModerationRepository: Sendable {
     nonisolated func fetchOwnedFeedbackIDs() async throws -> Set<UUID>
+    nonisolated func fetchOwnFeedbackCount(projectID: UUID) async throws -> Int
     nonisolated func fetchBlockedProfileIDs() async throws -> Set<UUID>
     nonisolated func reportFeedback(
         id: UUID,
@@ -205,7 +206,7 @@ actor MockProfileRepository: ProfileRepository {
             MockData.forestCreator,
             MockData.tetraCreator,
             MockData.hoshikoCreator
-        ]
+        ] + Array(MockData.feedbackAuthors.values)
         self.creators = Dictionary(uniqueKeysWithValues: values.map { ($0.id, $0) })
     }
 
@@ -267,17 +268,28 @@ actor MockMembershipRepository: MembershipRepository {
 
 actor MockModerationRepository: ModerationRepository {
     private var ownedFeedbackIDs: Set<UUID>
+    private let projectByFeedbackID: [UUID: UUID]
     private var blockedProfileIDs: Set<UUID> = []
 
     init(ownedFeedbackIDs: Set<UUID>? = nil) {
+        let feedbacks = MockData.feedbacks
         self.ownedFeedbackIDs = ownedFeedbackIDs ?? Set(
-            MockData.feedbacks
+            feedbacks
                 .filter { $0.senderID == MockData.forestCreator.id }
+                .prefix(2)
                 .map(\.id)
+        )
+        projectByFeedbackID = Dictionary(
+            uniqueKeysWithValues: feedbacks.map { ($0.id, $0.projectID) }
         )
     }
 
     func fetchOwnedFeedbackIDs() async throws -> Set<UUID> { ownedFeedbackIDs }
+
+    func fetchOwnFeedbackCount(projectID: UUID) async throws -> Int {
+        ownedFeedbackIDs.filter { projectByFeedbackID[$0] == projectID }.count
+    }
+
     func fetchBlockedProfileIDs() async throws -> Set<UUID> { blockedProfileIDs }
 
     func reportFeedback(

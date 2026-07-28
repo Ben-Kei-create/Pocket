@@ -37,6 +37,38 @@ nonisolated enum BuiltInAvatar: String, CaseIterable, Identifiable, Codable, Sen
     }
 }
 
+nonisolated enum RareCompanionKind: String, CaseIterable, Sendable {
+    case cat = "PocoRareCat"
+    case pig = "PocoRarePig"
+    case bear = "PocoRareBear"
+    case dog = "PocoRareDog"
+    case lion = "PocoRareLion"
+    case mouse = "PocoRareMouse"
+    case rabbit = "PocoRareRabbit"
+    case goat = "PocoRareGoat"
+
+    static func born(from avatar: BuiltInAvatar, eventKey: String) -> Self {
+        let secretKinds: [Self] = [.mouse, .rabbit, .goat]
+        let seed = pocoStableSeed(eventKey)
+        if seed % 5 == 0 {
+            return secretKinds[seed % secretKinds.count]
+        }
+        return switch avatar {
+        case .cat: Self.cat
+        case .pig: Self.pig
+        case .bear: Self.bear
+        case .dog: Self.dog
+        case .lion: Self.lion
+        }
+    }
+}
+
+nonisolated func pocoStableSeed(_ value: String) -> Int {
+    value.unicodeScalars.reduce(0) { partial, scalar in
+        (partial &* 31 &+ Int(scalar.value)) & 0x7fff_ffff
+    }
+}
+
 nonisolated struct Project: Identifiable, Hashable, Codable, Sendable {
     let id: UUID
     var title: String
@@ -166,6 +198,7 @@ nonisolated struct AppCapabilities: Equatable, Sendable {
     let canSeePopularFeedbacks: Bool
     let canSeeOwnReactionCounts: Bool
     let canUseProReactions: Bool
+    let canUseCompanionEvolution: Bool
     let canUseCodeProtectedProjects: Bool
     let canCustomizeProjectTheme: Bool
     let shouldShowAds: Bool
@@ -179,6 +212,7 @@ nonisolated struct AppCapabilities: Equatable, Sendable {
                 canSeePopularFeedbacks: false,
                 canSeeOwnReactionCounts: false,
                 canUseProReactions: false,
+                canUseCompanionEvolution: false,
                 canUseCodeProtectedProjects: false,
                 canCustomizeProjectTheme: false,
                 shouldShowAds: true
@@ -190,6 +224,7 @@ nonisolated struct AppCapabilities: Equatable, Sendable {
                 canSeePopularFeedbacks: false,
                 canSeeOwnReactionCounts: false,
                 canUseProReactions: false,
+                canUseCompanionEvolution: false,
                 canUseCodeProtectedProjects: false,
                 canCustomizeProjectTheme: false,
                 shouldShowAds: true
@@ -201,12 +236,17 @@ nonisolated struct AppCapabilities: Equatable, Sendable {
                 canSeePopularFeedbacks: true,
                 canSeeOwnReactionCounts: true,
                 canUseProReactions: true,
+                canUseCompanionEvolution: true,
                 canUseCodeProtectedProjects: true,
                 canCustomizeProjectTheme: true,
                 shouldShowAds: false
             )
         }
     }
+}
+
+nonisolated enum PocoLimits {
+    static let feedbacksPerProject = 3
 }
 
 nonisolated enum AccountStatus: String, Codable, Sendable {
