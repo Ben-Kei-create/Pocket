@@ -5,6 +5,37 @@ nonisolated struct Creator: Identifiable, Hashable, Codable, Sendable {
     var name: String
     var avatarName: String?
     var avatarURL: URL? = nil
+    var handle: String? = nil
+}
+
+nonisolated enum CreatorHandle {
+    static let minimumLength = 3
+    static let maximumLength = 24
+
+    static func normalize(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingPrefix("@")
+            .lowercased()
+    }
+
+    static func isValid(_ value: String) -> Bool {
+        let normalized = normalize(value)
+        guard normalized.count >= minimumLength,
+              normalized.count <= maximumLength else { return false }
+        return normalized.unicodeScalars.allSatisfy { scalar in
+            (97...122).contains(scalar.value)
+                || (48...57).contains(scalar.value)
+                || scalar.value == 95
+        }
+    }
+
+    static func generated(for id: UUID) -> String {
+        "poco_" + id.uuidString
+            .replacingOccurrences(of: "-", with: "")
+            .prefix(12)
+            .lowercased()
+    }
 }
 
 nonisolated enum BuiltInAvatar: String, CaseIterable, Identifiable, Codable, Sendable {
@@ -79,6 +110,61 @@ nonisolated struct Project: Identifiable, Hashable, Codable, Sendable {
     var imageURL: URL? = nil
     var feedbackCount: Int
     let createdAt: Date
+    var relationship: ProjectRelationship = .creator
+    var verificationStatus: ProjectVerificationStatus = .unverified
+}
+
+nonisolated enum ProjectRelationship: String, CaseIterable, Identifiable, Codable, Sendable {
+    case creator
+    case authorized
+    case fan
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .creator: "制作者本人"
+        case .authorized: "許可を得ている"
+        case .fan: "ファンの感想箱"
+        }
+    }
+
+    var explanation: String {
+        switch self {
+        case .creator: "私または所属チームが制作した作品です"
+        case .authorized: "権利者・制作関係者から登録の許可を得ています"
+        case .fan: "作品を応援するための非公式な感想箱です"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .creator: "person.crop.circle.badge.checkmark"
+        case .authorized: "checkmark.seal"
+        case .fan: "heart.circle"
+        }
+    }
+
+    func badgeTitle(verificationStatus: ProjectVerificationStatus) -> String {
+        if verificationStatus == .verified, self != .fan {
+            return "公式クリエイター"
+        }
+        return switch self {
+        case .creator: "制作者として登録・未確認"
+        case .authorized: "許諾済みとして登録・未確認"
+        case .fan: "ファンの感想箱・非公式"
+        }
+    }
+}
+
+nonisolated enum ProjectVerificationStatus: String, Codable, Sendable {
+    case unverified
+    case pending
+    case verified
+}
+
+nonisolated enum PocoPublishingRules {
+    static let currentVersion = 1
 }
 
 nonisolated enum ProjectCategory: String, CaseIterable, Identifiable, Codable, Sendable {
@@ -129,6 +215,7 @@ nonisolated struct Feedback: Identifiable, Hashable, Codable, Sendable {
     var senderID: UUID? = nil
     var senderAvatarName: String? = nil
     var senderAvatarURL: URL? = nil
+    var senderHandle: String? = nil
     var creatorReceivedAt: Date? = nil
 }
 
@@ -166,7 +253,8 @@ nonisolated extension Feedback {
             id: senderID,
             name: nickname,
             avatarName: senderAvatarName,
-            avatarURL: senderAvatarURL
+            avatarURL: senderAvatarURL,
+            handle: senderHandle
         )
     }
 }

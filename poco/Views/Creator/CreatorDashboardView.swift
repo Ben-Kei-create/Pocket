@@ -80,6 +80,7 @@ private struct CreatorProjectCard: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 5) {
+                    ProjectRelationshipBadge(project: project, compact: true)
                     Text(project.title)
                         .font(.headline)
                         .lineLimit(2)

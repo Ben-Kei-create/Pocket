@@ -58,24 +58,39 @@ Migrationは次の順で再構築できます。
 - `005_memberships.sql`: Pocoメンバー資格、本人のみread可能なRLS、匿名ゲスト用プロフィール
 - `006_registered_creators.sql`: Anonymous Authゲストの作品作成・画像更新を拒否
 - `007_profile_avatars.sql`: 標準アバター名、プロフィール画像Bucket、本番用Storage Policy
-- `008_feedback_ownership_and_creator_receipts.sql`: 匿名投稿の非公開所有権、投稿RPC、送信レート制限、作者の「とどいた！」
+- `008_feedback_ownership_and_creator_receipts.sql`: 匿名投稿の非公開所有権、投稿RPC、送信レート制限、作者受領Receipt（`011`で通常いいねへ統合）
 - `009_moderation_and_blocks.sql`: 全ユーザーの通報、投稿者削除、作者のソフト非表示、ブロック、監査履歴
 - `010_feedback_submission_limit.sql`: 同じ投稿者から1作品3件までの感想上限と同時投稿対策
+- `011_project_relationship_and_creator_hearts.sql`: 作品との関係区分、確認状態、作者の通常いいねと❤️表示の統合
+- `012_creator_handles.sql`: 一意な`@クリエイターID`、自動発行、作品検索用View
+- `013_activity_and_atomic_project_limits.sql`: マイページ活動履歴RPC、無料3／Pro 30作品の同時作成対策
+- `014_member_rewards.sql`: 会員用ログインボーナス、達成スタンプ、スターコイン残高とRLS
 
 `feedback_count`は重複カラムにせず`projects_with_feedback_count` Viewで計算します。`likes_count`は`feedback_likes`のINSERT/DELETEトリガーだけで更新し、整合性を維持します。
 
 `008`以降、投稿の所有者は非公開の`feedback_ownership`へ保存し、公開プロフィールは`author_profile_id`へ分離します。匿名AuthのUUIDは公開プロフィールとして使用しません。投稿は`submit_feedback` RPCだけを許可し、`feedbacks`への直接INSERT/UPDATE/DELETEは無効です。
 
-作者の「とどいた！」は通常のいいねと合算せず、`feedback_creator_receipts`へ1感想1件で保存します。RLSにより、その作品の登録クリエイター本人だけが追加できます。
+作者も他のユーザーと同じ通常の「いいね」を使います。作者のLikeは通常の件数に含まれ、DBトリガーが`feedback_creator_receipts`へ1感想1件の❤️表示情報を同一トランザクションで保存します。クライアントからReceiptだけを直接追加することはできません。
+
+作品登録時は`creator`（制作者本人）、`authorized`（許可を得ている）、`fan`（非公式なファンの感想箱）のいずれかを選びます。本人・許諾確認が済むまでは`verification_status = unverified`として表示し、一般クライアントから`verified`へ変更できないDBトリガーを設定しています。公開ルールへの同意はバージョンと日時を保存し、同意情報のない新規作品をDBでも拒否します。
 
 `009`以降、通報はAnonymous Authを含む全ユーザーが利用できます。同じユーザーから同じ感想への通報は1件に集約し、1日20件の基本レート制限を設けます。投稿者本人の削除は公開本文・投稿者名・プロフィール参照を消去し、作者の操作は監査可能な`hidden_by_creator`として保持します。通報内容と`feedback_moderation_events`は公開されません。ブロック情報も本人だけが読み書きできます。
 
 `010`以降、同じAuthユーザーが1作品へ保持できる感想は3件までです。アプリで残数を案内し、DB TriggerとTransaction Advisory Lockでも同時投稿を含めて上限を強制します。投稿者本人が削除した感想は上限から除外します。
 
+## QR・Universal Link
+
+WelcomeとHomeのQRスキャナーは、登録前のゲストでも利用できます。カメラを使えないSimulatorではスキャナー下部のURL入力から`poco://project/{projectID}`を開けます。
+
+公開時は`POCO_PUBLIC_BASE_URL`へ所有するHTTPSドメインを設定してください。xcconfigでは`//`がコメントとして解釈されるため、例として`https:/$()/example.com`の形式で指定します。設定後、作品QRと共有リンクは`https://example.com/project/{projectID}`になり、未インストール端末ではApp Storeへの案内を置いた同URLのWebページ、インストール済み端末ではUniversal LinkからPocoを開けます。インストール直後はWelcomeの「QRコードで感想を送る」から同じQRを再読取し、登録せずに投稿できます。
+
+Universal Link公開前に、HTTPSサイトの`/.well-known/apple-app-site-association`とXcodeのAssociated Domains（`applinks:example.com`）を実ドメインで設定してください。ドメイン未設定の開発環境では既存の`poco://`へ安全にフォールバックします。
+
 ## ゲスト・Pocoユーザー・Poco Pro・広告
 
 - ゲスト投稿者にはSupabase Anonymous Authを使用し、登録画面なしで端末固有のユーザーIDを付与します。これにより、ゲストもRLSを保ったまま1つのフキダシへ1回いいねできます。Supabase DashboardでAnonymous Sign-Insを有効にしてください。
-- 閲覧・感想投稿・いいねはゲストでも利用できます。作品作成はPocoユーザー以上、共感順・自分の作品/感想に届いたいいね集計・広告非表示はPoco Proだけが利用できます。無料ユーザーは3作品、Proは30作品を上限とするCapabilityをアプリ側に持ちます。本番公開前に同じ上限をDB側RPCでも検証してください。`006_registered_creators.sql`はAnonymous Authユーザーによる作品作成と画像更新をDB側でも拒否します。
+- 閲覧・感想投稿・いいねはゲストでも利用できます。作品作成はPocoユーザー以上、共感順・自分の作品/感想に届いたいいね集計・広告非表示はPoco Proだけが利用できます。無料ユーザーは3作品、Proは30作品が上限です。`013`以降はユーザー単位のTransaction Advisory Lockを使い、複数端末からの同時作成でもDB側で上限を強制します。`006_registered_creators.sql`はAnonymous Authユーザーによる作品作成と画像更新をDB側でも拒否します。
+- PocoユーザーとPoco Proはマイページからログインボーナスと達成スタンプを利用できます。`014`のボーナスは日本時間で1日1回、DBのTransaction Advisory Lockで多重受取を防ぎます。スタンプ条件はDBの所有権・いいね・作者❤️から評価され、クライアントが任意に解放することはできません。
 - いいね済み状態は`feedback_likes`から復元します。画面内の連打防止だけに依存せず、DBの`unique(feedback_id, user_id)`を最終的な保証にしています。
 - `memberships`はアプリから更新できません。本番ではStoreKit 2の購入結果をApp Store Server Notificationsで検証し、service roleを持つEdge Functionなどからのみ更新します。
 - Mock環境ではマイページまたは広告バーから登録・会員表示を試せます。Supabase環境ではStoreKit 2がApp Store Connectの商品情報を読み込み、購入・復元・端末上のTransaction検証を行います。

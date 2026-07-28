@@ -5,6 +5,7 @@ struct BubbleDropView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(PocoStore.self) private var store
+    @AppStorage("poco.settings.playfulMotion") private var playfulMotion = true
     let project: Project
     let feedback: Feedback
     let existingFeedbacks: [Feedback]
@@ -13,6 +14,7 @@ struct BubbleDropView: View {
     @State private var isDropped = false
     @State private var showsSuccess = false
     @State private var showsWall = false
+    @State private var showsRegistration = false
     @State private var selectedCreator: Creator?
     @State private var deliveryState = DeliveryState.idle
     @State private var dropTrigger = 0
@@ -37,7 +39,7 @@ struct BubbleDropView: View {
                     PhysicsBubbleDropFieldView(
                         feedback: feedback,
                         existingFeedbacks: existingFeedbacks,
-                        reduceMotion: reduceMotion,
+                        reduceMotion: shouldReduceMotion,
                         isScrollEnabled: isDropped,
                         enablesCompanionEvolution: store.capabilities.canUseCompanionEvolution,
                         dropTrigger: $dropTrigger,
@@ -108,6 +110,9 @@ struct BubbleDropView: View {
                         }
                 }
             }
+            .sheet(isPresented: $showsRegistration) {
+                RegistrationGateView(context: .afterFeedback)
+            }
         }
         .interactiveDismissDisabled(!isDropped)
     }
@@ -149,6 +154,17 @@ struct BubbleDropView: View {
                 }
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(PocoTheme.primary)
+
+                if !store.canCreateProjects {
+                    Divider()
+
+                    Button("無料登録してPocoを続ける") {
+                        showsRegistration = true
+                    }
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(PocoTheme.primary)
+                    .accessibilityHint("プロフィールと作品の感想箱を作れる無料登録画面を開きます")
+                }
             }
         }
         .padding(.horizontal, 24)
@@ -164,13 +180,19 @@ struct BubbleDropView: View {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
 
         Task {
-            let landingDelay = reduceMotion ? 80 : 220
+            let landingDelay = shouldReduceMotion ? 80 : 220
             try? await Task.sleep(for: .milliseconds(landingDelay))
             deliver()
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.78)) {
+            withAnimation(
+                shouldReduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.78)
+            ) {
                 showsSuccess = true
             }
         }
+    }
+
+    private var shouldReduceMotion: Bool {
+        reduceMotion || !playfulMotion
     }
 
     private func deliver() {

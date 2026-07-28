@@ -24,6 +24,10 @@ final class PocoStore {
     private(set) var authenticationState: AuthenticationState = .idle
     private(set) var projectLoadState: LoadState = .idle
     private(set) var feedbackLoadStates: [UUID: LoadState] = [:]
+    private(set) var activityLoadState: LoadState = .idle
+    private(set) var memberRewardLoadState: LoadState = .idle
+    private(set) var memberRewardSnapshot = MemberRewardSnapshot.empty
+    private(set) var lastDailyLoginClaim: DailyLoginBonusClaim?
     private(set) var starCoinBalance = 0
     let backendMode: BackendMode
 
@@ -31,6 +35,7 @@ final class PocoStore {
     private let feedbackRepository: any FeedbackRepository
     private let profileRepository: any ProfileRepository
     private let membershipRepository: any MembershipRepository
+    private let memberRewardRepository: any MemberRewardRepository
     private let moderationRepository: any ModerationRepository
     private let membershipPurchaseService: any MembershipPurchaseService
     private let membershipEntitlementSynchronizer: (any MembershipEntitlementSynchronizing)?
@@ -53,6 +58,7 @@ final class PocoStore {
         feedbackRepository: (any FeedbackRepository)? = nil,
         profileRepository: (any ProfileRepository)? = nil,
         membershipRepository: (any MembershipRepository)? = nil,
+        memberRewardRepository: (any MemberRewardRepository)? = nil,
         moderationRepository: (any ModerationRepository)? = nil,
         membershipPurchaseService: (any MembershipPurchaseService)? = nil,
         membershipEntitlementSynchronizer: (any MembershipEntitlementSynchronizing)? = nil,
@@ -68,6 +74,7 @@ final class PocoStore {
         self.feedbackRepository = feedbackRepository ?? MockFeedbackRepository()
         self.profileRepository = profileRepository ?? MockProfileRepository()
         self.membershipRepository = membershipRepository ?? MockMembershipRepository()
+        self.memberRewardRepository = memberRewardRepository ?? MockMemberRewardRepository()
         self.moderationRepository = moderationRepository ?? MockModerationRepository()
         self.membershipPurchaseService = membershipPurchaseService ?? DisabledMembershipPurchaseService()
         self.membershipEntitlementSynchronizer = membershipEntitlementSynchronizer
@@ -122,10 +129,16 @@ final class PocoStore {
             let optimistic = feedbacks.filter {
                 $0.projectID == projectID && optimisticFeedbackIDs.contains($0.id)
             }
+            let privateOwned = feedbacks.filter {
+                $0.projectID == projectID
+                    && ownedFeedbackIDs.contains($0.id)
+                    && !$0.isPublic
+            }
 
             feedbacks.removeAll { $0.projectID == projectID }
             feedbacks.append(contentsOf: remoteFeedbacks)
-            for feedback in optimistic where !feedbacks.contains(where: { $0.id == feedback.id }) {
+            for feedback in optimistic + privateOwned
+            where !feedbacks.contains(where: { $0.id == feedback.id }) {
                 feedbacks.append(feedback)
             }
             let projectFeedbackIDs = feedbacks
@@ -159,6 +172,105 @@ final class PocoStore {
                     && !($0.senderID.map(blockedProfileIDs.contains) ?? false)
             }
             .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    var sentFeedbacks: [Feedback] {
+        feedbacks
+            .filter { ownedFeedbackIDs.contains($0.id) }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    var likedFeedbacks: [Feedback] {
+        feedbacks
+            .filter {
+                likedFeedbackIDs.contains($0.id)
+                    && !($0.senderID.map(blockedProfileIDs.contains) ?? false)
+            }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    func loadMyActivity() async {
+        guard activityLoadState != .loading else { return }
+        activityLoadState = .loading
+
+        do {
+            async let ownedRequest = moderationRepository.fetchOwnedFeedbacks()
+            async let likedRequest = feedbackRepository.fetchLikedFeedbacks()
+            let (owned, liked) = try await (ownedRequest, likedRequest)
+
+            ownedFeedbackIDs.formUnion(owned.map(\.id))
+            likedFeedbackIDs.formUnion(liked.map(\.id))
+
+            var uniqueFeedbacks: [UUID: Feedback] = [:]
+            for feedback in owned + liked {
+                uniqueFeedbacks[feedback.id] = feedback
+            }
+            let hydrated = await hydrateFeedbacks(Array(uniqueFeedbacks.values))
+            mergeActivityFeedbacks(hydrated)
+
+            if let receipts = try? await feedbackRepository.fetchCreatorReceipts(
+                feedbackIDs: hydrated.map(\.id)
+            ) {
+                applyCreatorReceipts(receipts)
+            }
+            activityLoadState = .loaded
+        } catch {
+            let appError = map(error)
+            activityLoadState = .error(appError)
+            errorMessage = appError.userMessage
+        }
+    }
+
+    func loadMemberRewards() async {
+        guard canCreateProjects, memberRewardLoadState != .loading else { return }
+        memberRewardLoadState = .loading
+
+        if activityLoadState == .idle {
+            await loadMyActivity()
+        }
+
+        do {
+            let snapshot = try await memberRewardRepository.fetchRewards(
+                signals: achievementSignals
+            )
+            memberRewardSnapshot = snapshot
+            if backendMode == .supabase {
+                // Character taps are still device-local in this MVP. Never
+                // erase those coins when the server-backed login wallet loads.
+                starCoinBalance = max(starCoinBalance, snapshot.starCoinBalance)
+                persistStarCoinBalance()
+            }
+            memberRewardLoadState = .loaded
+        } catch {
+            let appError = map(error)
+            memberRewardLoadState = .error(appError)
+            errorMessage = appError.userMessage
+        }
+    }
+
+    func claimDailyLoginBonus() async -> Result<DailyLoginBonusClaim, AppError> {
+        guard canCreateProjects else { return .failure(.unauthorized) }
+        do {
+            let claim = try await memberRewardRepository.claimDailyLoginBonus()
+            lastDailyLoginClaim = claim
+            starCoinBalance = max(
+                starCoinBalance + claim.awardedCoins,
+                claim.starCoinBalance
+            )
+            persistStarCoinBalance()
+            memberRewardSnapshot = MemberRewardSnapshot(
+                loginStreak: claim.loginStreak,
+                lastClaimedDay: claim.claimedDay,
+                starCoinBalance: claim.starCoinBalance,
+                unlockedStamps: memberRewardSnapshot.unlockedStamps
+            )
+            await loadMemberRewards()
+            return .success(claim)
+        } catch {
+            let appError = map(error)
+            errorMessage = appError.userMessage
+            return .failure(appError)
+        }
     }
 
     func project(id: UUID) -> Project? {
@@ -227,12 +339,26 @@ final class PocoStore {
 
     func like(_ feedback: Feedback) async {
         guard !likedFeedbackIDs.contains(feedback.id) else { return }
+        let isCreatorLike = canMarkReceived(feedback)
         likedFeedbackIDs.insert(feedback.id)
 
         do {
             try await feedbackRepository.likeFeedback(id: feedback.id)
             if let index = feedbacks.firstIndex(where: { $0.id == feedback.id }) {
                 feedbacks[index].likes += 1
+            }
+            if isCreatorLike {
+                let receivedAt: Date
+                if backendMode == .mock {
+                    receivedAt = (try? await feedbackRepository.markReceivedByCreator(
+                        feedbackID: feedback.id
+                    )) ?? .now
+                } else {
+                    // Supabase creates the creator heart atomically from the
+                    // normal Like insertion. Realtime later confirms it.
+                    receivedAt = .now
+                }
+                applyCreatorReceipts([feedback.id: receivedAt])
             }
         } catch AppError.alreadyLiked {
             // The backend unique constraint is the source of truth. Keep the
@@ -268,12 +394,25 @@ final class PocoStore {
               rewardedCoinEventKeys.insert(eventKey).inserted else { return false }
 
         starCoinBalance += amount
-        UserDefaults.standard.set(starCoinBalance, forKey: Self.starCoinBalanceKey)
+        persistStarCoinBalance()
         UserDefaults.standard.set(
             Array(rewardedCoinEventKeys),
             forKey: Self.rewardedCoinEventsKey
         )
         return true
+    }
+
+    private var achievementSignals: AchievementSignals {
+        AchievementSignals(
+            sentFeedbackCount: sentFeedbacks.count,
+            projectCount: currentUserProjects.count,
+            likedFeedbackCount: likedFeedbackIDs.count,
+            hasCreatorHeart: sentFeedbacks.contains { $0.creatorReceivedAt != nil }
+        )
+    }
+
+    private func persistStarCoinBalance() {
+        UserDefaults.standard.set(starCoinBalance, forKey: Self.starCoinBalanceKey)
     }
 
     var canCreateAnotherProject: Bool {
@@ -316,18 +455,6 @@ final class PocoStore {
               let currentUserID,
               let project = project(id: feedback.projectID) else { return false }
         return project.creator.id == currentUserID
-    }
-
-    func markReceived(_ feedback: Feedback) async {
-        guard canMarkReceived(feedback) else { return }
-        do {
-            let receivedAt = try await feedbackRepository.markReceivedByCreator(
-                feedbackID: feedback.id
-            )
-            applyCreatorReceipts([feedback.id: receivedAt])
-        } catch {
-            errorMessage = map(error).userMessage
-        }
     }
 
     func owns(_ feedback: Feedback) -> Bool {
@@ -423,7 +550,8 @@ final class PocoStore {
         currentProfile = Creator(
             id: profileID,
             name: currentProfile?.name ?? "そらのひつじ",
-            avatarName: avatarImageData == nil ? avatarName : nil
+            avatarName: avatarImageData == nil ? avatarName : nil,
+            handle: currentProfile?.handle ?? CreatorHandle.generated(for: profileID)
         )
         if let currentProfile {
             profileCache[profileID] = currentProfile
@@ -489,7 +617,8 @@ final class PocoStore {
                 id: account.id,
                 name: profileName,
                 avatarName: selectedAvatarName,
-                avatarURL: avatarURL
+                avatarURL: avatarURL,
+                handle: existingProfile?.handle ?? CreatorHandle.generated(for: account.id)
             )
             currentProfile = profile
             profileCache[account.id] = profile
@@ -512,14 +641,17 @@ final class PocoStore {
 
     func updateProfile(
         displayName: String,
+        handle: String,
         avatarName: String?,
         avatarImageData: Data?
     ) async -> Result<Void, AppError> {
         let normalizedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedHandle = CreatorHandle.normalize(handle)
         guard canCreateProjects,
               let userID = currentUserID,
               !normalizedName.isEmpty,
-              normalizedName.count <= 80 else {
+              normalizedName.count <= 80,
+              CreatorHandle.isValid(normalizedHandle) else {
             return .failure(.unauthorized)
         }
 
@@ -553,7 +685,8 @@ final class PocoStore {
                 id: userID,
                 name: normalizedName,
                 avatarName: selectedAvatarName,
-                avatarURL: avatarURL
+                avatarURL: avatarURL,
+                handle: normalizedHandle
             )
             try await profileRepository.saveProfile(profile)
             currentProfile = profile
@@ -587,6 +720,10 @@ final class PocoStore {
             ownedFeedbackIDs.removeAll()
             ownFeedbackCountsByProject.removeAll()
             blockedProfileIDs.removeAll()
+            activityLoadState = .idle
+            memberRewardLoadState = .idle
+            memberRewardSnapshot = .empty
+            lastDailyLoginClaim = nil
             authenticationState = .idle
         } catch {
             let message = map(error).userMessage
@@ -604,6 +741,10 @@ final class PocoStore {
         currentProfile = nil
         currentAvatarImageData = nil
         profileCache.removeAll()
+        activityLoadState = .idle
+        memberRewardLoadState = .idle
+        memberRewardSnapshot = .empty
+        lastDailyLoginClaim = nil
     }
 
     func loadMembershipOffer() async {
@@ -680,6 +821,7 @@ final class PocoStore {
         title: String,
         creatorName: String,
         category: ProjectCategory,
+        relationship: ProjectRelationship,
         description: String,
         imageData: Data?
     ) async -> Result<Project, AppError> {
@@ -718,7 +860,8 @@ final class PocoStore {
                 id: creatorID,
                 name: creatorName,
                 avatarName: currentProfile?.id == creatorID ? currentProfile?.avatarName : nil,
-                avatarURL: currentProfile?.id == creatorID ? currentProfile?.avatarURL : nil
+                avatarURL: currentProfile?.id == creatorID ? currentProfile?.avatarURL : nil,
+                handle: currentProfile?.id == creatorID ? currentProfile?.handle : nil
             )
             let project = Project(
                 id: projectID,
@@ -729,13 +872,18 @@ final class PocoStore {
                 imageName: nil,
                 imageURL: imageURL,
                 feedbackCount: 0,
-                createdAt: .now
+                createdAt: .now,
+                relationship: relationship,
+                verificationStatus: .unverified
             )
 
             try await projectRepository.createProject(project)
             projects.insert(project, at: 0)
             return .success(project)
         } catch {
+            if let imageURL, let projectImageStorage {
+                try? await projectImageStorage.deleteProjectImage(at: imageURL)
+            }
             let appError = map(error)
             errorMessage = appError.userMessage
             return .failure(appError)
@@ -790,11 +938,9 @@ final class PocoStore {
         realtimeReceiptTasks[projectID] = nil
     }
 
-    func open(url: URL) {
-        guard url.scheme?.lowercased() == "poco",
-              url.host?.lowercased() == "project",
-              let value = url.pathComponents.dropFirst().first,
-              let id = UUID(uuidString: value) else { return }
+    @discardableResult
+    func open(url: URL) -> Bool {
+        guard let id = ProjectDeepLink.projectID(from: url) else { return false }
 
         selectedTab = .home
         if project(id: id) != nil {
@@ -802,6 +948,7 @@ final class PocoStore {
         } else {
             pendingDeepLinkProjectID = id
         }
+        return true
     }
 
     private func mergeRealtimeFeedback(_ feedback: Feedback) {
@@ -814,6 +961,18 @@ final class PocoStore {
         feedbacks.append(feedback)
         if let index = projects.firstIndex(where: { $0.id == feedback.projectID }) {
             projects[index].feedbackCount += 1
+        }
+    }
+
+    private func mergeActivityFeedbacks(_ values: [Feedback]) {
+        for value in values {
+            if let index = feedbacks.firstIndex(where: { $0.id == value.id }) {
+                var merged = value
+                merged.creatorReceivedAt = feedbacks[index].creatorReceivedAt
+                feedbacks[index] = merged
+            } else {
+                feedbacks.append(value)
+            }
         }
     }
 
@@ -888,6 +1047,7 @@ final class PocoStore {
             var hydrated = value
             hydrated.senderAvatarName = profile.avatarName
             hydrated.senderAvatarURL = profile.avatarURL
+            hydrated.senderHandle = profile.handle
             return hydrated
         }
     }
@@ -896,6 +1056,7 @@ final class PocoStore {
         for index in feedbacks.indices where feedbacks[index].senderID == profile.id {
             feedbacks[index].senderAvatarName = profile.avatarName
             feedbacks[index].senderAvatarURL = profile.avatarURL
+            feedbacks[index].senderHandle = profile.handle
         }
         for index in projects.indices where projects[index].creator.id == profile.id {
             projects[index].creator = profile

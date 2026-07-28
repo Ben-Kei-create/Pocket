@@ -89,6 +89,13 @@ struct PublicProfileView: View {
                             }
                         }
 
+                        if let handle = creator.handle {
+                            Text("@\(handle)")
+                                .font(.subheadline.weight(.medium))
+                                .foregroundStyle(PocoTheme.primary)
+                                .accessibilityLabel("クリエイターID、\(handle)")
+                        }
+
                         Text("Poco 公開プロフィール")
                             .font(.subheadline)
                             .foregroundStyle(PocoTheme.secondaryText)

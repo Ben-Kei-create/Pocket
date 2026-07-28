@@ -32,7 +32,9 @@ struct ProjectDetailView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .pocoCard()
 
-                        creatorCard(project.creator)
+                        relationshipNotice(project)
+
+                        creatorCard(project)
 
                         VStack(spacing: 12) {
                             Button {
@@ -120,6 +122,8 @@ struct ProjectDetailView: View {
                 .clipShape(RoundedRectangle(cornerRadius: PocoTheme.cornerMedium, style: .continuous))
 
             VStack(alignment: .leading, spacing: 8) {
+                ProjectRelationshipBadge(project: project)
+
                 Text(project.title)
                     .font(.title3.weight(.bold))
                 Text("\(project.category.creatorPrefix)：\(project.creator.name)")
@@ -133,14 +137,14 @@ struct ProjectDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func creatorCard(_ creator: Creator) -> some View {
+    private func creatorCard(_ project: Project) -> some View {
         HStack(spacing: 14) {
-            ProfileAvatarView(creator: creator, size: 44)
+            ProfileAvatarView(creator: project.creator, size: 44)
             VStack(alignment: .leading, spacing: 3) {
-                Text("クリエイター")
+                Text(project.relationship == .fan ? "作品の作者・クリエイター" : "クリエイター")
                     .font(.caption)
                     .foregroundStyle(PocoTheme.secondaryText)
-                Text(creator.name)
+                Text(project.creator.name)
                     .font(.headline)
             }
             Spacer()
@@ -149,6 +153,35 @@ struct ProjectDetailView: View {
         }
         .padding(18)
         .pocoCard()
+    }
+
+    @ViewBuilder
+    private func relationshipNotice(_ project: Project) -> some View {
+        if project.relationship == .fan || project.verificationStatus != .verified {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: project.relationship.symbolName)
+                    .foregroundStyle(PocoTheme.primary)
+                    .frame(width: 24)
+                Text(relationshipNoticeText(project))
+                    .font(.subheadline)
+                    .foregroundStyle(PocoTheme.secondaryText)
+                    .lineSpacing(3)
+                Spacer(minLength: 0)
+            }
+            .padding(16)
+            .background(PocoTheme.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
+            .accessibilityElement(children: .combine)
+        }
+    }
+
+    private func relationshipNoticeText(_ project: Project) -> String {
+        if project.relationship == .fan {
+            return "この感想箱はファンが作成した非公式ページです。作品の公式ページではありません。"
+        }
+        if project.relationship == .authorized {
+            return "許可を得ているとして登録されたページです。Pocoによる確認はまだ完了していません。"
+        }
+        return "制作者本人として登録されたページです。Pocoによる本人確認はまだ完了していません。"
     }
 
     private func showDropIfNeeded() {
@@ -160,6 +193,6 @@ struct ProjectDetailView: View {
 
 extension Project {
     var deepLinkURL: URL {
-        URL(string: "poco://project/\(id.uuidString)")!
+        ProjectDeepLink.url(projectID: id)
     }
 }

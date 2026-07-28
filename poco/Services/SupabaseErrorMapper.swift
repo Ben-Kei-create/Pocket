@@ -26,6 +26,8 @@ enum SupabaseErrorMapper {
                 return .notFound
             case "P0003":
                 return .feedbackLimitReached
+            case "P0004":
+                return .projectLimitReached
             default:
                 return .unknown(postgrestError.message)
             }

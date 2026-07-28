@@ -10,6 +10,7 @@ struct FeedbackComposeView: View {
     @State private var nickname = ""
     @State private var isPublic = true
     @State private var showsFeedbackLimitAlert = false
+    @AppStorage("poco.guestNickname") private var savedGuestNickname = ""
     @FocusState private var focusedField: Field?
 
     private let limit = 500
@@ -74,8 +75,10 @@ struct FeedbackComposeView: View {
                 }
             }
             .onAppear {
-                if nickname.isEmpty, store.canCreateProjects {
-                    nickname = store.currentDisplayName
+                if nickname.isEmpty {
+                    nickname = store.canCreateProjects
+                        ? store.currentDisplayName
+                        : savedGuestNickname
                 }
                 focusedField = .message
             }
@@ -128,6 +131,9 @@ struct FeedbackComposeView: View {
             return
         }
         focusedField = nil
+        if !store.canCreateProjects {
+            savedGuestNickname = trimmedNickname
+        }
         let colorIndex = abs(trimmedMessage.hashValue) % BubbleColor.allCases.count
         let senderID = store.canCreateProjects ? store.currentUserID : nil
         let feedback = Feedback(

@@ -79,6 +79,19 @@ final class SupabaseFeedbackRepository: FeedbackRepository, Sendable {
         }
     }
 
+    nonisolated func fetchLikedFeedbacks() async throws -> [Feedback] {
+        guard await currentUserProvider.currentUserID() != nil else { return [] }
+        do {
+            let rows: [FeedbackDTO] = try await client
+                .rpc("my_liked_feedbacks")
+                .execute()
+                .value
+            return rows.map(\.domainModel).sorted { $0.createdAt > $1.createdAt }
+        } catch {
+            throw SupabaseErrorMapper.map(error)
+        }
+    }
+
     nonisolated func submitFeedback(_ feedback: Feedback) async throws {
         guard await currentUserProvider.currentUserID() != nil else {
             throw AppError.unauthorized
@@ -297,6 +310,8 @@ final class SupabaseProfileRepository: ProfileRepository, Sendable {
                 .from("profiles")
                 .upsert(ProfileDTO(creator: creator), onConflict: "id")
                 .execute()
+        } catch let error as PostgrestError where error.code == "23505" {
+            throw AppError.handleUnavailable
         } catch {
             throw SupabaseErrorMapper.map(error)
         }
@@ -321,6 +336,19 @@ final class SupabaseModerationRepository: ModerationRepository, Sendable {
                 .execute()
                 .value
             return Set(rows.map(\.feedbackID))
+        } catch {
+            throw SupabaseErrorMapper.map(error)
+        }
+    }
+
+    nonisolated func fetchOwnedFeedbacks() async throws -> [Feedback] {
+        guard await currentUserProvider.currentUserID() != nil else { return [] }
+        do {
+            let rows: [FeedbackDTO] = try await client
+                .rpc("my_feedbacks")
+                .execute()
+                .value
+            return rows.map(\.domainModel).sorted { $0.createdAt > $1.createdAt }
         } catch {
             throw SupabaseErrorMapper.map(error)
         }
@@ -546,6 +574,72 @@ final class SupabaseMembershipRepository: MembershipRepository, Sendable {
                 .execute()
                 .value
             return rows.first?.membershipTier ?? .guest
+        } catch {
+            throw SupabaseErrorMapper.map(error)
+        }
+    }
+}
+
+final class SupabaseMemberRewardRepository: MemberRewardRepository, Sendable {
+    private let client: SupabaseClient
+    private let currentUserProvider: any CurrentUserProvider
+
+    init(client: SupabaseClient, currentUserProvider: any CurrentUserProvider) {
+        self.client = client
+        self.currentUserProvider = currentUserProvider
+    }
+
+    nonisolated func fetchRewards(
+        signals: AchievementSignals
+    ) async throws -> MemberRewardSnapshot {
+        guard let userID = await currentUserProvider.currentUserID(),
+              await currentUserProvider.accountStatus() == .registered else {
+            throw AppError.unauthorized
+        }
+
+        do {
+            try await client
+                .rpc("refresh_my_achievement_stamps")
+                .execute()
+
+            let progressRows: [MemberRewardProgressDTO] = try await client
+                .from("member_reward_progress")
+                .select("login_streak,last_login_bonus_day,star_coin_balance")
+                .eq("user_id", value: userID)
+                .limit(1)
+                .execute()
+                .value
+            let stampRows: [AchievementStampDTO] = try await client
+                .from("member_achievement_stamps")
+                .select("stamp_key")
+                .eq("user_id", value: userID)
+                .execute()
+                .value
+            let progress = progressRows.first
+            return MemberRewardSnapshot(
+                loginStreak: progress?.loginStreak ?? 0,
+                lastClaimedDay: progress?.lastLoginBonusDay,
+                starCoinBalance: progress?.starCoinBalance ?? 0,
+                unlockedStamps: Set(
+                    stampRows.compactMap { AchievementStamp(rawValue: $0.stampKey) }
+                )
+            )
+        } catch {
+            throw SupabaseErrorMapper.map(error)
+        }
+    }
+
+    nonisolated func claimDailyLoginBonus() async throws -> DailyLoginBonusClaim {
+        guard await currentUserProvider.accountStatus() == .registered else {
+            throw AppError.unauthorized
+        }
+        do {
+            let rows: [DailyLoginBonusClaimDTO] = try await client
+                .rpc("claim_daily_login_bonus")
+                .execute()
+                .value
+            guard let claim = rows.first else { throw AppError.decoding }
+            return claim.domainModel
         } catch {
             throw SupabaseErrorMapper.map(error)
         }

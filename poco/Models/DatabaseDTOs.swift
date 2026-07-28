@@ -5,6 +5,7 @@ nonisolated struct ProfileDTO: Codable, Sendable {
     let displayName: String
     let avatarName: String?
     let avatarURL: String?
+    let handle: String?
     let createdAt: Date?
 
     enum CodingKeys: String, CodingKey {
@@ -12,6 +13,7 @@ nonisolated struct ProfileDTO: Codable, Sendable {
         case displayName = "display_name"
         case avatarName = "avatar_name"
         case avatarURL = "avatar_url"
+        case handle
         case createdAt = "created_at"
     }
 
@@ -20,6 +22,7 @@ nonisolated struct ProfileDTO: Codable, Sendable {
         displayName = creator.name
         avatarName = creator.avatarName
         avatarURL = creator.avatarURL?.absoluteString
+        handle = creator.handle
         createdAt = nil
     }
 
@@ -40,6 +43,10 @@ nonisolated struct ProfileDTO: Codable, Sendable {
             try container.encodeNil(forKey: .avatarURL)
         }
 
+        if let handle {
+            try container.encode(handle, forKey: .handle)
+        }
+
         if let createdAt {
             try container.encode(createdAt, forKey: .createdAt)
         }
@@ -50,7 +57,8 @@ nonisolated struct ProfileDTO: Codable, Sendable {
             id: id,
             name: displayName,
             avatarName: avatarName,
-            avatarURL: avatarURL.flatMap(URL.init(string:))
+            avatarURL: avatarURL.flatMap(URL.init(string:)),
+            handle: handle
         )
     }
 }
@@ -65,6 +73,10 @@ nonisolated struct ProjectDTO: Codable, Sendable {
     let imageURL: String?
     let createdAt: Date
     let isPublished: Bool
+    let relationship: String
+    let verificationStatus: String
+    let publishingRulesVersion: Int
+    let publishingRulesAcceptedAt: Date
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -76,6 +88,10 @@ nonisolated struct ProjectDTO: Codable, Sendable {
         case imageURL = "image_url"
         case createdAt = "created_at"
         case isPublished = "is_published"
+        case relationship
+        case verificationStatus = "verification_status"
+        case publishingRulesVersion = "publishing_rules_version"
+        case publishingRulesAcceptedAt = "publishing_rules_accepted_at"
     }
 
     init(project: Project, isPublished: Bool = true) {
@@ -88,6 +104,10 @@ nonisolated struct ProjectDTO: Codable, Sendable {
         imageURL = project.imageURL?.absoluteString
         createdAt = project.createdAt
         self.isPublished = isPublished
+        relationship = project.relationship.rawValue
+        verificationStatus = project.verificationStatus.rawValue
+        publishingRulesVersion = PocoPublishingRules.currentVersion
+        publishingRulesAcceptedAt = project.createdAt
     }
 }
 
@@ -104,6 +124,9 @@ nonisolated struct ProjectQueryDTO: Codable, Sendable {
     let feedbackCount: Int?
     let creatorAvatarName: String?
     let creatorAvatarURL: String?
+    let creatorHandle: String?
+    let relationship: String?
+    let verificationStatus: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -118,6 +141,9 @@ nonisolated struct ProjectQueryDTO: Codable, Sendable {
         case feedbackCount = "feedback_count"
         case creatorAvatarName = "creator_avatar_name"
         case creatorAvatarURL = "creator_avatar_url"
+        case creatorHandle = "creator_handle"
+        case relationship
+        case verificationStatus = "verification_status"
     }
 
     var domainModel: Project {
@@ -128,14 +154,17 @@ nonisolated struct ProjectQueryDTO: Codable, Sendable {
                 id: creatorID,
                 name: creatorName,
                 avatarName: creatorAvatarName,
-                avatarURL: creatorAvatarURL.flatMap(URL.init(string:))
+                avatarURL: creatorAvatarURL.flatMap(URL.init(string:)),
+                handle: creatorHandle
             ),
             category: ProjectCategory(rawValue: category) ?? .other,
             description: description,
             imageName: nil,
             imageURL: imageURL.flatMap(URL.init(string:)),
             feedbackCount: feedbackCount ?? 0,
-            createdAt: createdAt
+            createdAt: createdAt,
+            relationship: relationship.flatMap(ProjectRelationship.init(rawValue:)) ?? .creator,
+            verificationStatus: verificationStatus.flatMap(ProjectVerificationStatus.init(rawValue:)) ?? .unverified
         )
     }
 }
@@ -322,5 +351,51 @@ nonisolated struct FeedbackLikeQueryDTO: Decodable, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case feedbackID = "feedback_id"
+    }
+}
+
+nonisolated struct MemberRewardProgressDTO: Decodable, Sendable {
+    let loginStreak: Int
+    let lastLoginBonusDay: String?
+    let starCoinBalance: Int
+
+    enum CodingKeys: String, CodingKey {
+        case loginStreak = "login_streak"
+        case lastLoginBonusDay = "last_login_bonus_day"
+        case starCoinBalance = "star_coin_balance"
+    }
+}
+
+nonisolated struct AchievementStampDTO: Decodable, Sendable {
+    let stampKey: String
+
+    enum CodingKeys: String, CodingKey {
+        case stampKey = "stamp_key"
+    }
+}
+
+nonisolated struct DailyLoginBonusClaimDTO: Decodable, Sendable {
+    let awardedCoins: Int
+    let starCoinBalance: Int
+    let loginStreak: Int
+    let claimed: Bool
+    let claimedDay: String
+
+    enum CodingKeys: String, CodingKey {
+        case awardedCoins = "awarded_coins"
+        case starCoinBalance = "star_coin_balance"
+        case loginStreak = "login_streak"
+        case claimed
+        case claimedDay = "claimed_day"
+    }
+
+    var domainModel: DailyLoginBonusClaim {
+        DailyLoginBonusClaim(
+            awardedCoins: awardedCoins,
+            starCoinBalance: starCoinBalance,
+            loginStreak: loginStreak,
+            claimed: claimed,
+            claimedDay: claimedDay
+        )
     }
 }

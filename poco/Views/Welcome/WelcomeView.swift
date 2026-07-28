@@ -2,43 +2,72 @@ import SwiftUI
 
 struct WelcomeView: View {
     let onContinue: () -> Void
+    let onOpenProjectURL: (URL) -> Void
+    @State private var showsScanner = false
+    @State private var showsRegistration = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            Spacer(minLength: 48)
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(spacing: 0) {
+                    Spacer(minLength: 32)
 
-            PocoLogoView()
+                    PocoLogoView()
 
-            Text("あなたのことばが、\nクリエイターのチカラになる。")
-                .font(.headline)
-                .fontWeight(.medium)
-                .multilineTextAlignment(.center)
-                .lineSpacing(7)
-                .foregroundStyle(.primary)
-                .padding(.top, 26)
+                    Text("あなたのことばが、\nクリエイターのチカラになる。")
+                        .font(.headline)
+                        .fontWeight(.medium)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(7)
+                        .foregroundStyle(.primary)
+                        .padding(.top, 20)
 
-            Spacer(minLength: 28)
+                    Spacer(minLength: 16)
 
-            WelcomeBubbleFieldIllustration()
-                .frame(height: 260)
-                .accessibilityHidden(true)
+                    WelcomeBubbleFieldIllustration()
+                        .frame(height: 220)
+                        .accessibilityHidden(true)
 
-            Spacer(minLength: 24)
+                    Spacer(minLength: 18)
 
-            VStack(spacing: 12) {
-                Button("はじめる", action: onContinue)
-                    .buttonStyle(PocoPrimaryButtonStyle())
-                    .accessibilityHint("ホーム画面を開きます")
+                    VStack(spacing: 12) {
+                        Button {
+                            showsScanner = true
+                        } label: {
+                            Label("QRコードで感想を送る", systemImage: "qrcode.viewfinder")
+                        }
+                        .buttonStyle(PocoPrimaryButtonStyle())
+                        .accessibilityHint("登録せずに作品のQRコードを読み取れます")
 
-                Button("ログイン", action: onContinue)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(PocoTheme.primary)
-                    .frame(minHeight: 44)
+                        Button {
+                            onContinue()
+                        } label: {
+                            Label("作品を検索する", systemImage: "magnifyingglass")
+                        }
+                        .buttonStyle(PocoSecondaryButtonStyle())
+                        .accessibilityHint("作品名やクリエイターIDから探します")
+
+                        Button("無料登録・ログイン") {
+                            showsRegistration = true
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(PocoTheme.primary)
+                        .frame(minHeight: 44)
+                    }
+                }
+                .padding(.horizontal, 28)
+                .padding(.bottom, 24)
+                .frame(minHeight: geometry.size.height)
             }
+            .scrollBounceBehavior(.basedOnSize)
         }
-        .padding(.horizontal, 28)
-        .padding(.bottom, 24)
         .background(PocoTheme.background.ignoresSafeArea())
+        .sheet(isPresented: $showsScanner) {
+            QRCodeScannerSheet(onScan: onOpenProjectURL)
+        }
+        .sheet(isPresented: $showsRegistration) {
+            RegistrationGateView(context: .account, onRegistered: onContinue)
+        }
     }
 }
 

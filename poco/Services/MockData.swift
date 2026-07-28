@@ -4,49 +4,58 @@ enum MockData {
     static let forestCreator = Creator(
         id: UUID(uuidString: "10000000-0000-0000-0000-000000000001")!,
         name: "もりのなかまたち",
-        avatarName: nil
+        avatarName: nil,
+        handle: "morinonakama"
     )
     static let tetraCreator = Creator(
         id: UUID(uuidString: "10000000-0000-0000-0000-000000000002")!,
         name: "Tetra Games",
-        avatarName: nil
+        avatarName: nil,
+        handle: "tetra_games"
     )
     static let hoshikoCreator = Creator(
         id: UUID(uuidString: "10000000-0000-0000-0000-000000000003")!,
         name: "Hoshiko",
-        avatarName: nil
+        avatarName: nil,
+        handle: "hoshiko"
     )
     static let feedbackAuthors: [String: Creator] = [
         "はな": Creator(
             id: UUID(uuidString: "10000000-0000-0000-0000-000000000010")!,
             name: "はな",
-            avatarName: BuiltInAvatar.cat.rawValue
+            avatarName: BuiltInAvatar.cat.rawValue,
+            handle: "hana"
         ),
         "rena": Creator(
             id: UUID(uuidString: "10000000-0000-0000-0000-000000000011")!,
             name: "rena",
-            avatarName: BuiltInAvatar.pig.rawValue
+            avatarName: BuiltInAvatar.pig.rawValue,
+            handle: "rena"
         ),
         "パパくま": Creator(
             id: UUID(uuidString: "10000000-0000-0000-0000-000000000012")!,
             name: "パパくま",
-            avatarName: BuiltInAvatar.bear.rawValue
+            avatarName: BuiltInAvatar.bear.rawValue,
+            handle: "papa_kuma"
         ),
         "さくら": Creator(
             id: UUID(uuidString: "10000000-0000-0000-0000-000000000013")!,
             name: "さくら",
-            avatarName: BuiltInAvatar.dog.rawValue
+            avatarName: BuiltInAvatar.dog.rawValue,
+            handle: "sakura"
         ),
         "みどり": Creator(
             id: UUID(uuidString: "10000000-0000-0000-0000-000000000014")!,
             name: "みどり",
-            avatarName: BuiltInAvatar.lion.rawValue
+            avatarName: BuiltInAvatar.lion.rawValue,
+            handle: "midori"
         ),
         "そらのひつじ": forestCreator,
         "ちい": Creator(
             id: UUID(uuidString: "10000000-0000-0000-0000-000000000015")!,
             name: "ちい",
-            avatarName: BuiltInAvatar.cat.rawValue
+            avatarName: BuiltInAvatar.cat.rawValue,
+            handle: "chii"
         )
     ]
 
@@ -58,7 +67,9 @@ enum MockData {
         description: "やさしい気持ちになれる、森の小さな仲間たちの物語。絵本を届けたい。",
         imageName: nil,
         feedbackCount: 1_234,
-        createdAt: Date(timeIntervalSince1970: 1_750_000_000)
+        createdAt: Date(timeIntervalSince1970: 1_750_000_000),
+        relationship: .creator,
+        verificationStatus: .verified
     )
     static let tetraProject = Project(
         id: UUID(uuidString: "20000000-0000-0000-0000-000000000002")!,
@@ -68,7 +79,9 @@ enum MockData {
         description: "ドット絵の世界で冒険する、心あたたまるインディーRPGです。",
         imageName: nil,
         feedbackCount: 2_891,
-        createdAt: Date(timeIntervalSince1970: 1_749_000_000)
+        createdAt: Date(timeIntervalSince1970: 1_749_000_000),
+        relationship: .authorized,
+        verificationStatus: .unverified
     )
     static let starProject = Project(
         id: UUID(uuidString: "20000000-0000-0000-0000-000000000003")!,
@@ -78,7 +91,9 @@ enum MockData {
         description: "心にそっとよりそう物語を描いています。",
         imageName: nil,
         feedbackCount: 987,
-        createdAt: Date(timeIntervalSince1970: 1_748_000_000)
+        createdAt: Date(timeIntervalSince1970: 1_748_000_000),
+        relationship: .fan,
+        verificationStatus: .unverified
     )
 
     static let projects = [forestProject, tetraProject, starProject]

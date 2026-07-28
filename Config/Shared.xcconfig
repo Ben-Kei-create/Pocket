@@ -7,6 +7,7 @@ POCO_MEMBERSHIP_PRODUCT_ID = com.fumiakiMogi777.poco.member.monthly
 POCO_MEMBERSHIP_SYNC_FUNCTION =
 POCO_AD_PROVIDER = placeholder
 POCO_AD_UNIT_ID =
+POCO_PUBLIC_BASE_URL =
 CODE_SIGN_ENTITLEMENTS = poco/poco.entitlements
 
 #include? "Secrets.xcconfig"

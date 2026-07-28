@@ -4,6 +4,7 @@ struct HomeView: View {
     @Environment(PocoStore.self) private var store
     @State private var selectedCategory: CategoryFilter = .all
     @State private var showsNotifications = false
+    @State private var showsScanner = false
     @State private var searchText = ""
 
     private var visibleProjects: [Project] {
@@ -15,10 +16,13 @@ struct HomeView: View {
         }
 
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let handleQuery = CreatorHandle.normalize(query)
         guard !query.isEmpty else { return categoryProjects }
         return categoryProjects.filter { project in
             project.title.localizedStandardContains(query)
                 || project.creator.name.localizedStandardContains(query)
+                || (!handleQuery.isEmpty
+                    && (project.creator.handle?.localizedStandardContains(handleQuery) ?? false))
                 || project.description.localizedStandardContains(query)
                 || project.category.title.localizedStandardContains(query)
         }
@@ -76,12 +80,19 @@ struct HomeView: View {
             .searchable(
                 text: $searchText,
                 placement: .navigationBarDrawer(displayMode: .always),
-                prompt: "作品名・作者名・説明から検索"
+                prompt: "作品名・作者名・@クリエイターID"
             )
             .navigationTitle("Poco")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button {
+                        showsScanner = true
+                    } label: {
+                        Image(systemName: "qrcode.viewfinder")
+                    }
+                    .accessibilityLabel("作品のQRコードを読み取る")
+
                     Button {
                         showsNotifications = true
                     } label: {
@@ -98,6 +109,11 @@ struct HomeView: View {
             }
             .sheet(isPresented: $showsNotifications) {
                 NotificationCenterView()
+            }
+            .sheet(isPresented: $showsScanner) {
+                QRCodeScannerSheet { url in
+                    store.open(url: url)
+                }
             }
             .navigationDestination(for: UUID.self) { id in
                 if let project = store.project(id: id) {
@@ -177,7 +193,7 @@ struct HomeView: View {
     }
 }
 
-private struct NotificationCenterView: View {
+struct NotificationCenterView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {

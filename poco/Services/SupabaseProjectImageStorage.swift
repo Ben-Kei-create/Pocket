@@ -40,4 +40,21 @@ final class SupabaseProjectImageStorage: ProjectImageStorage, Sendable {
             throw SupabaseErrorMapper.map(error)
         }
     }
+
+    nonisolated func deleteProjectImage(at url: URL) async throws {
+        let marker = "/object/public/\(bucket)/"
+        guard let range = url.path.range(of: marker) else {
+            throw AppError.storage
+        }
+        let path = String(url.path[range.upperBound...])
+        guard !path.isEmpty else { throw AppError.storage }
+
+        do {
+            try await client.storage
+                .from(bucket)
+                .remove(paths: [path])
+        } catch {
+            throw SupabaseErrorMapper.map(error)
+        }
+    }
 }

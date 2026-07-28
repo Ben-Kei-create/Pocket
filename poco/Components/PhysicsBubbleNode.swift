@@ -229,7 +229,7 @@ final class PhysicsBubbleNode: SKNode {
 
     private func addCreatorReceipt(size: CGSize) {
         let mark = SKShapeNode(circleOfRadius: 9)
-        mark.fillColor = UIColor.systemYellow.withAlphaComponent(0.96)
+        mark.fillColor = UIColor(PocoTheme.primary).withAlphaComponent(0.96)
         mark.strokeColor = UIColor.white.withAlphaComponent(0.95)
         mark.lineWidth = 1.5
         mark.glowWidth = 2
@@ -238,8 +238,8 @@ final class PhysicsBubbleNode: SKNode {
         visualContainer.addChild(mark)
 
         let symbol = makeLabel(
-            text: "✦",
-            font: .systemFont(ofSize: 9, weight: .bold),
+            text: "♥︎",
+            font: .systemFont(ofSize: 10, weight: .bold),
             color: .white
         )
         symbol.position = .zero

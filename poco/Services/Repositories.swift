@@ -8,6 +8,7 @@ protocol ProjectRepository: Sendable {
 
 protocol FeedbackRepository: Sendable {
     nonisolated func fetchFeedbacks(projectID: UUID) async throws -> [Feedback]
+    nonisolated func fetchLikedFeedbacks() async throws -> [Feedback]
     nonisolated func submitFeedback(_ feedback: Feedback) async throws
     nonisolated func likeFeedback(id: UUID) async throws
     nonisolated func fetchLikedFeedbackIDs(feedbackIDs: [UUID]) async throws -> Set<UUID>
@@ -30,6 +31,7 @@ protocol ProjectImageStorage: Sendable {
         projectID: UUID,
         creatorID: UUID
     ) async throws -> URL
+    nonisolated func deleteProjectImage(at url: URL) async throws
 }
 
 protocol ProfileAvatarStorage: Sendable {
@@ -57,8 +59,16 @@ protocol MembershipRepository: Sendable {
     func fetchMembership(userID: UUID) async throws -> MembershipTier
 }
 
+protocol MemberRewardRepository: Sendable {
+    nonisolated func fetchRewards(
+        signals: AchievementSignals
+    ) async throws -> MemberRewardSnapshot
+    nonisolated func claimDailyLoginBonus() async throws -> DailyLoginBonusClaim
+}
+
 protocol ModerationRepository: Sendable {
     nonisolated func fetchOwnedFeedbackIDs() async throws -> Set<UUID>
+    nonisolated func fetchOwnedFeedbacks() async throws -> [Feedback]
     nonisolated func fetchOwnFeedbackCount(projectID: UUID) async throws -> Int
     nonisolated func fetchBlockedProfileIDs() async throws -> Set<UUID>
     nonisolated func reportFeedback(
@@ -105,6 +115,13 @@ actor MockFeedbackRepository: FeedbackRepository {
     func fetchFeedbacks(projectID: UUID) async throws -> [Feedback] {
         feedbacks
             .filter { $0.projectID == projectID && $0.isPublic }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    func fetchLikedFeedbacks() async throws -> [Feedback] {
+        let likedIDs = persistedLikedFeedbackIDs()
+        return feedbacks
+            .filter { likedIDs.contains($0.id) && $0.isPublic }
             .sorted { $0.createdAt > $1.createdAt }
     }
 
@@ -266,6 +283,75 @@ actor MockMembershipRepository: MembershipRepository {
     }
 }
 
+actor MockMemberRewardRepository: MemberRewardRepository {
+    nonisolated private static let streakKey = "poco.mockReward.loginStreak"
+    nonisolated private static let lastClaimedDayKey = "poco.mockReward.lastClaimedDay"
+    nonisolated private static let stampsKey = "poco.mockReward.stamps"
+
+    func fetchRewards(signals: AchievementSignals) async throws -> MemberRewardSnapshot {
+        var stamps = persistedStamps()
+        stamps.formUnion(unlockedStamps(for: signals))
+        persist(stamps)
+        return MemberRewardSnapshot(
+            loginStreak: UserDefaults.standard.integer(forKey: Self.streakKey),
+            lastClaimedDay: UserDefaults.standard.string(forKey: Self.lastClaimedDayKey),
+            starCoinBalance: UserDefaults.standard.integer(forKey: "poco.starCoinBalance"),
+            unlockedStamps: stamps
+        )
+    }
+
+    func claimDailyLoginBonus() async throws -> DailyLoginBonusClaim {
+        let today = PocoCalendar.todayKey()
+        let defaults = UserDefaults.standard
+        let lastClaimedDay = defaults.string(forKey: Self.lastClaimedDayKey)
+        let claimed = lastClaimedDay != today
+        var streak = defaults.integer(forKey: Self.streakKey)
+
+        if claimed {
+            streak = lastClaimedDay == PocoCalendar.yesterdayKey() ? streak + 1 : 1
+            defaults.set(streak, forKey: Self.streakKey)
+            defaults.set(today, forKey: Self.lastClaimedDayKey)
+        }
+
+        let awardedCoins = claimed ? Self.reward(for: streak) : 0
+        let currentBalance = defaults.integer(forKey: "poco.starCoinBalance")
+        return DailyLoginBonusClaim(
+            awardedCoins: awardedCoins,
+            starCoinBalance: currentBalance + awardedCoins,
+            loginStreak: streak,
+            claimed: claimed,
+            claimedDay: today
+        )
+    }
+
+    private func persistedStamps() -> Set<AchievementStamp> {
+        let values = UserDefaults.standard.stringArray(forKey: Self.stampsKey) ?? []
+        return Set(values.compactMap(AchievementStamp.init(rawValue:)))
+    }
+
+    private func persist(_ stamps: Set<AchievementStamp>) {
+        UserDefaults.standard.set(stamps.map(\.rawValue), forKey: Self.stampsKey)
+    }
+
+    private func unlockedStamps(for signals: AchievementSignals) -> Set<AchievementStamp> {
+        var values: Set<AchievementStamp> = []
+        if signals.sentFeedbackCount >= 1 { values.insert(.firstFeedback) }
+        if signals.sentFeedbackCount >= 3 { values.insert(.threeFeedbacks) }
+        if signals.projectCount >= 1 { values.insert(.firstProject) }
+        if signals.likedFeedbackCount >= 1 { values.insert(.firstLike) }
+        if signals.hasCreatorHeart { values.insert(.creatorHeart) }
+        if UserDefaults.standard.integer(forKey: Self.streakKey) >= 7 {
+            values.insert(.sevenDayStreak)
+        }
+        return values
+    }
+
+    nonisolated private static func reward(for streak: Int) -> Int {
+        let cycle = [3, 3, 5, 3, 5, 7, 15]
+        return cycle[max(0, streak - 1) % cycle.count]
+    }
+}
+
 actor MockModerationRepository: ModerationRepository {
     private var ownedFeedbackIDs: Set<UUID>
     private let projectByFeedbackID: [UUID: UUID]
@@ -285,6 +371,13 @@ actor MockModerationRepository: ModerationRepository {
     }
 
     func fetchOwnedFeedbackIDs() async throws -> Set<UUID> { ownedFeedbackIDs }
+
+    func fetchOwnedFeedbacks() async throws -> [Feedback] {
+        let feedbacks = await MockData.feedbacks
+        return feedbacks
+            .filter { ownedFeedbackIDs.contains($0.id) }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
 
     func fetchOwnFeedbackCount(projectID: UUID) async throws -> Int {
         ownedFeedbackIDs.filter { projectByFeedbackID[$0] == projectID }.count
@@ -316,6 +409,10 @@ struct DisabledProjectImageStorage: ProjectImageStorage {
         projectID: UUID,
         creatorID: UUID
     ) async throws -> URL {
+        throw AppError.storage
+    }
+
+    nonisolated func deleteProjectImage(at url: URL) async throws {
         throw AppError.storage
     }
 }

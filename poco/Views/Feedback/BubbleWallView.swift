@@ -245,9 +245,9 @@ private struct ProjectInsightSummaryView: View {
                     )
                     insightCard(
                         value: receivedCount,
-                        title: "作者に届いた",
-                        symbol: "sparkles",
-                        color: .orange
+                        title: "作者のいいね",
+                        symbol: "heart.fill",
+                        color: PocoTheme.primary
                     )
                     insightCard(
                         value: recentCount,

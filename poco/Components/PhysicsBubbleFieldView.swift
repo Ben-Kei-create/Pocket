@@ -4,6 +4,7 @@ import UIKit
 
 struct PhysicsBubbleFieldView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage("poco.settings.playfulMotion") private var playfulMotion = true
     @State private var scrollTrigger = 0
 
     let feedbacks: [Feedback]
@@ -18,6 +19,7 @@ struct PhysicsBubbleFieldView: View {
 
     var body: some View {
         GeometryReader { proxy in
+            let shouldReduceMotion = reduceMotion || !playfulMotion
             let layout = BubbleFieldLayout.make(
                 feedbacks: feedbacks,
                 availableWidth: proxy.size.width
@@ -29,7 +31,7 @@ struct PhysicsBubbleFieldView: View {
                 layout: layout,
                 size: proxy.size,
                 worldHeight: worldHeight,
-                reduceMotion: reduceMotion,
+                reduceMotion: shouldReduceMotion,
                 scrollTrigger: scrollTrigger,
                 highlightedFeedbackIDs: highlightedFeedbackIDs,
                 focusFeedbackID: focusFeedbackID,

@@ -9,11 +9,13 @@ struct ContentView: View {
             if hasCompletedWelcome {
                 MainTabView()
             } else {
-                WelcomeView {
-                    withAnimation(.easeInOut(duration: 0.35)) {
-                        hasCompletedWelcome = true
+                WelcomeView(
+                    onContinue: completeWelcome,
+                    onOpenProjectURL: { url in
+                        completeWelcome()
+                        store.open(url: url)
                     }
-                }
+                )
                 .transition(.opacity)
             }
         }
@@ -24,6 +26,12 @@ struct ContentView: View {
         }
         .task {
             await store.load()
+        }
+    }
+
+    private func completeWelcome() {
+        withAnimation(.easeInOut(duration: 0.35)) {
+            hasCompletedWelcome = true
         }
     }
 }

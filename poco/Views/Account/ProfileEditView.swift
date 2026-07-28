@@ -5,6 +5,7 @@ struct ProfileEditView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var displayName = ""
+    @State private var handle = ""
     @State private var avatarName: String?
     @State private var avatarImageData: Data?
     @State private var isSaving = false
@@ -13,6 +14,12 @@ struct ProfileEditView: View {
 
     private var normalizedName: String {
         displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var normalizedHandle: String { CreatorHandle.normalize(handle) }
+
+    private var canSave: Bool {
+        !normalizedName.isEmpty && CreatorHandle.isValid(normalizedHandle)
     }
 
     var body: some View {
@@ -44,6 +51,27 @@ struct ProfileEditView: View {
                             .frame(maxWidth: .infinity, alignment: .trailing)
                     }
 
+                    VStack(alignment: .leading, spacing: 9) {
+                        Text("クリエイターID")
+                            .font(.subheadline.weight(.semibold))
+                        HStack(spacing: 6) {
+                            Text("@")
+                                .foregroundStyle(PocoTheme.secondaryText)
+                            TextField("poco_creator", text: $handle)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                        }
+                        .padding(16)
+                        .pocoCard(cornerRadius: PocoTheme.cornerSmall)
+                        Text("半角英小文字・数字・_ を3〜24文字。作品検索に使われます。")
+                            .font(.caption)
+                            .foregroundStyle(
+                                handle.isEmpty || CreatorHandle.isValid(normalizedHandle)
+                                    ? PocoTheme.tertiaryText
+                                    : Color.red
+                            )
+                    }
+
                     ProfileAvatarPicker(
                         avatarName: $avatarName,
                         avatarImageData: $avatarImageData
@@ -68,8 +96,8 @@ struct ProfileEditView: View {
                         }
                     }
                     .buttonStyle(PocoPrimaryButtonStyle())
-                    .disabled(isSaving || normalizedName.isEmpty)
-                    .opacity(normalizedName.isEmpty ? 0.48 : 1)
+                    .disabled(isSaving || !canSave)
+                    .opacity(canSave ? 1 : 0.48)
                 }
                 .padding(PocoTheme.pagePadding)
             }
@@ -86,6 +114,7 @@ struct ProfileEditView: View {
                 guard !didLoadInitialValues else { return }
                 didLoadInitialValues = true
                 displayName = store.currentDisplayName
+                handle = store.currentProfile?.handle ?? ""
                 avatarName = store.currentProfile?.avatarName
             }
         }
@@ -108,6 +137,7 @@ struct ProfileEditView: View {
         Task {
             let result = await store.updateProfile(
                 displayName: normalizedName,
+                handle: normalizedHandle,
                 avatarName: avatarName,
                 avatarImageData: avatarImageData
             )

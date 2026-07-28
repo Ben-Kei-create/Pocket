@@ -10,6 +10,8 @@ struct ProjectCard: View {
                 .clipShape(RoundedRectangle(cornerRadius: PocoTheme.cornerSmall, style: .continuous))
 
             VStack(alignment: .leading, spacing: 7) {
+                ProjectRelationshipBadge(project: project, compact: true)
+
                 Text(project.title)
                     .font(.headline)
                     .foregroundStyle(.primary)
@@ -46,6 +48,42 @@ struct ProjectCard: View {
         .pocoCard()
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(project.title)、\(project.creator.name)、感想\(project.feedbackCount)件")
+    }
+}
+
+struct ProjectRelationshipBadge: View {
+    let project: Project
+    var compact = false
+
+    var body: some View {
+        Label(
+            project.relationship.badgeTitle(verificationStatus: project.verificationStatus),
+            systemImage: badgeSymbol
+        )
+        .font(compact ? .caption2.weight(.semibold) : .caption.weight(.semibold))
+        .foregroundStyle(badgeColor)
+        .padding(.horizontal, compact ? 7 : 9)
+        .padding(.vertical, compact ? 3 : 5)
+        .background(badgeColor.opacity(0.10), in: Capsule())
+        .lineLimit(1)
+        .accessibilityLabel(
+            "作品ページの区分、\(project.relationship.badgeTitle(verificationStatus: project.verificationStatus))"
+        )
+    }
+
+    private var badgeSymbol: String {
+        if project.verificationStatus == .verified, project.relationship != .fan {
+            return "checkmark.seal.fill"
+        }
+        return project.relationship.symbolName
+    }
+
+    private var badgeColor: Color {
+        switch project.relationship {
+        case .creator: PocoTheme.primary
+        case .authorized: .blue
+        case .fan: .purple
+        }
     }
 }
 

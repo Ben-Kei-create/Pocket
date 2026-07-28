@@ -56,25 +56,18 @@ struct BubbleDetailSheet: View {
                         .buttonStyle(PocoPrimaryButtonStyle())
                         .disabled(hasLiked)
                         .accessibilityHint(
-                            store.capabilities.canSeePopularFeedbacks
-                                ? "現在のいいね数は\(feedback.likes)件です"
-                                : "ゲストにはいいね数は表示されません"
+                            store.canMarkReceived(feedback)
+                                ? "作者としていいねし、フキダシに作者のハートを付けます"
+                                : store.capabilities.canSeePopularFeedbacks
+                                    ? "現在のいいね数は\(feedback.likes)件です"
+                                    : "ゲストにはいいね数は表示されません"
                         )
 
                         if feedback.creatorReceivedAt != nil {
-                            Label("作者にとどきました", systemImage: "sparkles")
+                            Label("作者もいいねしました", systemImage: "heart.fill")
                                 .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.orange)
-                                .accessibilityLabel("作者がこのことばを受け取りました")
-                        } else if store.canMarkReceived(feedback) {
-                            Button {
-                                Task { await store.markReceived(feedback) }
-                            } label: {
-                                Label("とどいた！", systemImage: "heart.circle.fill")
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .tint(.orange)
-                            .accessibilityHint("作者として、この感想を受け取ったことを投稿者へ伝えます")
+                                .foregroundStyle(PocoTheme.primary)
+                                .accessibilityLabel("作者がこの感想にいいねしました")
                         }
 
                         Spacer()
