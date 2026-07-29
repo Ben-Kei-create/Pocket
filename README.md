@@ -111,14 +111,14 @@ Migrationは次の順で再構築できます。
 
 WelcomeとHomeのQRスキャナーは、登録前のゲストでも利用できます。カメラを使えないSimulatorではスキャナー下部のURL入力から`poco://project/{projectID}`を開けます。
 
-公開時は`POCO_PUBLIC_BASE_URL`と`POCO_ASSOCIATED_DOMAIN`へ所有するHTTPSドメインを設定してください。xcconfigでは`//`がコメントとして解釈されるため、例として`https:/$()/example.com`の形式で指定します。設定後、作品QRと共有リンクは`https://example.com/project/{projectID}`になり、未インストール端末ではApp Storeへの案内を置いた同URLのWebページ、インストール済み端末ではUniversal LinkからPocoを開けます。URLからは専用RPCで対象の公開作品だけを取得するため、Home一覧の全件取得や端末側の表示判定には依存しません。インストール直後はWelcomeの「QRコードで感想を送る」から同じQRを再読取し、登録せずに投稿できます。
+暫定公開ホストは`ben-kei-create.github.io`です。作品QRと共有リンクは`https://ben-kei-create.github.io/project/{projectID}`になり、未インストール端末ではApp Storeへの案内を置いた同URLのWebページ、インストール済み端末ではUniversal LinkからPocoを開けます。URLからは専用RPCで対象の公開作品だけを取得するため、Home一覧の全件取得や端末側の表示判定には依存しません。インストール直後はWelcomeの「QRコードで感想を送る」から同じQRを再読取し、登録せずに投稿できます。
 
-AASAテンプレート、Associated Domains、実機確認手順は[`Docs/UniversalLinksSetup.md`](Docs/UniversalLinksSetup.md)にあります。実ドメイン未設定の開発環境では既存の`poco://`へ安全にフォールバックします。
+AASAテンプレート、Associated Domains、実機確認手順は[`Docs/UniversalLinksSetup.md`](Docs/UniversalLinksSetup.md)にあります。`Ben-Kei-create.github.io`リポジトリが未公開の間はWeb側が404になるため、正式QRを配布する前にGitHub PagesとAASAの公開が必要です。
 
 ## ゲスト・Pocoユーザー・Poco Pro・広告
 
 - ゲスト投稿者にはSupabase Anonymous Authを使用し、登録画面なしで端末固有のユーザーIDを付与します。これにより、ゲストもRLSを保ったまま1つのフキダシへ1回いいねできます。Supabase DashboardでAnonymous Sign-Insを有効にしてください。
-- 閲覧・感想投稿・いいねはゲストでも利用できます。作品作成はPocoユーザー以上、共感順・自分の作品/感想に届いたいいね集計・広告非表示はPoco Proだけが利用できます。無料ユーザーは3作品、Proは30作品が上限です。`013`以降はユーザー単位のTransaction Advisory Lockを使い、複数端末からの同時作成でもDB側で上限を強制します。`006_registered_creators.sql`はAnonymous Authユーザーによる作品作成と画像更新をDB側でも拒否します。
+- 閲覧・感想投稿・いいねはゲストでも利用できます。作品作成はPocoユーザー以上、共感順・自分の作品/感想に届いたいいね集計・広告非表示はPoco Proだけが利用できます。無料ユーザーは基本3作品、200⭐︎で4作品、追加400⭐︎で最大5作品まで永続拡張できる仕様です。Proは30作品が上限です。現在のMigration `013`は無料3／Pro 30の上限を強制しており、⭐︎拡張はServer Authorityフェーズで冪等消費RPCと永続Entitlementを追加します。Pro中は拡張UIを表示せず、RPCも⭐︎を減らさず拒否します。`013`以降はユーザー単位のTransaction Advisory Lockを使い、複数端末からの同時作成でもDB側で上限を強制します。`006_registered_creators.sql`はAnonymous Authユーザーによる作品作成と画像更新をDB側でも拒否します。
 - PocoユーザーとPoco Proはマイページからログインボーナスと達成スタンプを利用できます。`014`のボーナスは日本時間で1日1回、DBのTransaction Advisory Lockで多重受取を防ぎます。スタンプ条件はDBの所有権・いいね・作者❤️から評価され、クライアントが任意に解放することはできません。
 - `015`以降、感想送信・キャラタップ・レアキャラ誕生を含む⭐︎付与は`claim_star_coin_event`だけが更新します。アプリは金額を送らず、DBが感想所有権、15%／5%の決定的出現条件、Pro資格、重複、日次上限を再検証して`star_coin_transactions`へ記録します。通常のキャラ操作は1日30⭐︎、感想送信報酬は1日20件を上限とします。
 - いいね済み状態は`feedback_likes`から復元します。画面内の連打防止だけに依存せず、DBの`unique(feedback_id, user_id)`を最終的な保証にしています。

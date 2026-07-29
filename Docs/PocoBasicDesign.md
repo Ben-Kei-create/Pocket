@@ -59,7 +59,7 @@ Pocoは会話を継続するSNSではなく、作品にことばを届け、作�
 | 区分 | 認証状態 | 主目的 | 広告 | 作品上限 |
 |---|---|---|---|---:|
 | ゲスト | Supabase Anonymous Auth。登録UIなし | QRや検索からすぐ感想を届ける | あり | 0 |
-| Pocoユーザー | Sign in with Appleで登録済み | 公開プロフィール、作品作成、活動記録 | あり | 3 |
+| Pocoユーザー | Sign in with Appleで登録済み | 公開プロフィール、作品作成、活動記録 | あり | 基本3、確定効果の⭐︎拡張で最大5 |
 | Poco Pro | サーバーで有効な課金資格を確認済み | 詳細記録、キャラ進化、広告なし等 | なし | 30 |
 
 端末のStoreKit検証成功だけではPoco Proにしない。署名済みTransactionをサーバーへ送り、`memberships`が`active`または`trialing`であることを再取得できた場合だけPro権限を付与する。
@@ -199,7 +199,7 @@ flowchart LR
 |---|---:|---|
 | 感想本文 | 500文字 | iOS + DB RPC |
 | 1ユーザー／1作品の感想 | 3件 | DB Trigger + Advisory Lock |
-| 無料ユーザーの作品 | 3作品 | DB RPC + Advisory Lock |
+| 無料ユーザーの作品 | 基本3作品、200⭐︎で4作品、追加400⭐︎で最大5作品 | DB RPC + Advisory Lock + 冪等Redeem |
 | Poco Proの作品 | 30作品 | DB RPC + Advisory Lock |
 | 通常キャラ出現 | 感想ごとに決定的15% | iOS表示 + Coin RPC再検証 |
 | 同種キャラ合体後のレア誕生 | 決定的5% | iOS表示 + Coin RPC再検証 |
@@ -388,7 +388,7 @@ flowchart LR
 | 登録投稿者のプロフィール閲覧 | ○ | ○ | ○ |
 | 自分の公開プロフィール | − | ○ | ○ |
 | 内蔵／写真プロフィール画像 | − | ○ | ○ |
-| 作品作成 | × | 3件 | 30件 |
+| 作品作成 | × | 基本3件／⭐︎拡張で最大5件 | 30件 |
 | QR保存・Link共有 | − | ○ | ○ |
 | 送った／いいねした感想履歴 | 匿名セッション中○ | ○ | ○ |
 | ログインボーナス・達成スタンプ | × | ○ | ○ |
@@ -430,6 +430,7 @@ flowchart LR
 |---|---|---|
 | 本番課金確定 | Edge Function契約READMEのみ | Apple JWS検証Function、通知V2、App Store商品設定 |
 | 本番広告 | `PocoAdPlacementView`のみ | 広告SDK、Consent、テスト広告、頻度設計 |
+| 無料作品枠の⭐︎拡張 | 獲得台帳と残高表示まで実装済み | 200⭐︎／400⭐︎の消費RPC、永続枠Entitlement、上限UI |
 | Push通知 | アプリ内受信箱・通知DB・RLS・Realtime・個別既読・詳細遷移は実装済み | APNs、Device Token、配信Edge Function、Pushからの詳細Deep Link |
 | Proスタンプ | Capabilityのみ | Reaction Model／DB／UI／集計 |
 | コード付き作品 | Capabilityのみ | DB列、Hash化、解錠RPC、検索除外 |
@@ -440,7 +441,7 @@ flowchart LR
 | 運営Moderation | DB監査情報、権利者削除申請の受付まで実装済み | 管理画面、Status更新、異議申立て |
 | アカウント削除 | 未実装 | Auth削除Function、Storage／個人情報削除導線 |
 | 利用規約／Privacy | 作品登録ルールのみ | 法務文面、アプリ内リンク、同意Version管理 |
-| Universal Links | アプリ解析・AASA・Associated Domains実装済み。独自ドメイン取得は保留中 | 安価なドメインの選定、Cloudflare PagesのWebランディング、AASA配信 |
+| Universal Links | アプリ解析・AASA・Associated Domains実装済み。暫定ホストは`ben-kei-create.github.io` | `Ben-Kei-create.github.io`リポジトリのPages公開、AASA配信、実機検証。独自ドメインは反響後に追加 |
 | 成人向け閲覧許可 | DB設定と安全なロックRPCのみ | Web設定画面、本人確認、Edge Function、運営レビュー |
 | 画像の最終Moderation | iOS端末内の任意一次判定のみ | Edge Function、クラウド判定または目視キュー、異議申立て |
 
@@ -456,7 +457,9 @@ flowchart LR
    感想件数は公開情報とする。自作品／自感想への個別反応は無料会員も確認でき、横断集計と分析をPro価値として残す。
 
 4. **スターコインの用途**
-   最初の消費先は確定効果のフキダシ装飾と作品枠とする。スターを使うランダム抽選は作らない。
+   最初の消費先は確定効果のフキダシ装飾と作品枠とする。無料ユーザーは基本3枠から、最初の200⭐︎で4枠、追加の400⭐︎で5枠まで永続拡張できる。5枠を超える無料枠は販売せず、Poco Proは課金期間中30枠とする。⭐︎を使うランダム抽選は作らない。
+
+   作品枠の購入はサーバー側の冪等RPCだけで行い、残高確認、ユーザー単位のAdvisory Lock、⭐︎消費台帳、枠Entitlement作成を1Transactionにする。Pro中は無料枠の購入UIを表示せず、Redeem RPCも会員資格を再確認して⭐︎消費前に拒否する。これにより別端末、古いアプリ、改造クライアントからの誤消費も防ぐ。Pro中も購入済みの無料枠は保持し、解約後の無料上限に再適用する。Pro失効時に既存作品を自動削除せず、現在数が無料上限以上の間は新規作成だけを停止する。
 
 5. **ファンの感想箱の扱い**
    公式／許諾／ファン作成／イベントを明示する。ファン作成は公式と誤認させず、権利者向け削除申請を提供する。
@@ -484,13 +487,15 @@ flowchart LR
 
 ## 20. 確定した開発順
 
-1. Supabase本番接続とServer Authorityを完成する。
-2. 感想上限、いいね、スター、作品枠をDB制約と冪等RPCで保証する。
-3. Project編集／削除を実装する。
-4. Universal Links、Webランディング、インストール後のQR再読込導線を完成する。
-5. 権利者向け削除申請と、公式／許諾／ファン作成／イベント・頒布用の分類表示を追加する（実装済み）。通報`MOD-001`とブロック`MOD-004`は実装済みのため作り直さない。
-6. 利用規約、Privacy、アカウント削除を完成する。
-7. 「届いたことば」受信箱を実データ化し、自作品への新着感想、作者❤️、通常Likeの順でRealtime／Push通知を実装する。
-8. StoreKit 2、Pro資格、スターによる作品枠を完成する。この段階でPro購入画面へレア誕生5%の確率開示を必ず追加する。
-9. キャラの接触を、横へ弾かず0.15秒で縮む→膨らむ→静止する挙動へ調整する。合体判定`CHAR-004`〜`CHAR-007`は再実装しない。Reduce Motion時は既存`SET-004`で演出だけ省略する。
-10. 公開前アクセシビリティ、広告Consent、Moderation運用、App Store審査情報を最終確認する。
+1. GitHub Pages用URL変更をcommit・pushする。
+2. GitHub PagesとAASAを公開し、インストール済み／未インストールの両方で検証する。
+3. Supabase本番接続とMigration適用を行い、Feedback等のカーソルページング用Index設計もこの時点で確定する。
+4. App Attest、CAPTCHA、Edge Function Gatewayを完成する。同じServer Authority層で、フキダシ装飾と無料作品枠の⭐︎Redeemも実装する。
+5. 利用規約、Privacy、アカウント削除を完成する。法務文面のDraftは1〜4と並行する。
+6. 運営Moderation画面と画像検疫を完成する。
+7. Feedbackカーソルページング、画面外の物理停止、ノード再利用による大量Bubble対策を行う。
+8. Server Authority、冪等性、RLS、Deep Link、ロール状態遷移を優先して自動テストを追加する。作品枠は「Pro解約直後、既存数が⭐︎購入分を含む無料上限を超えている場合に新規作成を拒否する」「Pro解約後も200⭐︎／400⭐︎で取得済みの永続枠が正しく引き継がれる」「Pro中のRedeemは残高を減らさず拒否する」を必須ケースとする。
+9. StoreKit本番検証とPro価格を確定する。Pro購入画面にレア誕生5%の確率開示を必ず含める。
+10. APNs Push通知と本番広告を実装し、Consent・Privacy Manifest・審査情報を確認する。
+11. Q&Aタブを確定済みの日次／保留上限とModeration付きで実装する。
+12. Poco Letterを作者❤️を起点とするPro限定の期限付き導線として実装する。
