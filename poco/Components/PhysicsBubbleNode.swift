@@ -86,7 +86,7 @@ final class PhysicsBubbleNode: SKNode {
         case .medium: 9.8
         case .large: 10.4
         }
-        let messageFont = UIFont.systemFont(ofSize: fontSize, weight: .semibold)
+        let messageFont = PocoTypography.uiFont(size: fontSize, weight: .medium)
         let lines = wrappedLines(
             feedback.message,
             font: messageFont,
@@ -131,7 +131,10 @@ final class PhysicsBubbleNode: SKNode {
 
         let initial = makeLabel(
             text: String(feedback.nickname.prefix(1)),
-            font: .systemFont(ofSize: tier == .large ? 7.2 : 6.5, weight: .bold),
+            font: PocoTypography.uiFont(
+                size: tier == .large ? 7.2 : 6.5,
+                weight: .bold
+            ),
             color: .white
         )
         initial.verticalAlignmentMode = .center
@@ -149,7 +152,10 @@ final class PhysicsBubbleNode: SKNode {
 
         let nickname = makeLabel(
             text: feedback.nickname,
-            font: .systemFont(ofSize: tier == .large ? 9 : 8, weight: .medium),
+            font: PocoTypography.uiFont(
+                size: tier == .large ? 9 : 8,
+                weight: .medium
+            ),
             color: UIColor.secondaryLabel.withAlphaComponent(0.86)
         )
         nickname.horizontalAlignmentMode = .left
@@ -220,7 +226,7 @@ final class PhysicsBubbleNode: SKNode {
 
         let label = makeLabel(
             text: "あなた",
-            font: .systemFont(ofSize: 7, weight: .bold),
+            font: PocoTypography.uiFont(size: 7, weight: .bold),
             color: .white
         )
         label.position = .zero

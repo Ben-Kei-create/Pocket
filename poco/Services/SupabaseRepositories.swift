@@ -11,10 +11,10 @@ final class SupabaseProjectRepository: ProjectRepository, Sendable {
     nonisolated func fetchProjects() async throws -> [Project] {
         do {
             let rows: [ProjectQueryDTO] = try await client
-                .from("projects_with_feedback_count")
-                .select()
-                .eq("is_published", value: true)
-                .order("created_at", ascending: false)
+                .rpc(
+                    "browse_projects",
+                    params: BrowseProjectsParameters(creatorID: nil)
+                )
                 .execute()
                 .value
             return rows.map(\.domainModel)
@@ -26,13 +26,33 @@ final class SupabaseProjectRepository: ProjectRepository, Sendable {
     nonisolated func fetchProjects(creatorID: UUID) async throws -> [Project] {
         do {
             let rows: [ProjectQueryDTO] = try await client
-                .from("projects_with_feedback_count")
-                .select()
-                .eq("creator_id", value: creatorID)
-                .order("created_at", ascending: false)
+                .rpc(
+                    "browse_projects",
+                    params: BrowseProjectsParameters(creatorID: creatorID)
+                )
                 .execute()
                 .value
             return rows.map(\.domainModel)
+        } catch {
+            throw SupabaseErrorMapper.map(error)
+        }
+    }
+
+    nonisolated func fetchProject(id: UUID) async throws -> Project {
+        do {
+            let rows: [ProjectQueryDTO] = try await client
+                .rpc(
+                    "get_project",
+                    params: GetProjectParameters(projectID: id)
+                )
+                .execute()
+                .value
+            guard let project = rows.first?.domainModel else {
+                throw AppError.notFound
+            }
+            return project
+        } catch let error as AppError {
+            throw error
         } catch {
             throw SupabaseErrorMapper.map(error)
         }
@@ -47,6 +67,68 @@ final class SupabaseProjectRepository: ProjectRepository, Sendable {
         } catch {
             throw SupabaseErrorMapper.map(error)
         }
+    }
+
+    nonisolated func updateProject(_ project: Project) async throws {
+        do {
+            let rows: [ProjectMutationResultDTO] = try await client
+                .from("projects")
+                .update(ProjectUpdateDTO(project: project))
+                .eq("id", value: project.id)
+                .select("id")
+                .execute()
+                .value
+            guard rows.contains(where: { $0.id == project.id }) else {
+                throw AppError.notFound
+            }
+        } catch let error as AppError {
+            throw error
+        } catch {
+            throw SupabaseErrorMapper.map(error)
+        }
+    }
+
+    nonisolated func deleteProject(id: UUID) async throws {
+        do {
+            let rows: [ProjectMutationResultDTO] = try await client
+                .rpc(
+                    "soft_delete_project",
+                    params: SoftDeleteProjectParameters(projectID: id)
+                )
+                .execute()
+                .value
+            guard rows.contains(where: { $0.id == id }) else {
+                throw AppError.notFound
+            }
+        } catch let error as AppError {
+            throw error
+        } catch {
+            throw SupabaseErrorMapper.map(error)
+        }
+    }
+}
+
+nonisolated private struct SoftDeleteProjectParameters: Encodable, Sendable {
+    let projectID: UUID
+
+    enum CodingKeys: String, CodingKey {
+        case projectID = "p_project_id"
+    }
+}
+
+nonisolated private struct GetProjectParameters: Encodable, Sendable {
+    let projectID: UUID
+
+    enum CodingKeys: String, CodingKey {
+        case projectID = "p_project_id"
+    }
+}
+
+nonisolated private struct BrowseProjectsParameters: Encodable, Sendable {
+    let creatorID: UUID?
+
+    enum CodingKeys: String, CodingKey {
+        case creatorID = "p_creator_id"
     }
 }
 
@@ -74,6 +156,21 @@ final class SupabaseFeedbackRepository: FeedbackRepository, Sendable {
                 .execute()
                 .value
             return rows.map(\.domainModel)
+        } catch {
+            throw SupabaseErrorMapper.map(error)
+        }
+    }
+
+    nonisolated func fetchFeedback(id: UUID) async throws -> Feedback {
+        do {
+            let row: FeedbackDTO = try await client
+                .from("feedbacks")
+                .select()
+                .eq("id", value: id)
+                .single()
+                .execute()
+                .value
+            return row.domainModel
         } catch {
             throw SupabaseErrorMapper.map(error)
         }
@@ -509,15 +606,28 @@ final class SupabaseAuthRepository: AuthRepository, Sendable {
                 )
             }
 
+            var metadata: [String: AnyJSON] = [:]
             if let displayName = credential.displayName, !displayName.isEmpty {
+                metadata["display_name"] = .string(displayName)
+            }
+            if let appleFullName = credential.appleFullName, !appleFullName.isEmpty {
+                metadata["apple_initial_full_name"] = .string(appleFullName)
+            }
+            if let email = credential.email, !email.isEmpty {
+                // Apple only returns this value on the first authorization.
+                // Keep the fallback in private Auth metadata, never profiles.
+                metadata["apple_initial_email"] = .string(email)
+            }
+            if !metadata.isEmpty {
                 _ = try? await client.auth.update(
-                    user: UserAttributes(data: ["display_name": .string(displayName)])
+                    user: UserAttributes(data: metadata)
                 )
             }
 
             return AuthenticatedAccount(
                 id: session.user.id,
-                displayName: credential.displayName
+                displayName: credential.displayName,
+                email: session.user.email ?? credential.email
             )
         } catch {
             throw SupabaseErrorMapper.map(error)

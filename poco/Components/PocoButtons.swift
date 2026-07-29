@@ -3,7 +3,7 @@ import SwiftUI
 struct PocoPrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.headline)
+            .pocoFont(.headline, weight: .medium)
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
             .frame(minHeight: 56)
@@ -19,7 +19,7 @@ struct PocoPrimaryButtonStyle: ButtonStyle {
 struct PocoSecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.headline)
+            .pocoFont(.headline, weight: .medium)
             .foregroundStyle(PocoTheme.primary)
             .frame(maxWidth: .infinity)
             .frame(minHeight: 54)

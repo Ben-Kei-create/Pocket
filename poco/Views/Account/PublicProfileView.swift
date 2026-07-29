@@ -78,10 +78,10 @@ struct PublicProfileView: View {
                     VStack(spacing: 5) {
                         HStack(spacing: 6) {
                             Text(creator.name)
-                                .font(.title2.bold())
+                                .pocoFont(.title2, weight: .bold)
                             if creator.id == store.currentUserID {
                                 Text("あなた")
-                                    .font(.caption2.weight(.bold))
+                                    .pocoFont(.caption2, weight: .bold)
                                     .foregroundStyle(PocoTheme.primary)
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 4)
@@ -91,13 +91,13 @@ struct PublicProfileView: View {
 
                         if let handle = creator.handle {
                             Text("@\(handle)")
-                                .font(.subheadline.weight(.medium))
+                                .pocoFont(.subheadline, weight: .medium)
                                 .foregroundStyle(PocoTheme.primary)
                                 .accessibilityLabel("クリエイターID、\(handle)")
                         }
 
                         Text("Poco 公開プロフィール")
-                            .font(.subheadline)
+                            .pocoFont(.subheadline)
                             .foregroundStyle(PocoTheme.secondaryText)
                     }
 
@@ -120,7 +120,7 @@ struct PublicProfileView: View {
 
                 VStack(alignment: .leading, spacing: 14) {
                     Text("公開している作品")
-                        .font(.headline)
+                        .pocoFont(.headline, weight: .medium)
 
                     if publishedProjects.isEmpty {
                         ContentUnavailableView(
@@ -150,10 +150,10 @@ struct PublicProfileView: View {
     private func profileMetric(value: Int, title: String, symbol: String) -> some View {
         VStack(spacing: 4) {
             Label(value.formatted(), systemImage: symbol)
-                .font(.headline.monospacedDigit())
+                .pocoFont(.headline).monospacedDigit()
                 .foregroundStyle(PocoTheme.primary)
             Text(title)
-                .font(.caption)
+                .pocoFont(.caption)
                 .foregroundStyle(PocoTheme.secondaryText)
         }
         .frame(maxWidth: .infinity)

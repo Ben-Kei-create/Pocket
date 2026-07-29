@@ -16,98 +16,108 @@ struct ProjectDetailView: View {
     var body: some View {
         Group {
             if let project {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 24) {
-                        projectHeader(project)
+                if project.isContentLocked {
+                    ContentUnavailableView {
+                        Label("年齢制限のある作品", systemImage: "lock.fill")
+                    } description: {
+                        Text("この作品は現在非表示です。成人向けコンテンツの閲覧設定は、将来提供するWebページからのみ変更できます。")
+                    }
+                    .navigationTitle("非表示の作品")
+                    .navigationBarTitleDisplayMode(.inline)
+                } else {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 24) {
+                            projectHeader(project)
 
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("この作品について")
-                                .font(.headline)
-                            Text(project.description)
-                                .font(.body)
-                                .foregroundStyle(PocoTheme.secondaryText)
-                                .lineSpacing(5)
-                        }
-                        .padding(20)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .pocoCard()
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("この作品について")
+                                    .pocoFont(.headline, weight: .medium)
+                                Text(project.description)
+                                    .pocoFont(.body)
+                                    .foregroundStyle(PocoTheme.secondaryText)
+                                    .lineSpacing(5)
+                            }
+                            .padding(20)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .pocoCard()
 
-                        relationshipNotice(project)
+                            relationshipNotice(project)
 
-                        creatorCard(project)
+                            creatorCard(project)
 
-                        VStack(spacing: 12) {
-                            Button {
-                                if store.canSubmitFeedback(to: project.id) {
-                                    showsCompose = true
-                                } else {
-                                    showsFeedbackLimitAlert = true
+                            VStack(spacing: 12) {
+                                Button {
+                                    if store.canSubmitFeedback(to: project.id) {
+                                        showsCompose = true
+                                    } else {
+                                        showsFeedbackLimitAlert = true
+                                    }
+                                } label: {
+                                    Label("感想を送る", systemImage: "bubble.left.and.bubble.right.fill")
                                 }
-                            } label: {
-                                Label("感想を送る", systemImage: "bubble.left.and.bubble.right.fill")
+                                .buttonStyle(PocoPrimaryButtonStyle())
+
+                                Text(
+                                    "この作品には1人\(PocoLimits.feedbacksPerProject)件まで送れます（現在\(store.ownFeedbackCount(for: project.id))件）"
+                                )
+                                .pocoFont(.caption)
+                                .foregroundStyle(PocoTheme.secondaryText)
+
+                                NavigationLink {
+                                    BubbleWallView(projectID: project.id)
+                                } label: {
+                                    Label("みんなのフキダシを見る", systemImage: "shippingbox")
+                                }
+                                .buttonStyle(PocoSecondaryButtonStyle())
                             }
-                            .buttonStyle(PocoPrimaryButtonStyle())
-
-                            Text(
-                                "この作品には1人\(PocoLimits.feedbacksPerProject)件まで送れます（現在\(store.ownFeedbackCount(for: project.id))件）"
-                            )
-                            .font(.caption)
-                            .foregroundStyle(PocoTheme.secondaryText)
-
+                        }
+                        .padding(PocoTheme.pagePadding)
+                        .padding(.bottom, 24)
+                    }
+                    .background(PocoTheme.background)
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        PocoAdPlacementView(placement: .project)
+                    }
+                    .navigationTitle(project.title)
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItemGroup(placement: .topBarTrailing) {
                             NavigationLink {
-                                BubbleWallView(projectID: project.id)
+                                QRCodeView(project: project)
                             } label: {
-                                Label("みんなのフキダシを見る", systemImage: "shippingbox")
+                                Image(systemName: "qrcode")
                             }
-                            .buttonStyle(PocoSecondaryButtonStyle())
-                        }
-                    }
-                    .padding(PocoTheme.pagePadding)
-                    .padding(.bottom, 24)
-                }
-                .background(PocoTheme.background)
-                .safeAreaInset(edge: .bottom, spacing: 0) {
-                    PocoAdPlacementView(placement: .project)
-                }
-                .navigationTitle(project.title)
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItemGroup(placement: .topBarTrailing) {
-                        NavigationLink {
-                            QRCodeView(project: project)
-                        } label: {
-                            Image(systemName: "qrcode")
-                        }
-                        .accessibilityLabel("QRコードを表示")
+                            .accessibilityLabel("QRコードを表示")
 
-                        ShareLink(item: project.deepLinkURL) {
-                            Image(systemName: "square.and.arrow.up")
+                            ShareLink(item: project.deepLinkURL) {
+                                Image(systemName: "square.and.arrow.up")
+                            }
+                            .accessibilityLabel("作品を共有")
                         }
-                        .accessibilityLabel("作品を共有")
                     }
-                }
-                .sheet(isPresented: $showsCompose, onDismiss: showDropIfNeeded) {
-                    FeedbackComposeView(project: project) { feedback in
-                        pendingFeedback = feedback
-                        showsCompose = false
+                    .sheet(isPresented: $showsCompose, onDismiss: showDropIfNeeded) {
+                        FeedbackComposeView(project: project) { feedback in
+                            pendingFeedback = feedback
+                            showsCompose = false
+                        }
                     }
-                }
-                .fullScreenCover(item: $dropFeedback) { feedback in
-                    BubbleDropView(
-                        project: project,
-                        feedback: feedback,
-                        existingFeedbacks: store.feedbacks(for: project.id)
-                    ) {
-                        await store.submit(feedback)
+                    .fullScreenCover(item: $dropFeedback) { feedback in
+                        BubbleDropView(
+                            project: project,
+                            feedback: feedback,
+                            existingFeedbacks: store.feedbacks(for: project.id)
+                        ) {
+                            await store.submit(feedback)
+                        }
                     }
-                }
-                .task(id: project.id) {
-                    await store.refreshOwnFeedbackCount(for: project.id)
-                }
-                .alert("感想は3件までです", isPresented: $showsFeedbackLimitAlert) {
-                    Button("OK", role: .cancel) {}
-                } message: {
-                    Text("同じ作品へ送れる感想は、1人につき3件までです。")
+                    .task(id: project.id) {
+                        await store.refreshOwnFeedbackCount(for: project.id)
+                    }
+                    .alert("感想は3件までです", isPresented: $showsFeedbackLimitAlert) {
+                        Button("OK", role: .cancel) {}
+                    } message: {
+                        Text("同じ作品へ送れる感想は、1人につき3件までです。")
+                    }
                 }
             } else {
                 ContentUnavailableView("作品が見つかりません", systemImage: "questionmark.folder")
@@ -125,12 +135,12 @@ struct ProjectDetailView: View {
                 ProjectRelationshipBadge(project: project)
 
                 Text(project.title)
-                    .font(.title3.weight(.bold))
+                    .pocoFont(.title3, weight: .bold)
                 Text("\(project.category.creatorPrefix)：\(project.creator.name)")
-                    .font(.subheadline)
+                    .pocoFont(.subheadline)
                     .foregroundStyle(PocoTheme.secondaryText)
                 Label("\(project.feedbackCount.formatted())件の感想", systemImage: "bubble.left")
-                    .font(.subheadline.weight(.semibold))
+                    .pocoFont(.subheadline, weight: .medium)
                     .foregroundStyle(PocoTheme.primary)
             }
         }
@@ -142,10 +152,10 @@ struct ProjectDetailView: View {
             ProfileAvatarView(creator: project.creator, size: 44)
             VStack(alignment: .leading, spacing: 3) {
                 Text(project.relationship == .fan ? "作品の作者・クリエイター" : "クリエイター")
-                    .font(.caption)
+                    .pocoFont(.caption)
                     .foregroundStyle(PocoTheme.secondaryText)
                 Text(project.creator.name)
-                    .font(.headline)
+                    .pocoFont(.headline, weight: .medium)
             }
             Spacer()
             Image(systemName: "heart.fill")
@@ -163,7 +173,7 @@ struct ProjectDetailView: View {
                     .foregroundStyle(PocoTheme.primary)
                     .frame(width: 24)
                 Text(relationshipNoticeText(project))
-                    .font(.subheadline)
+                    .pocoFont(.subheadline)
                     .foregroundStyle(PocoTheme.secondaryText)
                     .lineSpacing(3)
                 Spacer(minLength: 0)

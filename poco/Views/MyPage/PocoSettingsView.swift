@@ -27,7 +27,7 @@ struct PocoSettingsView: View {
                             Label("メンバーシップ", systemImage: "heart.circle")
                             Spacer()
                             Text(store.role.title)
-                                .font(.subheadline)
+                                .pocoFont(.subheadline)
                                 .foregroundStyle(PocoTheme.secondaryText)
                         }
                     }

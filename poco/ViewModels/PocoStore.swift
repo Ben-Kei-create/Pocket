@@ -6,6 +6,7 @@ import Observation
 final class PocoStore {
     var projects: [Project]
     var feedbacks: [Feedback]
+    private(set) var notifications: [PocoNotification] = []
     var selectedTab = AppTab.home
     var homePath: [UUID] = []
     var errorMessage: String?
@@ -26,6 +27,7 @@ final class PocoStore {
     private(set) var feedbackLoadStates: [UUID: LoadState] = [:]
     private(set) var activityLoadState: LoadState = .idle
     private(set) var memberRewardLoadState: LoadState = .idle
+    private(set) var notificationLoadState: LoadState = .idle
     private(set) var memberRewardSnapshot = MemberRewardSnapshot.empty
     private(set) var lastDailyLoginClaim: DailyLoginBonusClaim?
     private(set) var starCoinBalance = 0
@@ -37,14 +39,17 @@ final class PocoStore {
     private let membershipRepository: any MembershipRepository
     private let memberRewardRepository: any MemberRewardRepository
     private let moderationRepository: any ModerationRepository
+    private let notificationRepository: any NotificationRepository
     private let membershipPurchaseService: any MembershipPurchaseService
-    private let membershipEntitlementSynchronizer: (any MembershipEntitlementSynchronizing)?
+    private let serverAuthorityService: any ServerAuthorityService
     private let authRepository: any AuthRepository
     private let currentUserProvider: any CurrentUserProvider
     private let projectImageStorage: (any ProjectImageStorage)?
     private let profileAvatarStorage: (any ProfileAvatarStorage)?
     private var realtimeTasks: [UUID: Task<Void, Never>] = [:]
     private var realtimeReceiptTasks: [UUID: Task<Void, Never>] = [:]
+    private var notificationRealtimeTask: Task<Void, Never>?
+    private var deepLinkResolutionTask: Task<Void, Never>?
     private var profileCache: [UUID: Creator] = [:]
     private var optimisticFeedbackIDs: Set<UUID> = []
     private var pendingDeepLinkProjectID: UUID?
@@ -60,8 +65,9 @@ final class PocoStore {
         membershipRepository: (any MembershipRepository)? = nil,
         memberRewardRepository: (any MemberRewardRepository)? = nil,
         moderationRepository: (any ModerationRepository)? = nil,
+        notificationRepository: (any NotificationRepository)? = nil,
         membershipPurchaseService: (any MembershipPurchaseService)? = nil,
-        membershipEntitlementSynchronizer: (any MembershipEntitlementSynchronizing)? = nil,
+        serverAuthorityService: (any ServerAuthorityService)? = nil,
         authRepository: (any AuthRepository)? = nil,
         currentUserProvider: (any CurrentUserProvider)? = nil,
         projectImageStorage: (any ProjectImageStorage)? = nil,
@@ -76,8 +82,9 @@ final class PocoStore {
         self.membershipRepository = membershipRepository ?? MockMembershipRepository()
         self.memberRewardRepository = memberRewardRepository ?? MockMemberRewardRepository()
         self.moderationRepository = moderationRepository ?? MockModerationRepository()
+        self.notificationRepository = notificationRepository ?? MockNotificationRepository()
         self.membershipPurchaseService = membershipPurchaseService ?? DisabledMembershipPurchaseService()
-        self.membershipEntitlementSynchronizer = membershipEntitlementSynchronizer
+        self.serverAuthorityService = serverAuthorityService ?? MockServerAuthorityService()
         self.authRepository = authRepository ?? MockAuthRepository()
         self.currentUserProvider = currentUserProvider ?? MockCurrentUserProvider()
         self.projectImageStorage = projectImageStorage
@@ -112,6 +119,12 @@ final class PocoStore {
             projects = loadedProjects
             projectLoadState = .loaded
             openPendingDeepLinkIfPossible()
+            if accountStatus == .registered {
+                await loadNotifications()
+                startObservingNotifications()
+            } else {
+                resetNotifications()
+            }
         } catch {
             let appError = map(error)
             projectLoadState = .error(appError)
@@ -172,6 +185,104 @@ final class PocoStore {
                     && !($0.senderID.map(blockedProfileIDs.contains) ?? false)
             }
             .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    var unreadNotificationCount: Int {
+        notifications.lazy.filter { !$0.isRead }.count
+    }
+
+    func loadNotifications() async {
+        guard accountStatus == .registered else {
+            resetNotifications()
+            return
+        }
+        guard notificationLoadState != .loading else { return }
+        notificationLoadState = .loading
+
+        do {
+            notifications = try await notificationRepository.fetchNotifications()
+                .sorted { $0.createdAt > $1.createdAt }
+            notificationLoadState = .loaded
+        } catch {
+            notificationLoadState = .error(map(error))
+        }
+    }
+
+    func startObservingNotifications() {
+        guard accountStatus == .registered, notificationRealtimeTask == nil else { return }
+        notificationRealtimeTask = Task { [weak self, notificationRepository = self.notificationRepository] in
+            defer { self?.notificationRealtimeTask = nil }
+            let stream = await notificationRepository.observeNotifications()
+            do {
+                for try await notification in stream {
+                    guard !Task.isCancelled else { return }
+                    self?.mergeNotification(notification)
+                }
+            } catch is CancellationError {
+                return
+            } catch {
+                // The inbox remains usable with the last successful snapshot.
+                // A later load or app activation can restore the subscription.
+            }
+        }
+    }
+
+    func openNotification(_ notification: PocoNotification) async -> Feedback? {
+        let previousReadAt = notification.readAt
+        setNotificationRead(id: notification.id, at: previousReadAt ?? .now)
+
+        do {
+            let readAt = try await notificationRepository.markRead(id: notification.id)
+            setNotificationRead(id: notification.id, at: readAt)
+        } catch {
+            setNotificationRead(id: notification.id, at: previousReadAt)
+            errorMessage = map(error).userMessage
+        }
+
+        guard let feedbackID = notification.feedbackID else { return nil }
+        if let feedback = feedbacks.first(where: { $0.id == feedbackID }) {
+            return feedback
+        }
+
+        do {
+            let fetched = try await feedbackRepository.fetchFeedback(id: feedbackID)
+            let hydrated = await hydrateFeedbacks([fetched]).first ?? fetched
+            if let index = feedbacks.firstIndex(where: { $0.id == hydrated.id }) {
+                feedbacks[index] = hydrated
+            } else {
+                feedbacks.append(hydrated)
+            }
+            if let receipt = try? await feedbackRepository.fetchCreatorReceipts(
+                feedbackIDs: [hydrated.id]
+            ) {
+                applyCreatorReceipts(receipt)
+            }
+            return feedbacks.first { $0.id == hydrated.id }
+        } catch {
+            errorMessage = map(error).userMessage
+            return nil
+        }
+    }
+
+    private func mergeNotification(_ notification: PocoNotification) {
+        if let index = notifications.firstIndex(where: { $0.id == notification.id }) {
+            notifications[index] = notification
+        } else {
+            notifications.append(notification)
+        }
+        notifications.sort { $0.createdAt > $1.createdAt }
+    }
+
+    private func setNotificationRead(id: UUID, at readAt: Date?) {
+        guard let index = notifications.firstIndex(where: { $0.id == id }) else { return }
+        notifications[index].readAt = readAt
+    }
+
+    private func resetNotifications() {
+        notificationRealtimeTask?.cancel()
+        notificationRealtimeTask = nil
+        notifications.removeAll()
+        notificationLoadState = .idle
     }
 
     var sentFeedbacks: [Feedback] {
@@ -235,9 +346,7 @@ final class PocoStore {
             )
             memberRewardSnapshot = snapshot
             if backendMode == .supabase {
-                // Character taps are still device-local in this MVP. Never
-                // erase those coins when the server-backed login wallet loads.
-                starCoinBalance = max(starCoinBalance, snapshot.starCoinBalance)
+                starCoinBalance = snapshot.starCoinBalance
                 persistStarCoinBalance()
             }
             memberRewardLoadState = .loaded
@@ -253,10 +362,7 @@ final class PocoStore {
         do {
             let claim = try await memberRewardRepository.claimDailyLoginBonus()
             lastDailyLoginClaim = claim
-            starCoinBalance = max(
-                starCoinBalance + claim.awardedCoins,
-                claim.starCoinBalance
-            )
+            starCoinBalance = claim.starCoinBalance
             persistStarCoinBalance()
             memberRewardSnapshot = MemberRewardSnapshot(
                 loginStreak: claim.loginStreak,
@@ -325,8 +431,7 @@ final class PocoStore {
         do {
             try await feedbackRepository.submitFeedback(feedback)
             optimisticFeedbackIDs.remove(feedback.id)
-            awardStarCoins(
-                3,
+            claimStarCoinReward(
                 eventKey: "feedback-delivered:\(feedback.id.uuidString)"
             )
             return .success(())
@@ -387,19 +492,26 @@ final class PocoStore {
         capabilities.canCreateProject
     }
 
-    @discardableResult
-    func awardStarCoins(_ amount: Int, eventKey: String) -> Bool {
-        guard amount > 0,
-              !eventKey.isEmpty,
-              rewardedCoinEventKeys.insert(eventKey).inserted else { return false }
+    func claimStarCoinReward(eventKey: String) {
+        guard let event = StarCoinEvent(eventKey: eventKey),
+              rewardedCoinEventKeys.insert(event.eventKey).inserted else { return }
 
-        starCoinBalance += amount
-        persistStarCoinBalance()
-        UserDefaults.standard.set(
-            Array(rewardedCoinEventKeys),
-            forKey: Self.rewardedCoinEventsKey
-        )
-        return true
+        persistRewardedCoinEventKeys()
+        Task {
+            do {
+                let award = try await serverAuthorityService.claimStarCoinReward(event)
+                // Coin claims can finish out of order. The wallet is
+                // increment-only in this phase, so an older response must not
+                // move the displayed server balance backwards.
+                starCoinBalance = max(starCoinBalance, award.balance)
+                persistStarCoinBalance()
+            } catch {
+                // A failed request can be retried by the next matching user
+                // interaction. Coin errors never interrupt the bubble UX.
+                rewardedCoinEventKeys.remove(event.eventKey)
+                persistRewardedCoinEventKeys()
+            }
+        }
     }
 
     private var achievementSignals: AchievementSignals {
@@ -413,6 +525,20 @@ final class PocoStore {
 
     private func persistStarCoinBalance() {
         UserDefaults.standard.set(starCoinBalance, forKey: Self.starCoinBalanceKey)
+    }
+
+    private func persistRewardedCoinEventKeys() {
+        UserDefaults.standard.set(
+            Array(rewardedCoinEventKeys),
+            forKey: Self.rewardedCoinEventsKey
+        )
+    }
+
+    private func resetCachedStarCoins() {
+        starCoinBalance = 0
+        rewardedCoinEventKeys.removeAll()
+        UserDefaults.standard.removeObject(forKey: Self.starCoinBalanceKey)
+        UserDefaults.standard.removeObject(forKey: Self.rewardedCoinEventsKey)
     }
 
     var canCreateAnotherProject: Bool {
@@ -538,6 +664,7 @@ final class PocoStore {
     }
 
     func registerPreviewAccount(
+        displayName: String = "そらのひつじ",
         avatarName: String? = BuiltInAvatar.cat.rawValue,
         avatarImageData: Data? = nil
     ) {
@@ -549,7 +676,7 @@ final class PocoStore {
         currentAvatarImageData = avatarImageData
         currentProfile = Creator(
             id: profileID,
-            name: currentProfile?.name ?? "そらのひつじ",
+            name: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
             avatarName: avatarImageData == nil ? avatarName : nil,
             handle: currentProfile?.handle ?? CreatorHandle.generated(for: profileID)
         )
@@ -557,12 +684,19 @@ final class PocoStore {
             profileCache[profileID] = currentProfile
             applyProfile(currentProfile)
         }
+        Task { [weak self] in
+            guard let self else { return }
+            await self.loadNotifications()
+            self.startObservingNotifications()
+        }
     }
 
     func signInWithApple(
         identityToken: String,
         rawNonce: String,
         displayName: String?,
+        appleFullName: String?,
+        email: String?,
         avatarName: String?,
         avatarImageData: Data?
     ) async {
@@ -574,7 +708,9 @@ final class PocoStore {
                 credential: AppleIdentityCredential(
                     identityToken: identityToken,
                     rawNonce: rawNonce,
-                    displayName: displayName
+                    displayName: displayName,
+                    appleFullName: appleFullName,
+                    email: email
                 )
             )
             currentUserID = account.id
@@ -627,6 +763,8 @@ final class PocoStore {
             try? await profileRepository.saveProfile(profile)
 
             await loadMembership()
+            await loadNotifications()
+            startObservingNotifications()
             authenticationState = .authenticated
         } catch {
             let message = map(error).userMessage
@@ -725,6 +863,8 @@ final class PocoStore {
             memberRewardSnapshot = .empty
             lastDailyLoginClaim = nil
             authenticationState = .idle
+            resetNotifications()
+            resetCachedStarCoins()
         } catch {
             let message = map(error).userMessage
             authenticationState = .error(message)
@@ -745,6 +885,8 @@ final class PocoStore {
         memberRewardLoadState = .idle
         memberRewardSnapshot = .empty
         lastDailyLoginClaim = nil
+        resetNotifications()
+        resetCachedStarCoins()
     }
 
     func loadMembershipOffer() async {
@@ -767,7 +909,6 @@ final class PocoStore {
         do {
             switch try await membershipPurchaseService.purchase() {
             case .purchased(let entitlement):
-                membershipTier = .pocoMember
                 membershipPurchaseState = .purchased
                 await syncMembershipEntitlement(entitlement)
             case .pending:
@@ -788,7 +929,6 @@ final class PocoStore {
         membershipPurchaseState = .loading
         do {
             if let entitlement = try await membershipPurchaseService.restore() {
-                membershipTier = .pocoMember
                 membershipPurchaseState = .purchased
                 await syncMembershipEntitlement(entitlement)
             } else {
@@ -800,14 +940,9 @@ final class PocoStore {
     }
 
     private func syncMembershipEntitlement(_ entitlement: MembershipEntitlement) async {
-        guard let membershipEntitlementSynchronizer else {
-            membershipSyncState = .deferred
-            return
-        }
-
         membershipSyncState = .syncing
         do {
-            try await membershipEntitlementSynchronizer.sync(entitlement)
+            try await serverAuthorityService.syncMembershipEntitlement(entitlement)
             membershipSyncState = .synced
             await loadMembership()
         } catch {
@@ -822,6 +957,7 @@ final class PocoStore {
         creatorName: String,
         category: ProjectCategory,
         relationship: ProjectRelationship,
+        contentRating: ProjectContentRating,
         description: String,
         imageData: Data?
     ) async -> Result<Project, AppError> {
@@ -831,8 +967,8 @@ final class PocoStore {
             return .failure(error)
         }
         guard canCreateAnotherProject else {
-            let error = AppError.unauthorized
-            errorMessage = "現在のプランで作成できる作品数の上限に達しました。"
+            let error = AppError.projectLimitReached
+            errorMessage = error.userMessage
             return .failure(error)
         }
         guard let creatorID = await currentUserProvider.currentUserID() else {
@@ -874,7 +1010,8 @@ final class PocoStore {
                 feedbackCount: 0,
                 createdAt: .now,
                 relationship: relationship,
-                verificationStatus: .unverified
+                verificationStatus: .unverified,
+                contentRating: contentRating
             )
 
             try await projectRepository.createProject(project)
@@ -884,6 +1021,103 @@ final class PocoStore {
             if let imageURL, let projectImageStorage {
                 try? await projectImageStorage.deleteProjectImage(at: imageURL)
             }
+            let appError = map(error)
+            errorMessage = appError.userMessage
+            return .failure(appError)
+        }
+    }
+
+    func updateProject(
+        _ existingProject: Project,
+        title: String,
+        creatorName: String,
+        category: ProjectCategory,
+        relationship: ProjectRelationship,
+        contentRating: ProjectContentRating,
+        description: String,
+        imageData: Data?,
+        removesExistingImage: Bool
+    ) async -> Result<Project, AppError> {
+        guard canCreateProjects,
+              let creatorID = await currentUserProvider.currentUserID(),
+              creatorID == existingProject.creator.id else {
+            let error = AppError.unauthorized
+            errorMessage = error.userMessage
+            return .failure(error)
+        }
+
+        let oldImageURL = existingProject.imageURL
+        var uploadedImageURL: URL?
+
+        do {
+            if let imageData, let projectImageStorage {
+                let compressedData = try await Task.detached(priority: .userInitiated) {
+                    try ProjectImageProcessor.compressedJPEG(from: imageData)
+                }.value
+                uploadedImageURL = try await projectImageStorage.uploadProjectImage(
+                    compressedData,
+                    projectID: existingProject.id,
+                    creatorID: creatorID
+                )
+            }
+
+            var updatedProject = existingProject
+            updatedProject.title = title
+            updatedProject.creator.name = creatorName
+            updatedProject.category = category
+            updatedProject.description = description
+            updatedProject.relationship = relationship
+            updatedProject.verificationStatus = relationship == existingProject.relationship
+                ? existingProject.verificationStatus
+                : .unverified
+            updatedProject.contentRating = contentRating
+            updatedProject.isContentLocked = false
+            if let uploadedImageURL {
+                updatedProject.imageURL = uploadedImageURL
+            } else if removesExistingImage {
+                updatedProject.imageURL = nil
+            }
+
+            try await projectRepository.updateProject(updatedProject)
+            if let index = projects.firstIndex(where: { $0.id == updatedProject.id }) {
+                projects[index] = updatedProject
+            }
+
+            if let oldImageURL,
+               oldImageURL != updatedProject.imageURL,
+               let projectImageStorage {
+                try? await projectImageStorage.deleteProjectImage(at: oldImageURL)
+            }
+            return .success(updatedProject)
+        } catch {
+            if let uploadedImageURL, let projectImageStorage {
+                try? await projectImageStorage.deleteProjectImage(at: uploadedImageURL)
+            }
+            let appError = map(error)
+            errorMessage = appError.userMessage
+            return .failure(appError)
+        }
+    }
+
+    func deleteProject(_ project: Project) async -> Result<Void, AppError> {
+        guard canCreateProjects,
+              let creatorID = await currentUserProvider.currentUserID(),
+              creatorID == project.creator.id else {
+            let error = AppError.unauthorized
+            errorMessage = error.userMessage
+            return .failure(error)
+        }
+
+        do {
+            try await projectRepository.deleteProject(id: project.id)
+            stopObservingFeedbacks(for: project.id)
+            projects.removeAll { $0.id == project.id }
+            feedbacks.removeAll { $0.projectID == project.id }
+            notifications.removeAll { $0.projectID == project.id }
+            feedbackLoadStates[project.id] = nil
+            ownFeedbackCountsByProject[project.id] = nil
+            return .success(())
+        } catch {
             let appError = map(error)
             errorMessage = appError.userMessage
             return .failure(appError)
@@ -944,11 +1178,40 @@ final class PocoStore {
 
         selectedTab = .home
         if project(id: id) != nil {
+            deepLinkResolutionTask?.cancel()
+            pendingDeepLinkProjectID = nil
             homePath = [id]
         } else {
             pendingDeepLinkProjectID = id
+            resolveDeepLinkProject(id)
         }
         return true
+    }
+
+    private func resolveDeepLinkProject(_ id: UUID) {
+        deepLinkResolutionTask?.cancel()
+        let repository = projectRepository
+
+        deepLinkResolutionTask = Task { [weak self] in
+            do {
+                let resolvedProject = try await repository.fetchProject(id: id)
+                guard !Task.isCancelled, let self else { return }
+                if let index = self.projects.firstIndex(where: { $0.id == id }) {
+                    self.projects[index] = resolvedProject
+                } else {
+                    self.projects.insert(resolvedProject, at: 0)
+                }
+                self.pendingDeepLinkProjectID = nil
+                self.selectedTab = .home
+                self.homePath = [id]
+            } catch is CancellationError {
+                return
+            } catch {
+                guard !Task.isCancelled, let self else { return }
+                self.pendingDeepLinkProjectID = nil
+                self.errorMessage = self.map(error).userMessage
+            }
+        }
     }
 
     private func mergeRealtimeFeedback(_ feedback: Feedback) {
@@ -1066,6 +1329,7 @@ final class PocoStore {
     private func openPendingDeepLinkIfPossible() {
         guard let id = pendingDeepLinkProjectID,
               project(id: id) != nil else { return }
+        deepLinkResolutionTask?.cancel()
         pendingDeepLinkProjectID = nil
         selectedTab = .home
         homePath = [id]

@@ -75,6 +75,7 @@ nonisolated struct ProjectDTO: Codable, Sendable {
     let isPublished: Bool
     let relationship: String
     let verificationStatus: String
+    let contentRating: String
     let publishingRulesVersion: Int
     let publishingRulesAcceptedAt: Date
 
@@ -90,6 +91,7 @@ nonisolated struct ProjectDTO: Codable, Sendable {
         case isPublished = "is_published"
         case relationship
         case verificationStatus = "verification_status"
+        case contentRating = "content_rating"
         case publishingRulesVersion = "publishing_rules_version"
         case publishingRulesAcceptedAt = "publishing_rules_accepted_at"
     }
@@ -106,6 +108,7 @@ nonisolated struct ProjectDTO: Codable, Sendable {
         self.isPublished = isPublished
         relationship = project.relationship.rawValue
         verificationStatus = project.verificationStatus.rawValue
+        contentRating = project.contentRating.rawValue
         publishingRulesVersion = PocoPublishingRules.currentVersion
         publishingRulesAcceptedAt = project.createdAt
     }
@@ -127,6 +130,8 @@ nonisolated struct ProjectQueryDTO: Codable, Sendable {
     let creatorHandle: String?
     let relationship: String?
     let verificationStatus: String?
+    let contentRating: String?
+    let isContentLocked: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -144,6 +149,8 @@ nonisolated struct ProjectQueryDTO: Codable, Sendable {
         case creatorHandle = "creator_handle"
         case relationship
         case verificationStatus = "verification_status"
+        case contentRating = "content_rating"
+        case isContentLocked = "is_content_locked"
     }
 
     var domainModel: Project {
@@ -164,9 +171,60 @@ nonisolated struct ProjectQueryDTO: Codable, Sendable {
             feedbackCount: feedbackCount ?? 0,
             createdAt: createdAt,
             relationship: relationship.flatMap(ProjectRelationship.init(rawValue:)) ?? .creator,
-            verificationStatus: verificationStatus.flatMap(ProjectVerificationStatus.init(rawValue:)) ?? .unverified
+            verificationStatus: verificationStatus.flatMap(ProjectVerificationStatus.init(rawValue:)) ?? .unverified,
+            contentRating: contentRating.flatMap(ProjectContentRating.init(rawValue:)) ?? .general,
+            isContentLocked: isContentLocked ?? false
         )
     }
+}
+
+nonisolated struct ProjectUpdateDTO: Encodable, Sendable {
+    let title: String
+    let creatorName: String
+    let category: String
+    let description: String
+    let imageURL: String?
+    let relationship: String
+    let contentRating: String
+
+    enum CodingKeys: String, CodingKey {
+        case title
+        case creatorName = "creator_name"
+        case category
+        case description
+        case imageURL = "image_url"
+        case relationship
+        case contentRating = "content_rating"
+    }
+
+    init(project: Project) {
+        title = project.title
+        creatorName = project.creator.name
+        category = project.category.rawValue
+        description = project.description
+        imageURL = project.imageURL?.absoluteString
+        relationship = project.relationship.rawValue
+        contentRating = project.contentRating.rawValue
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(title, forKey: .title)
+        try container.encode(creatorName, forKey: .creatorName)
+        try container.encode(category, forKey: .category)
+        try container.encode(description, forKey: .description)
+        if let imageURL {
+            try container.encode(imageURL, forKey: .imageURL)
+        } else {
+            try container.encodeNil(forKey: .imageURL)
+        }
+        try container.encode(relationship, forKey: .relationship)
+        try container.encode(contentRating, forKey: .contentRating)
+    }
+}
+
+nonisolated struct ProjectMutationResultDTO: Decodable, Sendable {
+    let id: UUID
 }
 
 nonisolated struct FeedbackDTO: Codable, Sendable {
@@ -397,5 +455,33 @@ nonisolated struct DailyLoginBonusClaimDTO: Decodable, Sendable {
             claimed: claimed,
             claimedDay: claimedDay
         )
+    }
+}
+
+nonisolated struct StarCoinAwardDTO: Decodable, Sendable {
+    let starCoinBalance: Int
+    let awardedCoins: Int
+    let claimed: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case starCoinBalance = "star_coin_balance"
+        case awardedCoins = "awarded_coins"
+        case claimed
+    }
+
+    var domainModel: StarCoinAward {
+        StarCoinAward(
+            balance: starCoinBalance,
+            awardedCoins: awardedCoins,
+            claimed: claimed
+        )
+    }
+}
+
+nonisolated struct StarCoinClaimParameters: Encodable, Sendable {
+    let eventKey: String
+
+    enum CodingKeys: String, CodingKey {
+        case eventKey = "p_event_key"
     }
 }

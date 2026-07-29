@@ -8,7 +8,7 @@ struct ProjectPublishingGuidelinesView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     Text("Pocoは、自分の作品に感想を受け取ることを基本にしています。ファンが非公式の感想箱を作ることもできますが、公式ページと誤解されない表示になります。")
-                        .font(.body)
+                        .pocoFont(.body)
                         .lineSpacing(5)
 
                     guideline(
@@ -48,15 +48,15 @@ struct ProjectPublishingGuidelinesView: View {
     private func guideline(symbol: String, title: String, detail: String) -> some View {
         HStack(alignment: .top, spacing: 14) {
             Image(systemName: symbol)
-                .font(.title3)
+                .pocoFont(.title3)
                 .foregroundStyle(PocoTheme.primary)
                 .frame(width: 28)
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(title)
-                    .font(.headline)
+                    .pocoFont(.headline, weight: .medium)
                 Text(detail)
-                    .font(.subheadline)
+                    .pocoFont(.subheadline)
                     .foregroundStyle(PocoTheme.secondaryText)
                     .lineSpacing(4)
             }

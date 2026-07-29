@@ -12,9 +12,9 @@ struct PocoMembershipView: View {
 
                     VStack(spacing: 8) {
                         Text("Poco Pro")
-                            .font(.largeTitle.bold())
+                            .pocoFont(.largeTitle, weight: .bold)
                         Text("届いたことばの反響を、もっと近くに。")
-                            .font(.subheadline)
+                            .pocoFont(.subheadline)
                             .foregroundStyle(PocoTheme.secondaryText)
                     }
                     .multilineTextAlignment(.center)
@@ -28,9 +28,9 @@ struct PocoMembershipView: View {
 
                     VStack(spacing: 5) {
                         Text(priceText)
-                            .font(.title3.bold())
+                            .pocoFont(.title3, weight: .bold)
                         Text("いつでも解約できます")
-                            .font(.caption)
+                            .pocoFont(.caption)
                             .foregroundStyle(PocoTheme.secondaryText)
                     }
 
@@ -63,27 +63,27 @@ struct PocoMembershipView: View {
                         Button("購入を復元") {
                             Task { await store.restoreMembership() }
                         }
-                        .font(.subheadline.weight(.semibold))
+                        .pocoFont(.subheadline, weight: .medium)
                         .foregroundStyle(PocoTheme.primary)
                         .disabled(!store.canCreateProjects || store.membershipPurchaseState == .loading)
                     }
 
                     if case .error(let message) = store.membershipPurchaseState {
                         Text(message)
-                            .font(.caption)
+                            .pocoFont(.caption)
                             .foregroundStyle(.red)
                             .multilineTextAlignment(.center)
                     }
 
                     if store.membershipSyncState == .deferred {
                         Text("購入は確認できました。会員情報はネットワーク復帰後に同期されます。")
-                            .font(.caption)
+                            .pocoFont(.caption)
                             .foregroundStyle(PocoTheme.secondaryText)
                             .multilineTextAlignment(.center)
                     }
 
                     Text("購入はApple IDに請求され、設定からいつでも解約できます。")
-                        .font(.caption)
+                        .pocoFont(.caption)
                         .foregroundStyle(PocoTheme.tertiaryText)
                         .multilineTextAlignment(.center)
                 }
@@ -127,7 +127,7 @@ struct PocoMembershipView: View {
                 .frame(width: 28)
                 .foregroundStyle(PocoTheme.primary)
             Text(title)
-                .font(.subheadline.weight(.medium))
+                .pocoFont(.subheadline, weight: .medium)
             Spacer()
             Image(systemName: "checkmark.circle.fill")
                 .foregroundStyle(PocoTheme.bubble(.mint))

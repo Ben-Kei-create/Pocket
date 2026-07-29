@@ -8,6 +8,8 @@ POCO_MEMBERSHIP_SYNC_FUNCTION =
 POCO_AD_PROVIDER = placeholder
 POCO_AD_UNIT_ID =
 POCO_PUBLIC_BASE_URL =
+// Reserved non-routable default. Override both URL and domain in Secrets.xcconfig.
+POCO_ASSOCIATED_DOMAIN = universal-links-not-configured.invalid
 CODE_SIGN_ENTITLEMENTS = poco/poco.entitlements
 
 #include? "Secrets.xcconfig"

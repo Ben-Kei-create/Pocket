@@ -8,15 +8,16 @@ struct ProfileAvatarPicker: View {
 
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var isLoadingPhoto = false
+    @State private var showsSensitiveImageAlert = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("プロフィール画像")
-                    .font(.subheadline.weight(.semibold))
+                    .pocoFont(.subheadline, weight: .medium)
                 Spacer()
                 Text("5種＋自分の写真")
-                    .font(.caption)
+                    .pocoFont(.caption)
                     .foregroundStyle(PocoTheme.tertiaryText)
             }
 
@@ -71,9 +72,19 @@ struct ProfileAvatarPicker: View {
                 defer { isLoadingPhoto = false }
                 guard let data = try? await item.loadTransferable(type: Data.self),
                       UIImage(data: data) != nil else { return }
+                guard await ImageSensitivityService.analyze(data) != .sensitive else {
+                    showsSensitiveImageAlert = true
+                    selectedPhoto = nil
+                    return
+                }
                 avatarImageData = data
                 avatarName = nil
             }
+        }
+        .alert("この画像は使用できません", isPresented: $showsSensitiveImageAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("安全に利用できるプロフィール画像を選んでください。")
         }
     }
 
@@ -105,7 +116,7 @@ struct ProfileAvatarPicker: View {
                 .frame(width: 58, height: 58)
                 .overlay {
                     Image(systemName: "photo.badge.plus")
-                        .font(.title3.weight(.semibold))
+                        .pocoFont(.title3, weight: .medium)
                         .foregroundStyle(PocoTheme.primary)
                 }
         }

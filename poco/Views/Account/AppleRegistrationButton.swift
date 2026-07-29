@@ -2,6 +2,7 @@ import AuthenticationServices
 import SwiftUI
 
 struct AppleRegistrationButton: View {
+    let displayName: String
     let avatarName: String?
     let avatarImageData: Data?
 
@@ -20,7 +21,10 @@ struct AppleRegistrationButton: View {
         .signInWithAppleButtonStyle(.black)
         .frame(height: 52)
         .clipShape(RoundedRectangle(cornerRadius: PocoTheme.cornerSmall, style: .continuous))
-        .disabled(store.authenticationState == .authenticating)
+        .disabled(
+            store.authenticationState == .authenticating
+                || displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        )
         .accessibilityLabel("Appleでユーザー登録")
     }
 
@@ -35,7 +39,7 @@ struct AppleRegistrationButton: View {
                 return
             }
 
-            let displayName = credential.fullName.flatMap {
+            let appleFullName = credential.fullName.flatMap {
                 PersonNameComponentsFormatter.localizedString(from: $0, style: .default)
                     .trimmingCharacters(in: .whitespacesAndNewlines)
             }
@@ -43,7 +47,9 @@ struct AppleRegistrationButton: View {
                 await store.signInWithApple(
                     identityToken: identityToken,
                     rawNonce: rawNonce,
-                    displayName: displayName?.isEmpty == false ? displayName : nil,
+                    displayName: displayName,
+                    appleFullName: appleFullName?.isEmpty == false ? appleFullName : nil,
+                    email: credential.email,
                     avatarName: avatarName,
                     avatarImageData: avatarImageData
                 )

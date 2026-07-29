@@ -19,6 +19,7 @@ struct ContentView: View {
                 .transition(.opacity)
             }
         }
+        .environment(\.font, PocoTypography.font(.body))
         .background(PocoTheme.background)
         .onOpenURL { url in
             hasCompletedWelcome = true

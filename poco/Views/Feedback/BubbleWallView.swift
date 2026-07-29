@@ -37,10 +37,10 @@ struct BubbleWallView: View {
             if let project {
                 VStack(spacing: 5) {
                     Label("\(project.feedbackCount.formatted())", systemImage: "bubble.left")
-                        .font(.title3.weight(.bold))
+                        .pocoFont(.title3, weight: .bold)
                         .foregroundStyle(PocoTheme.primary)
                     Text("件の感想")
-                        .font(.caption)
+                        .pocoFont(.caption)
                         .foregroundStyle(PocoTheme.secondaryText)
                 }
 
@@ -76,7 +76,7 @@ struct BubbleWallView: View {
                             }
                         }
                     }
-                    .font(.caption.weight(.semibold))
+                    .pocoFont(.caption, weight: .medium)
                     .buttonStyle(.bordered)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -92,13 +92,13 @@ struct BubbleWallView: View {
                             selectedCreator = feedback.senderCreator
                         },
                         onCompanionTapped: { eventKey in
-                            store.awardStarCoins(1, eventKey: eventKey)
+                            store.claimStarCoinReward(eventKey: eventKey)
                         },
                         onRareCompanionBorn: { eventKey in
-                            store.awardStarCoins(5, eventKey: eventKey)
+                            store.claimStarCoinReward(eventKey: eventKey)
                         },
                         onRareCompanionTapped: { eventKey in
-                            store.awardStarCoins(1, eventKey: eventKey)
+                            store.claimStarCoinReward(eventKey: eventKey)
                         }
                     )
                     .padding(.bottom, 8)
@@ -225,7 +225,7 @@ private struct ProjectInsightSummaryView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 Text("この作品に届いたことば")
-                    .font(.headline)
+                    .pocoFont(.headline, weight: .medium)
 
                 LazyVGrid(
                     columns: [GridItem(.flexible()), GridItem(.flexible())],
@@ -259,9 +259,9 @@ private struct ProjectInsightSummaryView: View {
 
                 VStack(alignment: .leading, spacing: 10) {
                     Label("ことばの傾向", systemImage: "text.quote")
-                        .font(.headline)
+                        .pocoFont(.headline, weight: .medium)
                     Text("感想は平均\(averageLength)文字。ランキングではなく、作品へ届いたことば全体の記録です。")
-                        .font(.subheadline)
+                        .pocoFont(.subheadline)
                         .foregroundStyle(PocoTheme.secondaryText)
                         .lineSpacing(4)
                 }
@@ -270,12 +270,12 @@ private struct ProjectInsightSummaryView: View {
 
                 VStack(alignment: .leading, spacing: 7) {
                     Text(project.title)
-                        .font(.headline)
+                        .pocoFont(.headline, weight: .medium)
                     Text("\(project.category.creatorPrefix)：\(project.creator.name)")
-                        .font(.subheadline)
+                        .pocoFont(.subheadline)
                         .foregroundStyle(PocoTheme.secondaryText)
                     Text(project.description)
-                        .font(.footnote)
+                        .pocoFont(.footnote)
                         .foregroundStyle(PocoTheme.secondaryText)
                         .lineLimit(3)
                 }
@@ -297,9 +297,9 @@ private struct ProjectInsightSummaryView: View {
             Image(systemName: symbol)
                 .foregroundStyle(color)
             Text(value.formatted())
-                .font(.title2.bold().monospacedDigit())
+                .pocoFont(.title2, weight: .bold).monospacedDigit()
             Text(title)
-                .font(.caption)
+                .pocoFont(.caption)
                 .foregroundStyle(PocoTheme.secondaryText)
         }
         .frame(maxWidth: .infinity, minHeight: 92, alignment: .leading)

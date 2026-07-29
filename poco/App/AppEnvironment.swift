@@ -12,6 +12,10 @@ enum AppEnvironment {
                 authenticatedProvider: authenticatedUserProvider,
                 fallbackUserID: configuration.developmentUserID
             )
+            let serverAuthorityService = SupabaseServerAuthorityService(
+                client: client,
+                membershipFunctionName: configuration.membershipSyncFunction
+            )
             return PocoStore(
                 projectRepository: SupabaseProjectRepository(client: client),
                 feedbackRepository: SupabaseFeedbackRepository(
@@ -28,12 +32,14 @@ enum AppEnvironment {
                     client: client,
                     currentUserProvider: authenticatedUserProvider
                 ),
+                notificationRepository: SupabaseNotificationRepository(
+                    client: client,
+                    currentUserProvider: authenticatedUserProvider
+                ),
                 membershipPurchaseService: StoreKitMembershipService(
                     productID: configuration.membershipProductID
                 ),
-                membershipEntitlementSynchronizer: configuration.membershipSyncFunction.map {
-                    SupabaseMembershipEntitlementSynchronizer(client: client, functionName: $0)
-                },
+                serverAuthorityService: serverAuthorityService,
                 authRepository: SupabaseAuthRepository(client: client),
                 currentUserProvider: creatorUserProvider,
                 projectImageStorage: SupabaseProjectImageStorage(client: client),
@@ -48,6 +54,7 @@ enum AppEnvironment {
             membershipRepository: MockMembershipRepository(),
             memberRewardRepository: MockMemberRewardRepository(),
             membershipPurchaseService: DisabledMembershipPurchaseService(),
+            serverAuthorityService: MockServerAuthorityService(),
             authRepository: MockAuthRepository(),
             backendMode: .mock,
             initialProjects: MockData.projects,

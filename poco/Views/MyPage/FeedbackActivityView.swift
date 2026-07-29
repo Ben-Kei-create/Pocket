@@ -119,21 +119,21 @@ private struct FeedbackActivityRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 13) {
             Image(systemName: "bubble.left.fill")
-                .font(.title3)
+                .pocoFont(.title3)
                 .foregroundStyle(Color(uiColor: .label).opacity(0.58))
                 .frame(width: 42, height: 42)
                 .background(PocoTheme.bubble(feedback.bubbleColor), in: Circle())
 
             VStack(alignment: .leading, spacing: 7) {
                 Text(feedback.message)
-                    .font(.subheadline.weight(.medium))
+                    .pocoFont(.subheadline, weight: .medium)
                     .foregroundStyle(.primary)
                     .lineLimit(3)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 if let projectTitle {
                     Text(projectTitle)
-                        .font(.caption.weight(.semibold))
+                        .pocoFont(.caption, weight: .medium)
                         .foregroundStyle(PocoTheme.secondaryText)
                         .lineLimit(1)
                 }
@@ -147,19 +147,19 @@ private struct FeedbackActivityRow: View {
                         )
                     }
                 }
-                .font(.caption)
+                .pocoFont(.caption)
                 .foregroundStyle(PocoTheme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
                 if feedback.creatorReceivedAt != nil {
                     Label("作者もいいねしました", systemImage: "heart.fill")
-                        .font(.caption.weight(.semibold))
+                        .pocoFont(.caption, weight: .medium)
                         .foregroundStyle(PocoTheme.primary)
                 }
             }
 
             Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
+                .pocoFont(.caption, weight: .medium)
                 .foregroundStyle(PocoTheme.tertiaryText)
                 .padding(.top, 4)
         }

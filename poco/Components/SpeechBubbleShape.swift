@@ -39,7 +39,11 @@ struct BubbleView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? 3 : 10) {
             Text(feedback.message)
-                .font(compact ? .system(size: 9.5, weight: .semibold) : .body.weight(.medium))
+                .font(
+                    compact
+                        ? PocoTypography.fixed(size: 9.5, weight: .medium)
+                        : PocoTypography.font(.body, weight: .medium)
+                )
                 .foregroundStyle(Color(uiColor: .label).opacity(0.86))
                 .lineLimit(compact ? 2 : 5)
                 .lineSpacing(compact ? 1 : 3)
@@ -60,7 +64,7 @@ struct BubbleView: View {
         .overlay(alignment: .topTrailing) {
             if feedback.creatorReceivedAt != nil {
                 Image(systemName: "heart.fill")
-                    .font(.caption2.bold())
+                    .pocoFont(.caption2, weight: .bold)
                     .foregroundStyle(.white)
                     .frame(width: compact ? 18 : 24, height: compact ? 18 : 24)
                     .background(PocoTheme.primary, in: Circle())
@@ -93,7 +97,11 @@ struct BubbleView: View {
             feedbackAvatar
 
             Text(feedback.nickname)
-                .font(compact ? .system(size: 8, weight: .medium) : .caption)
+                .font(
+                    compact
+                        ? PocoTypography.fixed(size: 8, weight: .medium)
+                        : PocoTypography.font(.caption)
+                )
                 .foregroundStyle(Color(uiColor: .secondaryLabel))
                 .lineLimit(1)
         }
@@ -117,7 +125,7 @@ struct BubbleView: View {
             )
         } else {
             Text(String(feedback.nickname.prefix(1)))
-                .font(.system(size: compact ? 7 : 10, weight: .bold, design: .rounded))
+                .pocoFixedFont(size: compact ? 7 : 10, weight: .bold)
                 .foregroundStyle(.white)
                 .frame(width: compact ? 14 : 23, height: compact ? 14 : 23)
                 .background(.black.opacity(0.22), in: Circle())

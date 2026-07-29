@@ -27,7 +27,7 @@ struct QRCodeScannerSheet: View {
                     VStack {
                         Spacer()
                         Text("作品のQRコードを枠の中に入れてください")
-                            .font(.subheadline.weight(.semibold))
+                            .pocoFont(.subheadline, weight: .medium)
                             .foregroundStyle(.white)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 10)
@@ -40,7 +40,7 @@ struct QRCodeScannerSheet: View {
                 VStack(spacing: 12) {
                     if let scannerError {
                         Label(scannerError, systemImage: "camera.fill")
-                            .font(.caption)
+                            .pocoFont(.caption)
                             .foregroundStyle(PocoTheme.secondaryText)
                             .multilineTextAlignment(.center)
                     }
@@ -50,7 +50,7 @@ struct QRCodeScannerSheet: View {
                             showsManualEntry.toggle()
                         }
                     }
-                    .font(.subheadline.weight(.semibold))
+                    .pocoFont(.subheadline, weight: .medium)
                     .foregroundStyle(PocoTheme.primary)
 
                     if showsManualEntry {

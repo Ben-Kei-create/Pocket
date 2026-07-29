@@ -35,7 +35,7 @@ struct HomeView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 16) {
                     Text("応援したいクリエイターの\nプロジェクトを選ぼう")
-                        .font(.title2.weight(.bold))
+                        .pocoFont(.title2, weight: .bold)
                         .lineSpacing(4)
                         .padding(.top, 8)
 
@@ -46,13 +46,13 @@ struct HomeView: View {
                        !visibleProjects.isEmpty {
                         HStack {
                             Text("\(visibleProjects.count)件見つかりました")
-                                .font(.caption.weight(.semibold))
+                                .pocoFont(.caption, weight: .medium)
                                 .foregroundStyle(PocoTheme.secondaryText)
                             Spacer()
                             Button("検索をクリア") {
                                 searchText = ""
                             }
-                            .font(.caption.weight(.semibold))
+                            .pocoFont(.caption, weight: .medium)
                             .foregroundStyle(PocoTheme.primary)
                         }
                     }
@@ -98,13 +98,19 @@ struct HomeView: View {
                     } label: {
                         Image(systemName: "bell")
                             .overlay(alignment: .topTrailing) {
-                                Circle()
-                                    .fill(PocoTheme.primary)
-                                    .frame(width: 7, height: 7)
-                                    .offset(x: 2, y: -1)
+                                if store.unreadNotificationCount > 0 {
+                                    Circle()
+                                        .fill(PocoTheme.primary)
+                                        .frame(width: 8, height: 8)
+                                        .offset(x: 2, y: -1)
+                                }
                             }
                     }
-                    .accessibilityLabel("通知")
+                    .accessibilityLabel(
+                        store.unreadNotificationCount > 0
+                            ? "通知、未読\(store.unreadNotificationCount)件"
+                            : "通知"
+                    )
                 }
             }
             .sheet(isPresented: $showsNotifications) {
@@ -176,7 +182,7 @@ struct HomeView: View {
                         }
                     } label: {
                         Text(filter.title)
-                            .font(.subheadline.weight(.semibold))
+                            .pocoFont(.subheadline, weight: .medium)
                             .foregroundStyle(selectedCategory == filter ? .white : PocoTheme.secondaryText)
                             .padding(.horizontal, 17)
                             .padding(.vertical, 9)
@@ -194,36 +200,87 @@ struct HomeView: View {
 }
 
 struct NotificationCenterView: View {
+    @Environment(PocoStore.self) private var store
     @Environment(\.dismiss) private var dismiss
+    @State private var selectedFeedback: Feedback?
+    @State private var openingNotificationID: UUID?
+    @State private var showsRegistration = false
+
+    private var receivedFeedbackNotifications: [PocoNotification] {
+        store.notifications.filter { $0.type == .newFeedback }
+    }
+
+    private var reactionNotifications: [PocoNotification] {
+        store.notifications.filter {
+            $0.type == .creatorHeart || $0.type == .feedbackLike
+        }
+    }
+
+    private var serviceNotifications: [PocoNotification] {
+        store.notifications.filter {
+            $0.type == .moderation || $0.type == .system
+        }
+    }
 
     var body: some View {
         NavigationStack {
-            List {
-                Label {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("「森のこえ」に新しいフキダシが届きました")
-                        Text("たった今")
-                            .font(.caption)
-                            .foregroundStyle(PocoTheme.secondaryText)
+            Group {
+                if store.accountStatus != .registered {
+                    ContentUnavailableView {
+                        Label("届いたことばを残そう", systemImage: "bell.badge")
+                    } description: {
+                        Text("登録すると、自分の作品へ届いた感想や、ことばへの共感をここで受け取れます。")
+                    } actions: {
+                        Button("無料で登録") {
+                            showsRegistration = true
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(PocoTheme.primary)
                     }
-                } icon: {
-                    Image(systemName: "bubble.left.fill")
-                        .foregroundStyle(PocoTheme.primary)
-                }
-
-                Label {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("あなたのフキダシにいいねがつきました")
-                        Text("2時間前")
-                            .font(.caption)
-                            .foregroundStyle(PocoTheme.secondaryText)
+                } else if store.notificationLoadState == .loading && store.notifications.isEmpty {
+                    ProgressView("届いたことばを読み込んでいます")
+                } else if case .error = store.notificationLoadState,
+                          store.notifications.isEmpty {
+                    ContentUnavailableView {
+                        Label("読み込めませんでした", systemImage: "wifi.exclamationmark")
+                    } description: {
+                        Text("通信環境を確認して、もう一度お試しください。")
+                    } actions: {
+                        Button("もう一度試す") {
+                            Task { await store.loadNotifications() }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(PocoTheme.primary)
                     }
-                } icon: {
-                    Image(systemName: "heart.fill")
-                        .foregroundStyle(PocoTheme.primary)
+                } else if store.notifications.isEmpty {
+                    ContentUnavailableView {
+                        Label("まだ届いていません", systemImage: "bubble.left.and.bubble.right")
+                    } description: {
+                        Text("作品への新しい感想や、あなたのことばへの反応がここに届きます。")
+                    }
+                } else {
+                    List {
+                        notificationSection(
+                            "届いたことば",
+                            notifications: receivedFeedbackNotifications
+                        )
+                        notificationSection(
+                            "リアクション",
+                            notifications: reactionNotifications
+                        )
+                        notificationSection(
+                            "Pocoから",
+                            notifications: serviceNotifications
+                        )
+                    }
+                    .listStyle(.insetGrouped)
+                    .refreshable {
+                        await store.loadNotifications()
+                    }
                 }
             }
-            .navigationTitle("通知")
+            .background(PocoTheme.background)
+            .navigationTitle("届いたことば")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -231,6 +288,121 @@ struct NotificationCenterView: View {
                 }
             }
         }
+        .task {
+            await store.loadNotifications()
+            store.startObservingNotifications()
+        }
+        .sheet(item: $selectedFeedback) { feedback in
+            BubbleDetailSheet(feedbackID: feedback.id)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+        }
+        .sheet(isPresented: $showsRegistration) {
+            RegistrationGateView(context: .account)
+        }
+    }
+
+    @ViewBuilder
+    private func notificationSection(
+        _ title: String,
+        notifications: [PocoNotification]
+    ) -> some View {
+        if !notifications.isEmpty {
+            Section(title) {
+                ForEach(notifications) { notification in
+                    Button {
+                        open(notification)
+                    } label: {
+                        NotificationInboxRow(
+                            notification: notification,
+                            isOpening: openingNotificationID == notification.id
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(openingNotificationID != nil)
+                    .accessibilityHint(notification.destinationDescription ?? "通知を既読にします")
+                }
+            }
+        }
+    }
+
+    private func open(_ notification: PocoNotification) {
+        guard openingNotificationID == nil else { return }
+        openingNotificationID = notification.id
+        Task {
+            selectedFeedback = await store.openNotification(notification)
+            openingNotificationID = nil
+        }
+    }
+}
+
+private struct NotificationInboxRow: View {
+    let notification: PocoNotification
+    let isOpening: Bool
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(PocoTheme.primary.opacity(0.12))
+                Image(systemName: notification.type.symbolName)
+                    .pocoFont(.subheadline, weight: .medium)
+                    .foregroundStyle(PocoTheme.primary)
+            }
+            .frame(width: 38, height: 38)
+
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(notification.title)
+                        .pocoFont(
+                            .subheadline,
+                            weight: notification.isRead ? .medium : .bold
+                        )
+                        .foregroundStyle(Color.primary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if !notification.isRead {
+                        Circle()
+                            .fill(PocoTheme.primary)
+                            .frame(width: 7, height: 7)
+                            .accessibilityHidden(true)
+                    }
+                }
+
+                if let projectTitle = notification.projectTitle {
+                    Text(projectTitle)
+                        .pocoFont(.caption, weight: .medium)
+                        .foregroundStyle(PocoTheme.primary)
+                        .lineLimit(1)
+                }
+
+                if let preview = notification.messagePreview, !preview.isEmpty {
+                    Text(preview)
+                        .pocoFont(.caption)
+                        .foregroundStyle(PocoTheme.secondaryText)
+                        .lineLimit(2)
+                }
+
+                Text(notification.createdAt, style: .relative)
+                    .pocoFont(.caption2)
+                    .foregroundStyle(PocoTheme.secondaryText)
+            }
+
+            if isOpening {
+                ProgressView()
+                    .controlSize(.small)
+            } else if notification.feedbackID != nil {
+                Image(systemName: "chevron.right")
+                    .pocoFont(.caption, weight: .medium)
+                    .foregroundStyle(PocoTheme.secondaryText.opacity(0.6))
+            }
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(
+            notification.isRead ? notification.title : "未読、\(notification.title)"
+        )
     }
 }
 

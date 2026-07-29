@@ -27,9 +27,9 @@ struct BubbleDropView: View {
 
                     VStack(spacing: 5) {
                         Text(isDropped ? "あなたのことばが届きました" : "フキダシをおとそう")
-                            .font(.title2.weight(.bold))
+                            .pocoFont(.title2, weight: .bold)
                         Text(instructionText)
-                            .font(.subheadline)
+                            .pocoFont(.subheadline)
                             .foregroundStyle(PocoTheme.secondaryText)
                             .multilineTextAlignment(.center)
                     }
@@ -48,13 +48,13 @@ struct BubbleDropView: View {
                             selectedCreator = selectedFeedback.senderCreator
                         },
                         onCompanionTapped: { eventKey in
-                            store.awardStarCoins(1, eventKey: eventKey)
+                            store.claimStarCoinReward(eventKey: eventKey)
                         },
                         onRareCompanionBorn: { eventKey in
-                            store.awardStarCoins(5, eventKey: eventKey)
+                            store.claimStarCoinReward(eventKey: eventKey)
                         },
                         onRareCompanionTapped: { eventKey in
-                            store.awardStarCoins(1, eventKey: eventKey)
+                            store.claimStarCoinReward(eventKey: eventKey)
                         }
                     )
                     .frame(
@@ -130,18 +130,18 @@ struct BubbleDropView: View {
                 Image(systemName: deliveryState.symbolName)
                     .foregroundStyle(deliveryState == .failed ? .orange : PocoTheme.primary)
                 Text(deliveryState.title)
-                    .font(.headline)
+                    .pocoFont(.headline, weight: .medium)
             }
 
             if deliveryState == .failed {
                 Text("フキダシは画面に残っています")
-                    .font(.caption)
+                    .pocoFont(.caption)
                     .foregroundStyle(PocoTheme.secondaryText)
 
                 Button("もう一度送信する") {
                     deliver()
                 }
-                .font(.subheadline.weight(.semibold))
+                .pocoFont(.subheadline, weight: .medium)
                 .foregroundStyle(PocoTheme.primary)
                 .accessibilityHint("同じフキダシの送信を再試行します")
             } else if deliveryState == .sending {
@@ -152,7 +152,7 @@ struct BubbleDropView: View {
                 Button("みんなのフキダシを見る") {
                     showsWall = true
                 }
-                .font(.subheadline.weight(.semibold))
+                .pocoFont(.subheadline, weight: .medium)
                 .foregroundStyle(PocoTheme.primary)
 
                 if !store.canCreateProjects {
@@ -161,7 +161,7 @@ struct BubbleDropView: View {
                     Button("無料登録してPocoを続ける") {
                         showsRegistration = true
                     }
-                    .font(.subheadline.weight(.semibold))
+                    .pocoFont(.subheadline, weight: .medium)
                     .foregroundStyle(PocoTheme.primary)
                     .accessibilityHint("プロフィールと作品の感想箱を作れる無料登録画面を開きます")
                 }

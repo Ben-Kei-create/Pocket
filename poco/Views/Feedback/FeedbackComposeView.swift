@@ -21,9 +21,9 @@ struct FeedbackComposeView: View {
                 VStack(alignment: .leading, spacing: 22) {
                     VStack(alignment: .leading, spacing: 5) {
                         Text(project.title)
-                            .font(.headline)
+                            .pocoFont(.headline, weight: .medium)
                         Text("\(project.category.creatorPrefix)：\(project.creator.name)")
-                            .font(.subheadline)
+                            .pocoFont(.subheadline)
                             .foregroundStyle(PocoTheme.secondaryText)
                     }
 
@@ -31,7 +31,7 @@ struct FeedbackComposeView: View {
 
                     VStack(alignment: .leading, spacing: 9) {
                         Text("あなたの名前（ニックネーム）")
-                            .font(.subheadline.weight(.semibold))
+                            .pocoFont(.subheadline, weight: .medium)
                         TextField("例：そらのひつじ", text: $nickname)
                             .textInputAutocapitalization(.never)
                             .focused($focusedField, equals: .nickname)
@@ -41,7 +41,7 @@ struct FeedbackComposeView: View {
 
                     Toggle(isOn: $isPublic) {
                         Label("みんなに公開する", systemImage: "globe")
-                            .font(.subheadline.weight(.semibold))
+                            .pocoFont(.subheadline, weight: .medium)
                     }
                     .padding(17)
                     .pocoCard(cornerRadius: PocoTheme.cornerSmall)
@@ -55,7 +55,7 @@ struct FeedbackComposeView: View {
                     .accessibilityHint("次の画面でフキダシを落とします")
 
                     Text("送信するとフキダシをPocoに追加できます")
-                        .font(.caption)
+                        .pocoFont(.caption)
                         .foregroundStyle(PocoTheme.secondaryText)
                         .frame(maxWidth: .infinity)
                 }
@@ -107,7 +107,7 @@ struct FeedbackComposeView: View {
                 .frame(minHeight: 210)
 
             Text("\(message.count)/\(limit)")
-                .font(.caption.monospacedDigit())
+                .pocoFont(.caption).monospacedDigit()
                 .foregroundStyle(PocoTheme.secondaryText)
                 .padding(16)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)

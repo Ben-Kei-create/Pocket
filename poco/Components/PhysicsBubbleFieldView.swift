@@ -50,7 +50,7 @@ struct PhysicsBubbleFieldView: View {
                     worldHeight > proxy.size.height ? "上下にスクロール" : "最新",
                     systemImage: worldHeight > proxy.size.height ? "arrow.up.arrow.down" : "arrow.up"
                 )
-                    .font(.caption2.weight(.semibold))
+                    .pocoFont(.caption2, weight: .medium)
                     .foregroundStyle(PocoTheme.secondaryText)
                     .padding(.horizontal, 9)
                     .padding(.vertical, 6)

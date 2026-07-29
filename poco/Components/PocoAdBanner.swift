@@ -39,17 +39,17 @@ struct PocoAdBanner: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("スポンサー広告")
-                    .font(.caption2)
+                    .pocoFont(.caption2)
                     .foregroundStyle(PocoTheme.secondaryText)
                 Text("ここに広告が表示されます")
-                    .font(.caption.weight(.semibold))
+                    .pocoFont(.caption, weight: .medium)
                     .foregroundStyle(.primary)
             }
 
             Spacer(minLength: 8)
 
             Button("広告を消す", action: onRemoveAds)
-                .font(.caption.weight(.semibold))
+                .pocoFont(.caption, weight: .medium)
                 .foregroundStyle(PocoTheme.primary)
         }
         .padding(.horizontal, 14)

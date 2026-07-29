@@ -1,0 +1,21 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": [
+          "7R927F3U4V.com.fumiakiMogi777.poco"
+        ],
+        "components": [
+          {
+            "/": "/project/*",
+            "comment": "Poco project detail"
+          },
+          {
+            "/": "/p/*",
+            "comment": "Poco short project URL"
+          }
+        ]
+      }
+    ]
+  }
+}

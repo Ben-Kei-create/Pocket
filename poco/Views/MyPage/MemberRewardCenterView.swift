@@ -19,9 +19,9 @@ struct MemberRewardCenterView: View {
                         .padding(18)
                         .background(PocoTheme.bubble(.yellow), in: Circle())
                     Text("おかえりなさい")
-                        .font(.title2.bold())
+                        .pocoFont(.title2, weight: .bold)
                     Text("毎日ひらくと、小さなごほうびが届きます。")
-                        .font(.subheadline)
+                        .pocoFont(.subheadline)
                         .foregroundStyle(PocoTheme.secondaryText)
                         .multilineTextAlignment(.center)
                 }
@@ -54,23 +54,23 @@ struct MemberRewardCenterView: View {
                 } label: {
                     HStack(spacing: 14) {
                         Image(systemName: "seal.fill")
-                            .font(.title2)
+                            .pocoFont(.title2)
                             .foregroundStyle(PocoTheme.primary)
                             .frame(width: 44, height: 44)
                             .background(PocoTheme.bubble(.pink).opacity(0.7), in: Circle())
                         VStack(alignment: .leading, spacing: 3) {
                             Text("達成スタンプ")
-                                .font(.headline)
+                                .pocoFont(.headline, weight: .medium)
                             Text("集まったスタンプを見てみよう")
-                                .font(.caption)
+                                .pocoFont(.caption)
                                 .foregroundStyle(PocoTheme.secondaryText)
                         }
                         Spacer()
                         Text("\(store.memberRewardSnapshot.unlockedStamps.count)/\(AchievementStamp.allCases.count)")
-                            .font(.subheadline.weight(.bold).monospacedDigit())
+                            .pocoFont(.subheadline, weight: .bold).monospacedDigit()
                             .foregroundStyle(PocoTheme.primary)
                         Image(systemName: "chevron.right")
-                            .font(.caption.bold())
+                            .pocoFont(.caption, weight: .bold)
                             .foregroundStyle(PocoTheme.tertiaryText)
                     }
                     .padding(16)
@@ -95,7 +95,7 @@ struct MemberRewardCenterView: View {
                     "\(store.memberRewardSnapshot.loginStreak)日つづいています",
                     systemImage: "flame.fill"
                 )
-                .font(.headline)
+                .pocoFont(.headline, weight: .medium)
                 .foregroundStyle(PocoTheme.primary)
                 Spacer()
                 StarCoinBadge(balance: store.starCoinBalance)
@@ -106,12 +106,12 @@ struct MemberRewardCenterView: View {
                     let isCompleted = completedCycleDays.contains(index)
                     VStack(spacing: 6) {
                         Text("\(index + 1)")
-                            .font(.caption2.weight(.semibold))
+                            .pocoFont(.caption2, weight: .medium)
                             .foregroundStyle(PocoTheme.secondaryText)
                         Image(systemName: isCompleted ? "checkmark.circle.fill" : "star.fill")
                             .foregroundStyle(isCompleted ? PocoTheme.primary : Color.yellow)
                         Text("\(dailyRewards[index])")
-                            .font(.caption2.bold().monospacedDigit())
+                            .pocoFont(.caption2, weight: .bold).monospacedDigit()
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
@@ -130,7 +130,7 @@ struct MemberRewardCenterView: View {
             }
 
             Text("7日目まで進むと、また1日目から楽しめます。")
-                .font(.caption)
+                .pocoFont(.caption)
                 .foregroundStyle(PocoTheme.tertiaryText)
         }
         .padding(17)
@@ -194,10 +194,10 @@ struct AchievementStampsView: View {
                     .foregroundStyle(isUnlocked ? PocoTheme.primary : PocoTheme.tertiaryText)
             }
             Text(stamp.title)
-                .font(.subheadline.weight(.bold))
+                .pocoFont(.subheadline, weight: .bold)
                 .multilineTextAlignment(.center)
             Text(stamp.detail)
-                .font(.caption)
+                .pocoFont(.caption)
                 .foregroundStyle(PocoTheme.secondaryText)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)

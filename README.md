@@ -2,6 +2,9 @@
 
 SwiftUIで作られた、クリエイターへパステルカラーのフキダシで感想を届けるiOSアプリです。
 
+プロダクト原則、画面遷移、権限、イベント、実装済み／未実装機能は
+[`Docs/PocoBasicDesign.md`](Docs/PocoBasicDesign.md)にまとめています。
+
 ## Requirements
 
 - Xcode 26.5+
@@ -10,6 +13,14 @@ SwiftUIで作られた、クリエイターへパステルカラーのフキダ�
 - Supabase Swift SDK 2.46.0
 
 認証情報がない状態ではMock Repositoryで動作します。既存の投稿体験、Preview、開発用MockはSupabaseの設定なしで利用できます。
+
+## Typography
+
+日本語・欧文のブランドフォントには、商用アプリへ同梱できる
+**Zen Maru Gothic**（SIL Open Font License 1.1）を採用しています。
+Regular／Medium／Boldをアプリへ同梱し、`PocoTypography`からDynamic Type対応の
+相対サイズで使用します。フキダシをSpriteKitで描画する箇所も同じフォントです。
+ライセンス全文と出典は`poco/Resources/Fonts`に保存しています。
 
 ## Supabaseセットアップ
 
@@ -34,7 +45,7 @@ SwiftUIで作られた、クリエイターへパステルカラーのフキダ�
    ```
 
 6. `003_storage.sql`と`007_profile_avatars.sql`によって公開Bucket `project-images`、`profile-avatars`が作成されていることをStorage画面で確認します。
-7. Table Editorで全テーブルのRLSが有効であること、Realtime画面で`feedbacks`がpublicationへ追加されていることを確認します。
+7. Table Editorで全テーブルのRLSが有効であること、Realtime画面で`feedbacks`、`feedback_creator_receipts`、`notifications`がpublicationへ追加されていることを確認します。
 8. `poco.xcodeproj`を開き、DebugまたはReleaseで起動します。
 
 `Config/Secrets.xcconfig`は`.gitignore`対象です。値はSwiftファイルへ埋め込まれません。CIでは同じファイルをSecret Storeからビルド前に生成してください。
@@ -65,6 +76,11 @@ Migrationは次の順で再構築できます。
 - `012_creator_handles.sql`: 一意な`@クリエイターID`、自動発行、作品検索用View
 - `013_activity_and_atomic_project_limits.sql`: マイページ活動履歴RPC、無料3／Pro 30作品の同時作成対策
 - `014_member_rewards.sql`: 会員用ログインボーナス、達成スタンプ、スターコイン残高とRLS
+- `015_server_authority_and_coin_ledger.sql`: 検証済み⭐︎イベント台帳、日次上限、Pro限定キャラ検証、ログイン報酬の監査記録
+- `016_notifications.sql`: 登録ユーザー専用の通知受信箱、冪等生成Trigger、個別既読RPC、Realtime publication
+- `017_content_ratings_and_safe_browsing.sql`: 作品対象区分、非公開閲覧設定、成人向け情報を除去する検索RPC
+- `018_soft_delete_projects.sql`: 作品の即時非公開、30日保持、削除監査、通報証跡を守るパージRPC
+- `019_universal_link_project_lookup.sql`: URLから1作品だけを安全に解決する公開Project RPC
 
 `feedback_count`は重複カラムにせず`projects_with_feedback_count` Viewで計算します。`likes_count`は`feedback_likes`のINSERT/DELETEトリガーだけで更新し、整合性を維持します。
 
@@ -72,7 +88,11 @@ Migrationは次の順で再構築できます。
 
 作者も他のユーザーと同じ通常の「いいね」を使います。作者のLikeは通常の件数に含まれ、DBトリガーが`feedback_creator_receipts`へ1感想1件の❤️表示情報を同一トランザクションで保存します。クライアントからReceiptだけを直接追加することはできません。
 
+`016`以降、自作品へ届いた新着感想と、登録ユーザー自身の感想へ付いた通常Like／作者❤️は、DB Triggerだけが`notifications`へ追加します。`recipient_id + event_key`のUNIQUE制約で同じ出来事の二重通知を防ぎ、クライアントは通知本文を追加・変更できません。既読は本人確認付き`mark_notification_read` RPCで通知を開いた1件だけ更新します。Anonymous Authゲストは通知レコードとPush配信の対象外で、表示中のFeedback Realtimeだけを利用します。
+
 作品登録時は`creator`（制作者本人）、`authorized`（許可を得ている）、`fan`（非公式なファンの感想箱）のいずれかを選びます。本人・許諾確認が済むまでは`verification_status = unverified`として表示し、一般クライアントから`verified`へ変更できないDBトリガーを設定しています。公開ルールへの同意はバージョンと日時を保存し、同意情報のない新規作品をDBでも拒否します。
+
+登録ユーザーはCreator Dashboardから自分の作品だけを編集・削除できます。編集時も作品UUID、共有URL、QRコードは維持されます。画像差し替えは新画像のUploadとDB更新が成功してから旧画像を削除し、失敗時は新しい孤立画像を掃除します。作品削除は作者本人だけがRPCで要求でき、作品・感想・画像を即時非公開にしたまま30日間保持します。クライアントの物理DELETE権限はなく、通報履歴またはModeration履歴がある作品は自動パージ対象から除外されます。パージWorkerはStorage画像を先に削除し、service-role専用RPCでDBを物理削除します。
 
 `009`以降、通報はAnonymous Authを含む全ユーザーが利用できます。同じユーザーから同じ感想への通報は1件に集約し、1日20件の基本レート制限を設けます。投稿者本人の削除は公開本文・投稿者名・プロフィール参照を消去し、作者の操作は監査可能な`hidden_by_creator`として保持します。通報内容と`feedback_moderation_events`は公開されません。ブロック情報も本人だけが読み書きできます。
 
@@ -82,17 +102,19 @@ Migrationは次の順で再構築できます。
 
 WelcomeとHomeのQRスキャナーは、登録前のゲストでも利用できます。カメラを使えないSimulatorではスキャナー下部のURL入力から`poco://project/{projectID}`を開けます。
 
-公開時は`POCO_PUBLIC_BASE_URL`へ所有するHTTPSドメインを設定してください。xcconfigでは`//`がコメントとして解釈されるため、例として`https:/$()/example.com`の形式で指定します。設定後、作品QRと共有リンクは`https://example.com/project/{projectID}`になり、未インストール端末ではApp Storeへの案内を置いた同URLのWebページ、インストール済み端末ではUniversal LinkからPocoを開けます。インストール直後はWelcomeの「QRコードで感想を送る」から同じQRを再読取し、登録せずに投稿できます。
+公開時は`POCO_PUBLIC_BASE_URL`と`POCO_ASSOCIATED_DOMAIN`へ所有するHTTPSドメインを設定してください。xcconfigでは`//`がコメントとして解釈されるため、例として`https:/$()/example.com`の形式で指定します。設定後、作品QRと共有リンクは`https://example.com/project/{projectID}`になり、未インストール端末ではApp Storeへの案内を置いた同URLのWebページ、インストール済み端末ではUniversal LinkからPocoを開けます。URLからは専用RPCで対象の公開作品だけを取得するため、Home一覧の全件取得や端末側の表示判定には依存しません。インストール直後はWelcomeの「QRコードで感想を送る」から同じQRを再読取し、登録せずに投稿できます。
 
-Universal Link公開前に、HTTPSサイトの`/.well-known/apple-app-site-association`とXcodeのAssociated Domains（`applinks:example.com`）を実ドメインで設定してください。ドメイン未設定の開発環境では既存の`poco://`へ安全にフォールバックします。
+AASAテンプレート、Associated Domains、実機確認手順は[`Docs/UniversalLinksSetup.md`](Docs/UniversalLinksSetup.md)にあります。実ドメイン未設定の開発環境では既存の`poco://`へ安全にフォールバックします。
 
 ## ゲスト・Pocoユーザー・Poco Pro・広告
 
 - ゲスト投稿者にはSupabase Anonymous Authを使用し、登録画面なしで端末固有のユーザーIDを付与します。これにより、ゲストもRLSを保ったまま1つのフキダシへ1回いいねできます。Supabase DashboardでAnonymous Sign-Insを有効にしてください。
 - 閲覧・感想投稿・いいねはゲストでも利用できます。作品作成はPocoユーザー以上、共感順・自分の作品/感想に届いたいいね集計・広告非表示はPoco Proだけが利用できます。無料ユーザーは3作品、Proは30作品が上限です。`013`以降はユーザー単位のTransaction Advisory Lockを使い、複数端末からの同時作成でもDB側で上限を強制します。`006_registered_creators.sql`はAnonymous Authユーザーによる作品作成と画像更新をDB側でも拒否します。
 - PocoユーザーとPoco Proはマイページからログインボーナスと達成スタンプを利用できます。`014`のボーナスは日本時間で1日1回、DBのTransaction Advisory Lockで多重受取を防ぎます。スタンプ条件はDBの所有権・いいね・作者❤️から評価され、クライアントが任意に解放することはできません。
+- `015`以降、感想送信・キャラタップ・レアキャラ誕生を含む⭐︎付与は`claim_star_coin_event`だけが更新します。アプリは金額を送らず、DBが感想所有権、15%／5%の決定的出現条件、Pro資格、重複、日次上限を再検証して`star_coin_transactions`へ記録します。通常のキャラ操作は1日30⭐︎、感想送信報酬は1日20件を上限とします。
 - いいね済み状態は`feedback_likes`から復元します。画面内の連打防止だけに依存せず、DBの`unique(feedback_id, user_id)`を最終的な保証にしています。
 - `memberships`はアプリから更新できません。本番ではStoreKit 2の購入結果をApp Store Server Notificationsで検証し、service roleを持つEdge Functionなどからのみ更新します。
+- StoreKitの端末検証成功だけではPro機能を開放しません。署名済みTransactionをEdge Functionへ送り、`memberships`を再取得して`active`または`trialing`を確認できた場合だけPoco Proになります。Swift側では外部署名検証と⭐︎RPCを共通の`ServerAuthorityService`境界から呼び分けます。
 - Mock環境ではマイページまたは広告バーから登録・会員表示を試せます。Supabase環境ではStoreKit 2がApp Store Connectの商品情報を読み込み、購入・復元・端末上のTransaction検証を行います。
 - `PocoAdBanner`は広告枠のUI境界です。広告はHome・Project Detail・Bubble Wallだけに配置し、投稿入力・落下・完了体験には表示しません。現在はプレースホルダーで、配信開始時にGoogle Mobile Ads等の実装へ内部だけを差し替えます。
 - 共感順といいね集計はUI上で会員限定です。本番公開前には、共感順・会員集計を会員資格検証付きRPCへ移し、`likes_count`を直接ランキング用途で取得させないようにしてください。
@@ -142,7 +164,9 @@ Poco Proでは、同じ種類の顔ぷよ同士が衝突すると2体を消費�
 
 ## Sign in with Apple
 
-アプリ側はAuthenticationServices、SHA-256 nonce、Supabase `AuthRepository`、ログアウト、初回氏名のプロフィール保存まで実装済みです。ゲストが登録する場合はApple Identityを現在の匿名ユーザーへリンクし、登録前の感想・いいね所有権を可能な限り維持します。
+アプリ側はAuthenticationServices、SHA-256 nonce、Supabase `AuthRepository`、ログアウトまで実装済みです。登録フォームで必須にするのは公開ニックネームだけで、アバターは内蔵のデフォルトから任意変更できます。`@handle`は自動発行され、登録後に編集できます。ゲストが登録する場合はApple Identityを現在の匿名ユーザーへリンクし、登録前の感想・いいね所有権を可能な限り維持します。
+
+Appleがメールアドレスと氏名を返すのは最初の認証時だけです。Pocoはそのレスポンスを同じ認証処理内でSupabase Authの非公開metadataへ退避します。メールは公開`profiles`へ複製せず、Supabase Authのユーザー情報を正としてください。
 
 実際に接続するには以下の外部設定が必要です。
 
@@ -151,7 +175,13 @@ Poco Proでは、同じ種類の顔ぷよ同士が衝突すると2体を消費�
 3. Supabase AuthでApple ProviderとAnonymous Sign-Insを有効化
 4. Supabase AuthのManual Linkingを有効化（匿名ユーザー昇格に必要）
 5. Supabase Apple ProviderのClient IDsへネイティブApp IDを登録
-6. 初回Apple認証で取得した氏名が`profiles.display_name`へ保存されることを確認
+6. 初回Apple認証で入力したニックネームが`profiles.display_name`へ保存され、メール・Apple氏名が公開プロフィールへ露出しないことを確認
+
+## 成人向け区分と画像チェック
+
+`017`以降、作品は`general`または`mature`を持ちます。成人向け作品を閲覧できない利用者には、`browse_projects` RPCがタイトル・説明・画像URL・感想数をDB側で除去して返します。iOSアプリから閲覧許可を変更する機能は提供しません。将来、認証済みWeb設定とservice roleのEdge Functionを用意した場合だけ、非公開の`user_content_preferences`を更新してください。
+
+iOS 17のSensitive Content Analysisは画像選択時の一次判定に利用しますが、端末設定またはEntitlementが無効なら判定できません。本番ではApple DeveloperでSensitive Content Analysis Capabilityを有効化し、Provisioning Profileを更新してください。それでも最終検閲にはならないため、公開前にサーバー判定または目視レビューを追加する必要があります。
 
 Apple Identityが既存Pocoユーザーに紐づいている復帰ユーザーは既存アカウントへログインします。この場合、ログイン直前に新しい匿名IDで作ったデータを統合するには、次フェーズで所有権移行用Edge Functionが必要です。本番公開前には、アプリ内アカウント削除、Apple認証状態の失効確認、退会時の作品・感想データ保持方針も実装してください。
 

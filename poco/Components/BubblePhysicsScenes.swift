@@ -281,7 +281,7 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
                 )
                 let direction: CGFloat = stableUnit(feedback.id, salt: 71) < 0.5 ? -1 : 1
                 let proposedX = placement.position.x
-                    + direction * (placement.size.width * 0.43 + companion.visualSize.width * 0.25)
+                    + direction * (placement.size.width * 0.40 + companion.visualSize.width * 0.12)
                 companion.position = CGPoint(
                     x: min(
                         max(proposedX, companion.visualSize.width * 0.42 + 5),
@@ -596,7 +596,7 @@ final class BubbleDropPhysicsScene: SKScene, SKPhysicsContactDelegate {
                 companion.position = CGPoint(
                     x: min(
                         max(
-                            placement.position.x + direction * placement.size.width * 0.42,
+                            placement.position.x + direction * placement.size.width * 0.39,
                             companion.visualSize.width * 0.42 + 5
                         ),
                         size.width - companion.visualSize.width * 0.42 - 5
@@ -639,14 +639,14 @@ final class BubbleDropPhysicsScene: SKScene, SKPhysicsContactDelegate {
 
         let companion = PhysicsCompanionNode(
             feedback: pendingFeedback,
-            height: CompanionPhysicsMetrics.height(for: bubble.visualSize) * 1.08
+            height: CompanionPhysicsMetrics.height(for: bubble.visualSize)
         )
         let hasSpaceOnRight = bubble.position.x + bubble.visualSize.width * 0.65 < size.width
         let direction: CGFloat = hasSpaceOnRight ? 1 : -1
         companion.position = CGPoint(
             x: min(
                 max(
-                    bubble.position.x + direction * bubble.visualSize.width * 0.46,
+                    bubble.position.x + direction * bubble.visualSize.width * 0.40,
                     companion.visualSize.width * 0.42 + 5
                 ),
                 size.width - companion.visualSize.width * 0.42 - 5

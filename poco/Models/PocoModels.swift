@@ -112,6 +112,36 @@ nonisolated struct Project: Identifiable, Hashable, Codable, Sendable {
     let createdAt: Date
     var relationship: ProjectRelationship = .creator
     var verificationStatus: ProjectVerificationStatus = .unverified
+    var contentRating: ProjectContentRating = .general
+    var isContentLocked: Bool = false
+}
+
+nonisolated enum ProjectContentRating: String, CaseIterable, Identifiable, Codable, Sendable {
+    case general
+    case mature
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .general: "一般向け"
+        case .mature: "成人向けの可能性あり"
+        }
+    }
+
+    var explanation: String {
+        switch self {
+        case .general: "幅広い人が安心して閲覧できる内容です"
+        case .mature: "刺激の強い表現を含む可能性があります。露骨な性的表現は登録できません"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .general: "checkmark.shield"
+        case .mature: "eye.slash"
+        }
+    }
 }
 
 nonisolated enum ProjectRelationship: String, CaseIterable, Identifiable, Codable, Sendable {
@@ -347,12 +377,35 @@ nonisolated enum AccountStatus: String, Codable, Sendable {
 nonisolated struct AuthenticatedAccount: Equatable, Sendable {
     let id: UUID
     let displayName: String?
+    let email: String?
+
+    init(id: UUID, displayName: String?, email: String? = nil) {
+        self.id = id
+        self.displayName = displayName
+        self.email = email
+    }
 }
 
 nonisolated struct AppleIdentityCredential: Sendable {
     let identityToken: String
     let rawNonce: String
     let displayName: String?
+    let appleFullName: String?
+    let email: String?
+
+    init(
+        identityToken: String,
+        rawNonce: String,
+        displayName: String?,
+        appleFullName: String? = nil,
+        email: String? = nil
+    ) {
+        self.identityToken = identityToken
+        self.rawNonce = rawNonce
+        self.displayName = displayName
+        self.appleFullName = appleFullName
+        self.email = email
+    }
 }
 
 nonisolated enum AuthenticationState: Equatable, Sendable {

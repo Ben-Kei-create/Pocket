@@ -39,7 +39,7 @@ struct FeedbackReportSheet: View {
 
                 Section {
                     Text("通報したことは投稿者には通知されません。安全確認のためPoco運営が内容を確認します。")
-                        .font(.caption)
+                        .pocoFont(.caption)
                         .foregroundStyle(PocoTheme.secondaryText)
                 }
             }

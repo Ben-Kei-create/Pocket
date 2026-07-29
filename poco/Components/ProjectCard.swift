@@ -12,18 +12,24 @@ struct ProjectCard: View {
             VStack(alignment: .leading, spacing: 7) {
                 ProjectRelationshipBadge(project: project, compact: true)
 
+                if project.isContentLocked {
+                    Label("年齢制限あり", systemImage: "lock.fill")
+                        .pocoFont(.caption2, weight: .medium)
+                        .foregroundStyle(PocoTheme.primary)
+                }
+
                 Text(project.title)
-                    .font(.headline)
+                    .pocoFont(.headline, weight: .medium)
                     .foregroundStyle(.primary)
                     .lineLimit(2)
 
                 Text("\(project.category.creatorPrefix)：\(project.creator.name)")
-                    .font(.caption)
+                    .pocoFont(.caption)
                     .foregroundStyle(PocoTheme.secondaryText)
                     .lineLimit(1)
 
                 Text(project.description)
-                    .font(.caption)
+                    .pocoFont(.caption)
                     .foregroundStyle(PocoTheme.secondaryText)
                     .lineLimit(2)
                     .lineSpacing(2)
@@ -34,10 +40,10 @@ struct ProjectCard: View {
                     AvatarStack(names: ["は", "れ", "そ"])
                     Spacer()
                     Label(project.feedbackCount.formatted(), systemImage: "bubble.left")
-                        .font(.caption.weight(.medium))
+                        .pocoFont(.caption, weight: .medium)
                         .foregroundStyle(PocoTheme.secondaryText)
                     Image(systemName: "chevron.right")
-                        .font(.caption.weight(.bold))
+                        .pocoFont(.caption, weight: .bold)
                         .foregroundStyle(PocoTheme.primary)
                 }
             }
@@ -60,7 +66,7 @@ struct ProjectRelationshipBadge: View {
             project.relationship.badgeTitle(verificationStatus: project.verificationStatus),
             systemImage: badgeSymbol
         )
-        .font(compact ? .caption2.weight(.semibold) : .caption.weight(.semibold))
+        .pocoFont(compact ? .caption2 : .caption, weight: .medium)
         .foregroundStyle(badgeColor)
         .padding(.horizontal, compact ? 7 : 9)
         .padding(.vertical, compact ? 3 : 5)
@@ -91,7 +97,21 @@ struct ProjectArtworkThumbnail: View {
     let project: Project
 
     var body: some View {
-        if let imageURL = project.imageURL {
+        if project.isContentLocked {
+            ProjectArtworkView(category: project.category)
+                .overlay {
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                    VStack(spacing: 6) {
+                        Image(systemName: "lock.fill")
+                            .pocoFont(.title3)
+                        Text("年齢制限")
+                            .pocoFont(.caption2, weight: .medium)
+                    }
+                    .foregroundStyle(PocoTheme.secondaryText)
+                }
+                .accessibilityLabel("年齢制限により画像を非表示")
+        } else if let imageURL = project.imageURL {
             AsyncImage(
                 url: imageURL,
                 transaction: Transaction(animation: .easeInOut(duration: 0.2))
@@ -127,7 +147,7 @@ struct AvatarStack: View {
         HStack(spacing: -7) {
             ForEach(Array(names.enumerated()), id: \.offset) { index, name in
                 Text(name)
-                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .pocoFixedFont(size: 9, weight: .bold)
                     .foregroundStyle(.white)
                     .frame(width: 25, height: 25)
                     .background(PocoTheme.bubble(BubbleColor.allCases[index % BubbleColor.allCases.count]).opacity(0.95))

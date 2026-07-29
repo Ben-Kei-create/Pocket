@@ -31,7 +31,8 @@ enum RegistrationGateContext {
 struct RegistrationGateView: View {
     @Environment(PocoStore.self) private var store
     @Environment(\.dismiss) private var dismiss
-    @State private var avatarName: String?
+    @State private var nickname = ""
+    @State private var avatarName: String? = BuiltInAvatar.cat.rawValue
     @State private var avatarImageData: Data?
     var context: RegistrationGateContext = .createProject
     var onRegistered: (() -> Void)?
@@ -42,11 +43,39 @@ struct RegistrationGateView: View {
                 VStack(spacing: 22) {
                     VStack(spacing: 9) {
                         Text(context.title)
-                            .font(.title2.bold())
+                            .pocoFont(.title2, weight: .bold)
                         Text(context.message)
-                            .font(.subheadline)
+                            .pocoFont(.subheadline)
                             .foregroundStyle(PocoTheme.secondaryText)
                             .multilineTextAlignment(.center)
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("ニックネーム")
+                            .pocoFont(.subheadline, weight: .medium)
+                        TextField("Pocoで使う名前", text: $nickname)
+                            .textContentType(.nickname)
+                            .textInputAutocapitalization(.never)
+                            .padding(14)
+                            .background(PocoTheme.cardBackground)
+                            .clipShape(
+                                RoundedRectangle(
+                                    cornerRadius: PocoTheme.cornerSmall,
+                                    style: .continuous
+                                )
+                            )
+                            .onChange(of: nickname) { _, value in
+                                if value.count > 80 {
+                                    nickname = String(value.prefix(80))
+                                }
+                            }
+                        HStack {
+                            Text("フキダシとプロフィールに表示されます")
+                            Spacer()
+                            Text("\(nickname.count)/80")
+                        }
+                        .pocoFont(.caption)
+                        .foregroundStyle(PocoTheme.tertiaryText)
                     }
 
                     ProfileAvatarPicker(
@@ -64,7 +93,7 @@ struct RegistrationGateView: View {
                     registrationControl
 
                     Text("閲覧・感想投稿・いいねはゲストのまま利用できます。")
-                        .font(.caption)
+                        .pocoFont(.caption)
                         .foregroundStyle(PocoTheme.tertiaryText)
                 }
                 .padding(PocoTheme.pagePadding)
@@ -91,6 +120,7 @@ struct RegistrationGateView: View {
         if store.backendMode == .mock {
             Button {
                 store.registerPreviewAccount(
+                    displayName: normalizedNickname,
                     avatarName: avatarName,
                     avatarImageData: avatarImageData
                 )
@@ -100,24 +130,30 @@ struct RegistrationGateView: View {
                 Label("デモでユーザー登録する", systemImage: "person.badge.plus")
             }
             .buttonStyle(PocoPrimaryButtonStyle())
+            .disabled(normalizedNickname.isEmpty)
         } else {
             AppleRegistrationButton(
+                displayName: normalizedNickname,
                 avatarName: avatarName,
                 avatarImageData: avatarImageData
             )
 
             if store.authenticationState == .authenticating {
                 ProgressView("登録しています…")
-                    .font(.caption)
+                    .pocoFont(.caption)
             }
 
             if case .error(let message) = store.authenticationState {
                 Text(message)
-                    .font(.caption)
+                    .pocoFont(.caption)
                     .foregroundStyle(.red)
                     .multilineTextAlignment(.center)
             }
         }
+    }
+
+    private var normalizedNickname: String {
+        nickname.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func benefit(_ text: String, symbol: String) -> some View {
@@ -126,7 +162,7 @@ struct RegistrationGateView: View {
                 .foregroundStyle(PocoTheme.primary)
                 .frame(width: 26)
             Text(text)
-                .font(.subheadline.weight(.medium))
+                .pocoFont(.subheadline, weight: .medium)
             Spacer()
             Image(systemName: "checkmark")
                 .foregroundStyle(PocoTheme.secondaryText)

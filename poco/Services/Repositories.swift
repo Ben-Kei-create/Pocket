@@ -3,11 +3,15 @@ import Foundation
 protocol ProjectRepository: Sendable {
     nonisolated func fetchProjects() async throws -> [Project]
     nonisolated func fetchProjects(creatorID: UUID) async throws -> [Project]
+    nonisolated func fetchProject(id: UUID) async throws -> Project
     nonisolated func createProject(_ project: Project) async throws
+    nonisolated func updateProject(_ project: Project) async throws
+    nonisolated func deleteProject(id: UUID) async throws
 }
 
 protocol FeedbackRepository: Sendable {
     nonisolated func fetchFeedbacks(projectID: UUID) async throws -> [Feedback]
+    nonisolated func fetchFeedback(id: UUID) async throws -> Feedback
     nonisolated func fetchLikedFeedbacks() async throws -> [Feedback]
     nonisolated func submitFeedback(_ feedback: Feedback) async throws
     nonisolated func likeFeedback(id: UUID) async throws
@@ -81,6 +85,13 @@ protocol ModerationRepository: Sendable {
     nonisolated func blockProfile(id: UUID) async throws
 }
 
+protocol NotificationRepository: Sendable {
+    nonisolated func fetchNotifications() async throws -> [PocoNotification]
+    nonisolated func markRead(id: UUID) async throws -> Date
+    nonisolated func observeNotifications(
+    ) async -> AsyncThrowingStream<PocoNotification, any Error>
+}
+
 actor MockProjectRepository: ProjectRepository {
     private var projects: [Project]
 
@@ -98,8 +109,29 @@ actor MockProjectRepository: ProjectRepository {
             .sorted { $0.createdAt > $1.createdAt }
     }
 
+    func fetchProject(id: UUID) async throws -> Project {
+        guard let project = projects.first(where: { $0.id == id }) else {
+            throw AppError.notFound
+        }
+        return project
+    }
+
     func createProject(_ project: Project) async throws {
         projects.insert(project, at: 0)
+    }
+
+    func updateProject(_ project: Project) async throws {
+        guard let index = projects.firstIndex(where: { $0.id == project.id }) else {
+            throw AppError.notFound
+        }
+        projects[index] = project
+    }
+
+    func deleteProject(id: UUID) async throws {
+        guard let index = projects.firstIndex(where: { $0.id == id }) else {
+            throw AppError.notFound
+        }
+        projects.remove(at: index)
     }
 }
 
@@ -116,6 +148,13 @@ actor MockFeedbackRepository: FeedbackRepository {
         feedbacks
             .filter { $0.projectID == projectID && $0.isPublic }
             .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    func fetchFeedback(id: UUID) async throws -> Feedback {
+        guard let feedback = feedbacks.first(where: { $0.id == id }) else {
+            throw AppError.notFound
+        }
+        return feedback
     }
 
     func fetchLikedFeedbacks() async throws -> [Feedback] {
@@ -268,7 +307,11 @@ struct MockAuthRepository: AuthRepository {
         credential: AppleIdentityCredential
     ) async throws -> AuthenticatedAccount {
         UserDefaults.standard.set(true, forKey: "poco.previewRegisteredAccount")
-        return AuthenticatedAccount(id: userID, displayName: credential.displayName)
+        return AuthenticatedAccount(
+            id: userID,
+            displayName: credential.displayName,
+            email: credential.email
+        )
     }
 
     nonisolated func signOut() async throws {

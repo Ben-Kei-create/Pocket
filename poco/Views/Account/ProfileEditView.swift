@@ -34,7 +34,7 @@ struct ProfileEditView: View {
 
                     VStack(alignment: .leading, spacing: 9) {
                         Text("表示名")
-                            .font(.subheadline.weight(.semibold))
+                            .pocoFont(.subheadline, weight: .medium)
                         TextField("Pocoで使う名前", text: $displayName)
                             .textInputAutocapitalization(.words)
                             .submitLabel(.done)
@@ -46,14 +46,14 @@ struct ProfileEditView: View {
                                 }
                             }
                         Text("\(displayName.count)/80")
-                            .font(.caption.monospacedDigit())
+                            .pocoFont(.caption).monospacedDigit()
                             .foregroundStyle(PocoTheme.tertiaryText)
                             .frame(maxWidth: .infinity, alignment: .trailing)
                     }
 
                     VStack(alignment: .leading, spacing: 9) {
                         Text("クリエイターID")
-                            .font(.subheadline.weight(.semibold))
+                            .pocoFont(.subheadline, weight: .medium)
                         HStack(spacing: 6) {
                             Text("@")
                                 .foregroundStyle(PocoTheme.secondaryText)
@@ -64,7 +64,7 @@ struct ProfileEditView: View {
                         .padding(16)
                         .pocoCard(cornerRadius: PocoTheme.cornerSmall)
                         Text("半角英小文字・数字・_ を3〜24文字。作品検索に使われます。")
-                            .font(.caption)
+                            .pocoFont(.caption)
                             .foregroundStyle(
                                 handle.isEmpty || CreatorHandle.isValid(normalizedHandle)
                                     ? PocoTheme.tertiaryText
@@ -79,7 +79,7 @@ struct ProfileEditView: View {
 
                     if let errorMessage {
                         Text(errorMessage)
-                            .font(.caption)
+                            .pocoFont(.caption)
                             .foregroundStyle(.red)
                             .multilineTextAlignment(.center)
                     }

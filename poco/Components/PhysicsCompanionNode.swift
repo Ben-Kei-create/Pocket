@@ -33,7 +33,10 @@ final class PhysicsCompanionNode: SKNode {
             visualContainer.addChild(sprite)
         }
 
-        physicsBody = SKPhysicsBody(circleOfRadius: height * 0.40)
+        // Keep the visible character friendly and readable while giving it a
+        // smaller physical footprint. Nearby artwork can overlap slightly;
+        // actual body contact still triggers the poyon response in the scene.
+        physicsBody = SKPhysicsBody(circleOfRadius: height * 0.31)
         physicsBody?.categoryBitMask = PhysicsCategory.companion
         physicsBody?.collisionBitMask = PhysicsCategory.bubble
             | PhysicsCategory.companion
@@ -42,9 +45,9 @@ final class PhysicsCompanionNode: SKNode {
         physicsBody?.contactTestBitMask = PhysicsCategory.bubble
             | PhysicsCategory.companion
             | PhysicsCategory.floor
-        physicsBody?.restitution = 0.48
-        physicsBody?.friction = 0.56
-        physicsBody?.linearDamping = 0.52
+        physicsBody?.restitution = 0.58
+        physicsBody?.friction = 0.48
+        physicsBody?.linearDamping = 0.66
         physicsBody?.angularDamping = 0.86
         physicsBody?.mass = 0.075
         physicsBody?.allowsRotation = false
@@ -130,7 +133,7 @@ final class PhysicsRareCompanionNode: SKNode {
     private let visualContainer = SKNode()
     private var didGrantTapReward = false
 
-    init(kind: RareCompanionKind, eventKey: String, height: CGFloat = 72) {
+    init(kind: RareCompanionKind, eventKey: String, height: CGFloat = 60) {
         self.kind = kind
         self.eventKey = eventKey
 
@@ -151,7 +154,7 @@ final class PhysicsRareCompanionNode: SKNode {
             visualContainer.addChild(sprite)
         }
 
-        physicsBody = SKPhysicsBody(circleOfRadius: height * 0.34)
+        physicsBody = SKPhysicsBody(circleOfRadius: height * 0.29)
         physicsBody?.categoryBitMask = PhysicsCategory.companion
         physicsBody?.collisionBitMask = PhysicsCategory.bubble
             | PhysicsCategory.companion
@@ -160,9 +163,9 @@ final class PhysicsRareCompanionNode: SKNode {
         physicsBody?.contactTestBitMask = PhysicsCategory.bubble
             | PhysicsCategory.companion
             | PhysicsCategory.floor
-        physicsBody?.restitution = 0.52
-        physicsBody?.friction = 0.58
-        physicsBody?.linearDamping = 0.54
+        physicsBody?.restitution = 0.60
+        physicsBody?.friction = 0.50
+        physicsBody?.linearDamping = 0.68
         physicsBody?.angularDamping = 0.88
         physicsBody?.mass = 0.09
         physicsBody?.allowsRotation = false
@@ -216,7 +219,7 @@ final class PhysicsRareCompanionNode: SKNode {
 
 enum CompanionPhysicsMetrics {
     static func height(for bubbleSize: CGSize) -> CGFloat {
-        min(48, max(34, bubbleSize.height * 0.60))
+        min(44, max(32, bubbleSize.height * 0.54))
     }
 }
 

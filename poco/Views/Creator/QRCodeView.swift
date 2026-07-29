@@ -12,10 +12,10 @@ struct QRCodeView: View {
             VStack(spacing: 26) {
                 VStack(spacing: 8) {
                     Text(project.title)
-                        .font(.title2.weight(.bold))
+                        .pocoFont(.title2, weight: .bold)
                         .multilineTextAlignment(.center)
                     Text("このQRコードから感想を送れます")
-                        .font(.subheadline)
+                        .pocoFont(.subheadline)
                         .foregroundStyle(PocoTheme.secondaryText)
                 }
 

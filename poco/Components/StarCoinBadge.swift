@@ -9,7 +9,7 @@ struct StarCoinBadge: View {
                 .foregroundStyle(.yellow)
                 .symbolRenderingMode(.hierarchical)
             Text(balance.formatted())
-                .font(.subheadline.monospacedDigit().weight(.bold))
+                .pocoFont(.subheadline, weight: .bold).monospacedDigit()
                 .foregroundStyle(.primary)
         }
         .padding(.horizontal, 10)

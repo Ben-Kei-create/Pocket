@@ -15,7 +15,7 @@ struct WelcomeView: View {
                     PocoLogoView()
 
                     Text("あなたのことばが、\nクリエイターのチカラになる。")
-                        .font(.headline)
+                        .pocoFont(.headline, weight: .medium)
                         .fontWeight(.medium)
                         .multilineTextAlignment(.center)
                         .lineSpacing(7)
@@ -50,7 +50,7 @@ struct WelcomeView: View {
                         Button("無料登録・ログイン") {
                             showsRegistration = true
                         }
-                        .font(.subheadline.weight(.semibold))
+                        .pocoFont(.subheadline, weight: .medium)
                         .foregroundStyle(PocoTheme.primary)
                         .frame(minHeight: 44)
                     }
@@ -86,7 +86,7 @@ private struct PocoLogoView: View {
                     .foregroundStyle(item.1)
             }
         }
-        .font(.system(size: 72, weight: .medium, design: .rounded))
+        .pocoFixedFont(size: 72, weight: .medium)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Poco")
     }

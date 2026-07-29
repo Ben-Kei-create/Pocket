@@ -18,14 +18,14 @@ struct MyPageView: View {
                         )
                         VStack(alignment: .leading, spacing: 4) {
                             Text(store.currentDisplayName)
-                                .font(.headline)
+                                .pocoFont(.headline, weight: .medium)
                             if let handle = store.currentProfile?.handle {
                                 Text("@\(handle)")
-                                    .font(.caption.weight(.medium))
+                                    .pocoFont(.caption, weight: .medium)
                                     .foregroundStyle(PocoTheme.primary)
                             }
                             Text(accountLabel)
-                                .font(.caption)
+                                .pocoFont(.caption)
                                 .foregroundStyle(PocoTheme.secondaryText)
                         }
                         Spacer()
@@ -33,7 +33,7 @@ struct MyPageView: View {
                             Button("編集") {
                                 showsProfileEdit = true
                             }
-                            .font(.subheadline.weight(.semibold))
+                            .pocoFont(.subheadline, weight: .medium)
                             .foregroundStyle(PocoTheme.primary)
                             .accessibilityLabel("プロフィールを編集")
                         }
@@ -66,7 +66,7 @@ struct MyPageView: View {
                                 showsRegistration = true
                             } label: {
                                 Label("ユーザー登録する", systemImage: "person.badge.plus")
-                                    .font(.headline)
+                                    .pocoFont(.headline, weight: .medium)
                                     .foregroundStyle(PocoTheme.primary)
                             }
                         } footer: {
@@ -79,7 +79,7 @@ struct MyPageView: View {
                             showsMembership = true
                         } label: {
                             Label("Poco Proになる", systemImage: "heart.circle.fill")
-                                .font(.headline)
+                                .pocoFont(.headline, weight: .medium)
                                 .foregroundStyle(PocoTheme.primary)
                         }
                     } footer: {
@@ -103,13 +103,13 @@ struct MyPageView: View {
                                             ? "今日のごほうびが届いています"
                                             : "\(store.memberRewardSnapshot.loginStreak)日つづいています"
                                     )
-                                    .font(.caption)
+                                    .pocoFont(.caption)
                                     .foregroundStyle(PocoTheme.secondaryText)
                                 }
                                 Spacer()
                                 if store.memberRewardSnapshot.canClaimToday {
                                     Text("NEW")
-                                        .font(.caption2.bold())
+                                        .pocoFont(.caption2, weight: .bold)
                                         .foregroundStyle(PocoTheme.primary)
                                         .padding(.horizontal, 8)
                                         .padding(.vertical, 4)
@@ -128,7 +128,7 @@ struct MyPageView: View {
                                     "\(store.memberRewardSnapshot.unlockedStamps.count)"
                                         + "/\(AchievementStamp.allCases.count)"
                                 )
-                                .font(.subheadline.monospacedDigit())
+                                .pocoFont(.subheadline).monospacedDigit()
                                 .foregroundStyle(PocoTheme.secondaryText)
                             }
                         }
@@ -151,9 +151,25 @@ struct MyPageView: View {
                     Button {
                         showsNotifications = true
                     } label: {
-                        Label("通知", systemImage: "bell")
+                        HStack {
+                            Label("届いたことば", systemImage: "bell")
+                            Spacer()
+                            if store.unreadNotificationCount > 0 {
+                                Text(store.unreadNotificationCount.formatted())
+                                    .pocoFont(.caption2, weight: .bold)
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 7)
+                                    .padding(.vertical, 3)
+                                    .background(PocoTheme.primary, in: Capsule())
+                            }
+                        }
                     }
                     .foregroundStyle(.primary)
+                    .accessibilityLabel(
+                        store.unreadNotificationCount > 0
+                            ? "届いたことば、未読\(store.unreadNotificationCount)件"
+                            : "届いたことば"
+                    )
 
                     NavigationLink {
                         PocoSettingsView()
@@ -210,7 +226,7 @@ private struct LikeSummaryRow: View {
             Text(title)
             Spacer()
             Label(value.formatted(), systemImage: "heart.fill")
-                .font(.headline.monospacedDigit())
+                .pocoFont(.headline).monospacedDigit()
                 .foregroundStyle(PocoTheme.primary)
         }
         .accessibilityElement(children: .combine)

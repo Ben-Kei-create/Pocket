@@ -5,25 +5,49 @@ struct CreateProjectView: View {
     @Environment(PocoStore.self) private var store
     @Environment(\.dismiss) private var dismiss
 
-    @State private var title = ""
-    @State private var creatorName = ""
-    @State private var category = ProjectCategory.book
-    @State private var relationship = ProjectRelationship.creator
-    @State private var projectDescription = ""
+    let project: Project?
+    var onProjectLimitReached: () -> Void
+
+    @State private var title: String
+    @State private var creatorName: String
+    @State private var category: ProjectCategory
+    @State private var contentRating: ProjectContentRating
+    @State private var relationship: ProjectRelationship
+    @State private var projectDescription: String
     @State private var isPhotoPickerPresented = false
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var selectedImage: UIImage?
     @State private var selectedImageData: Data?
     @State private var isSaving = false
+    @State private var isAnalyzingImage = false
     @State private var saveErrorMessage: String?
-    @State private var hasAgreedToPublishingRules = false
+    @State private var hasAgreedToPublishingRules: Bool
     @State private var showsPublishingRules = false
+    @State private var removesExistingImage = false
+
+    init(
+        project: Project? = nil,
+        onProjectLimitReached: @escaping () -> Void = {}
+    ) {
+        self.project = project
+        self.onProjectLimitReached = onProjectLimitReached
+        _title = State(initialValue: project?.title ?? "")
+        _creatorName = State(initialValue: project?.creator.name ?? "")
+        _category = State(initialValue: project?.category ?? .book)
+        _contentRating = State(initialValue: project?.contentRating ?? .general)
+        _relationship = State(initialValue: project?.relationship ?? .creator)
+        _projectDescription = State(initialValue: project?.description ?? "")
+        _hasAgreedToPublishingRules = State(initialValue: project != nil)
+    }
+
+    private var isEditing: Bool { project != nil }
 
     private var isValid: Bool {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !creatorName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !projectDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && hasAgreedToPublishingRules
+            && (isEditing || hasAgreedToPublishingRules)
+            && !isAnalyzingImage
     }
 
     var body: some View {
@@ -60,9 +84,26 @@ struct CreateProjectView: View {
                                     Image(uiImage: selectedImage)
                                         .resizable()
                                         .scaledToFill()
+                                } else if !removesExistingImage,
+                                          let imageURL = project?.imageURL {
+                                    AsyncImage(url: imageURL) { phase in
+                                        switch phase {
+                                        case .success(let image):
+                                            image
+                                                .resizable()
+                                                .scaledToFill()
+                                        case .empty:
+                                            ProgressView()
+                                        case .failure:
+                                            Image(systemName: "photo.badge.plus")
+                                                .foregroundStyle(PocoTheme.primary)
+                                        @unknown default:
+                                            EmptyView()
+                                        }
+                                    }
                                 } else {
                                     Image(systemName: "photo.badge.plus")
-                                        .font(.title2)
+                                        .pocoFont(.title2)
                                         .foregroundStyle(PocoTheme.primary)
                                 }
                             }
@@ -70,7 +111,16 @@ struct CreateProjectView: View {
                             .background(PocoTheme.primary.opacity(0.08))
                             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-                            Text(selectedImage == nil ? "画像を選ぶ" : "画像を変更")
+                            if isAnalyzingImage {
+                                ProgressView("画像を確認しています…")
+                            } else {
+                                Text(
+                                    selectedImage != nil
+                                        || (!removesExistingImage && project?.imageURL != nil)
+                                        ? "画像を変更"
+                                        : "画像を選ぶ"
+                                )
+                            }
                         }
                     }
                     .buttonStyle(.plain)
@@ -79,6 +129,15 @@ struct CreateProjectView: View {
                         selection: $selectedPhoto,
                         matching: .images
                     )
+
+                    if selectedImage != nil || (!removesExistingImage && project?.imageURL != nil) {
+                        Button("画像を削除", role: .destructive) {
+                            selectedPhoto = nil
+                            selectedImage = nil
+                            selectedImageData = nil
+                            removesExistingImage = true
+                        }
+                    }
                 }
 
                 Section("作品情報") {
@@ -90,17 +149,38 @@ struct CreateProjectView: View {
                                 .tag(category)
                         }
                     }
+                    Picker("対象区分", selection: $contentRating) {
+                        ForEach(ProjectContentRating.allCases) { rating in
+                            Label(rating.title, systemImage: rating.symbolName)
+                                .tag(rating)
+                        }
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(contentRating.explanation)
+                            .pocoFont(.caption)
+                            .foregroundStyle(PocoTheme.secondaryText)
+                        if contentRating == .mature {
+                            Text("Web側で閲覧を許可したユーザー以外には、画像と内容を表示しません。")
+                                .pocoFont(.caption, weight: .medium)
+                                .foregroundStyle(PocoTheme.primary)
+                        }
+                    }
                     TextField("作品の説明", text: $projectDescription, axis: .vertical)
                         .lineLimit(4...8)
                 }
 
-                Section("公開前の確認") {
-                    Toggle(isOn: $hasAgreedToPublishingRules) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("作品登録のルールに同意する")
-                            Text("なりすましをせず、画像や文章の権利を守ります")
-                                .font(.caption)
-                                .foregroundStyle(PocoTheme.secondaryText)
+                Section(isEditing ? "登録ルール" : "公開前の確認") {
+                    if isEditing {
+                        Label("作品登録時に同意済みです", systemImage: "checkmark.shield.fill")
+                            .foregroundStyle(PocoTheme.secondaryText)
+                    } else {
+                        Toggle(isOn: $hasAgreedToPublishingRules) {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("作品登録のルールに同意する")
+                                Text("なりすましをせず、画像や文章の権利を守ります")
+                                    .pocoFont(.caption)
+                                    .foregroundStyle(PocoTheme.secondaryText)
+                            }
                         }
                     }
 
@@ -110,12 +190,16 @@ struct CreateProjectView: View {
                 }
 
                 Section {
-                    Text("保存後、作品専用のURLとQRコードが作成されます。")
-                        .font(.caption)
+                    Text(
+                        isEditing
+                            ? "作品専用URLとQRコードは変更されません。"
+                            : "保存後、作品専用のURLとQRコードが作成されます。"
+                    )
+                        .pocoFont(.caption)
                         .foregroundStyle(PocoTheme.secondaryText)
                 }
             }
-            .navigationTitle("新しい作品")
+            .navigationTitle(isEditing ? "作品を編集" : "新しい作品")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -143,10 +227,20 @@ struct CreateProjectView: View {
             }
             .onChange(of: selectedPhoto) { _, item in
                 Task {
+                    isAnalyzingImage = true
+                    defer { isAnalyzingImage = false }
                     guard let data = try? await item?.loadTransferable(type: Data.self),
                           let image = UIImage(data: data) else { return }
+                    guard await ImageSensitivityService.analyze(data) != .sensitive else {
+                        selectedPhoto = nil
+                        selectedImageData = nil
+                        selectedImage = nil
+                        saveErrorMessage = "露骨な性的表現を含む可能性がある画像は、対象区分にかかわらず登録できません。"
+                        return
+                    }
                     selectedImageData = data
                     selectedImage = image
+                    removesExistingImage = false
                 }
             }
             .alert(
@@ -163,26 +257,50 @@ struct CreateProjectView: View {
             .sheet(isPresented: $showsPublishingRules) {
                 ProjectPublishingGuidelinesView()
             }
+            .interactiveDismissDisabled(isSaving)
         }
     }
 
     private func save() {
         isSaving = true
         Task {
-            let result = await store.createProject(
-                title: title.trimmingCharacters(in: .whitespacesAndNewlines),
-                creatorName: creatorName.trimmingCharacters(in: .whitespacesAndNewlines),
-                category: category,
-                relationship: relationship,
-                description: projectDescription.trimmingCharacters(in: .whitespacesAndNewlines),
-                imageData: selectedImageData
-            )
+            let cleanTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+            let cleanCreatorName = creatorName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let cleanDescription = projectDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+            let result: Result<Project, AppError>
+            if let project {
+                result = await store.updateProject(
+                    project,
+                    title: cleanTitle,
+                    creatorName: cleanCreatorName,
+                    category: category,
+                    relationship: relationship,
+                    contentRating: contentRating,
+                    description: cleanDescription,
+                    imageData: selectedImageData,
+                    removesExistingImage: removesExistingImage
+                )
+            } else {
+                result = await store.createProject(
+                    title: cleanTitle,
+                    creatorName: cleanCreatorName,
+                    category: category,
+                    relationship: relationship,
+                    contentRating: contentRating,
+                    description: cleanDescription,
+                    imageData: selectedImageData
+                )
+            }
             isSaving = false
             switch result {
             case .success:
                 dismiss()
             case .failure(let error):
-                saveErrorMessage = error.userMessage
+                if error == .projectLimitReached {
+                    onProjectLimitReached()
+                } else {
+                    saveErrorMessage = error.userMessage
+                }
             }
         }
     }
@@ -195,16 +313,16 @@ private struct ProjectRelationshipOptionRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: relationship.symbolName)
-                .font(.title3)
+                .pocoFont(.title3)
                 .foregroundStyle(isSelected ? PocoTheme.primary : PocoTheme.secondaryText)
                 .frame(width: 30)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(relationship.title)
-                    .font(.body.weight(.semibold))
+                    .pocoFont(.body, weight: .medium)
                     .foregroundStyle(.primary)
                 Text(relationship.explanation)
-                    .font(.caption)
+                    .pocoFont(.caption)
                     .foregroundStyle(PocoTheme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }

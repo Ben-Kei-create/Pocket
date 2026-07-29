@@ -40,7 +40,7 @@ struct BubbleDetailSheet: View {
                                 Label("\(feedback.likes)", systemImage: "heart.fill")
                             }
                         }
-                        .font(.subheadline)
+                        .pocoFont(.subheadline)
                         .foregroundStyle(PocoTheme.secondaryText)
 
                         Button {
@@ -65,7 +65,7 @@ struct BubbleDetailSheet: View {
 
                         if feedback.creatorReceivedAt != nil {
                             Label("作者もいいねしました", systemImage: "heart.fill")
-                                .font(.subheadline.weight(.semibold))
+                                .pocoFont(.subheadline, weight: .medium)
                                 .foregroundStyle(PocoTheme.primary)
                                 .accessibilityLabel("作者がこの感想にいいねしました")
                         }
