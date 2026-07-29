@@ -238,6 +238,7 @@ nonisolated struct FeedbackDTO: Codable, Sendable {
     let likesCount: Int
     let moderationStatus: String
     let createdAt: Date
+    let expiresAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -250,6 +251,7 @@ nonisolated struct FeedbackDTO: Codable, Sendable {
         case likesCount = "likes_count"
         case moderationStatus = "moderation_status"
         case createdAt = "created_at"
+        case expiresAt = "expires_at"
     }
 
     init(feedback: Feedback, authorProfileID: UUID?) {
@@ -263,6 +265,7 @@ nonisolated struct FeedbackDTO: Codable, Sendable {
         likesCount = feedback.likes
         moderationStatus = "visible"
         createdAt = feedback.createdAt
+        expiresAt = feedback.expiresAt
     }
 
     var domainModel: Feedback {
@@ -275,7 +278,8 @@ nonisolated struct FeedbackDTO: Codable, Sendable {
             createdAt: createdAt,
             likes: likesCount,
             bubbleColor: BubbleColor(rawValue: bubbleColor) ?? .coral,
-            senderID: authorProfileID
+            senderID: authorProfileID,
+            expiresAt: expiresAt
         )
     }
 }

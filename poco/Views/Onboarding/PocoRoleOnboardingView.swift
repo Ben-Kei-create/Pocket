@@ -29,7 +29,7 @@ struct PocoRoleOnboardingView: View {
                     symbol: "person.crop.circle.fill",
                     tint: .mint,
                     title: "記録はマイページへ",
-                    message: "送った感想、いいねしたフキダシ、届いた通知、ログインボーナスをまとめて確認できます。",
+                    message: "送った感想、いいねしたフキダシ、届いた通知をまとめて確認できます。ログインボーナスは、その日最初の起動時に届きます。",
                     footnote: "分からなくなったら、設定からもう一度見られます"
                 )
             ]

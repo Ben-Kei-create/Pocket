@@ -6,7 +6,6 @@ struct BubbleWallView: View {
 
     @State private var mode = WallMode.everyone
     @State private var selectedFeedback: Feedback?
-    @State private var selectedCreator: Creator?
     @State private var showsMembership = false
     @State private var focusFeedbackID: UUID?
     @State private var previousVisitDate: Date?
@@ -96,9 +95,6 @@ struct BubbleWallView: View {
                         focusFeedbackID: focusFeedbackID,
                         enablesCompanionEvolution: store.capabilities.canUseCompanionEvolution,
                         onSelect: { selectedFeedback = $0 },
-                        onSelectAuthor: { feedback in
-                            selectedCreator = feedback.senderCreator
-                        },
                         onCompanionTapped: { eventKey in
                             store.claimStarCoinReward(eventKey: eventKey)
                         },
@@ -140,18 +136,6 @@ struct BubbleWallView: View {
         }
         .sheet(item: $selectedBadge) { item in
             BadgeDetailSheet(item: item)
-        }
-        .sheet(item: $selectedCreator) { creator in
-            NavigationStack {
-                PublicProfileView(creator: creator)
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("閉じる") {
-                                selectedCreator = nil
-                            }
-                        }
-                    }
-            }
         }
         .sheet(isPresented: $showsMembership) {
             PocoMembershipView()

@@ -112,6 +112,9 @@ struct MemberRewardCenterView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await store.loadMemberRewards()
+            if store.memberRewardSnapshot.canClaimToday {
+                claim()
+            }
         }
     }
 

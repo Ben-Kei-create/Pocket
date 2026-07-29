@@ -5,7 +5,6 @@ struct BubbleDropView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(PocoStore.self) private var store
-    @AppStorage("poco.settings.playfulMotion") private var playfulMotion = true
     let project: Project
     let feedback: Feedback
     let existingFeedbacks: [Feedback]
@@ -13,9 +12,8 @@ struct BubbleDropView: View {
 
     @State private var isDropped = false
     @State private var showsSuccess = false
-    @State private var showsWall = false
     @State private var showsRegistration = false
-    @State private var selectedCreator: Creator?
+    @State private var selectedFeedback: Feedback?
     @State private var deliveryState = DeliveryState.idle
     @State private var dropTrigger = 0
 
@@ -44,9 +42,7 @@ struct BubbleDropView: View {
                         enablesCompanionEvolution: store.capabilities.canUseCompanionEvolution,
                         dropTrigger: $dropTrigger,
                         onLanded: handleLanding,
-                        onSelectAuthor: { selectedFeedback in
-                            selectedCreator = selectedFeedback.senderCreator
-                        },
+                        onSelect: { selectedFeedback = $0 },
                         onCompanionTapped: { eventKey in
                             store.claimStarCoinReward(eventKey: eventKey)
                         },
@@ -85,30 +81,10 @@ struct BubbleDropView: View {
                     StarCoinBadge(balance: store.starCoinBalance)
                 }
             }
-            .fullScreenCover(isPresented: $showsWall) {
-                NavigationStack {
-                    BubbleWallView(projectID: project.id)
-                        .toolbar {
-                            ToolbarItem(placement: .cancellationAction) {
-                                Button("閉じる") {
-                                    showsWall = false
-                                    dismiss()
-                                }
-                            }
-                        }
-                }
-            }
-            .sheet(item: $selectedCreator) { creator in
-                NavigationStack {
-                    PublicProfileView(creator: creator)
-                        .toolbar {
-                            ToolbarItem(placement: .cancellationAction) {
-                                Button("閉じる") {
-                                    selectedCreator = nil
-                                }
-                            }
-                        }
-                }
+            .sheet(item: $selectedFeedback) { selectedFeedback in
+                BubbleDetailSheet(feedbackID: selectedFeedback.id)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
             }
             .sheet(isPresented: $showsRegistration) {
                 RegistrationGateView(context: .afterFeedback)
@@ -152,11 +128,9 @@ struct BubbleDropView: View {
                     .controlSize(.small)
                     .accessibilityLabel("感想を送信中")
             } else {
-                Button("みんなのフキダシを見る") {
-                    showsWall = true
-                }
-                .pocoFont(.subheadline, weight: .medium)
-                .foregroundStyle(PocoTheme.primary)
+                Label("このまま上下にスクロールできます", systemImage: "arrow.up.arrow.down")
+                    .pocoFont(.caption, weight: .medium)
+                    .foregroundStyle(PocoTheme.secondaryText)
 
                 if !store.canCreateProjects {
                     Divider()
@@ -195,7 +169,7 @@ struct BubbleDropView: View {
     }
 
     private var shouldReduceMotion: Bool {
-        reduceMotion || !playfulMotion
+        reduceMotion
     }
 
     private func deliver() {

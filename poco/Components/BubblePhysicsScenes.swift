@@ -13,7 +13,6 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
     private var resolvedMergeKeys: Set<String> = []
     private var consumedCompanionFeedbackIDs: Set<UUID> = []
     private var onSelect: ((Feedback) -> Void)?
-    private var onSelectAuthor: ((Feedback) -> Void)?
     private var onCompanionTapped: ((String) -> Void)?
     private var onRareCompanionBorn: ((String) -> Void)?
     private var onRareCompanionTapped: ((String) -> Void)?
@@ -42,13 +41,11 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
         enablesCompanionEvolution: Bool,
         highlightedFeedbackIDs: Set<UUID>,
         onSelect: ((Feedback) -> Void)?,
-        onSelectAuthor: ((Feedback) -> Void)?,
         onCompanionTapped: ((String) -> Void)?,
         onRareCompanionBorn: ((String) -> Void)?,
         onRareCompanionTapped: ((String) -> Void)?
     ) {
         self.onSelect = onSelect
-        self.onSelectAuthor = onSelectAuthor
         self.onCompanionTapped = onCompanionTapped
         self.onRareCompanionBorn = onRareCompanionBorn
         self.onRareCompanionTapped = onRareCompanionTapped
@@ -128,15 +125,6 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
 
         guard let bubble = bubbleNode(at: point),
               let feedback = feedbackByID[bubble.feedbackID] else { return }
-
-        if containsNode(named: "feedback-author", at: point),
-           feedback.senderID != nil {
-            if !reduceMotion {
-                bubble.playPoyon()
-            }
-            onSelectAuthor?(feedback)
-            return
-        }
 
         if !reduceMotion {
             bubble.physicsBody?.applyImpulse(CGVector(dx: 0, dy: 0.18))
@@ -266,7 +254,8 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
             let node = PhysicsBubbleNode(
                 feedback: feedback,
                 size: placement.size,
-                highlighted: highlightedFeedbackIDs.contains(feedback.id)
+                highlighted: highlightedFeedbackIDs.contains(feedback.id),
+                rotationEnabled: !reduceMotion
             )
 
             node.position = placement.position
@@ -372,7 +361,7 @@ final class BubbleDropPhysicsScene: SKScene, SKPhysicsContactDelegate {
     private var reduceMotion = false
     private var worldHeight: CGFloat = 0
     private var onLanded: (() -> Void)?
-    private var onSelectAuthor: ((Feedback) -> Void)?
+    private var onSelect: ((Feedback) -> Void)?
     private var onCompanionTapped: ((String) -> Void)?
     private var onRareCompanionBorn: ((String) -> Void)?
     private var onRareCompanionTapped: ((String) -> Void)?
@@ -398,13 +387,13 @@ final class BubbleDropPhysicsScene: SKScene, SKPhysicsContactDelegate {
         reduceMotion: Bool,
         enablesCompanionEvolution: Bool,
         onLanded: @escaping () -> Void,
-        onSelectAuthor: ((Feedback) -> Void)?,
+        onSelect: ((Feedback) -> Void)?,
         onCompanionTapped: ((String) -> Void)?,
         onRareCompanionBorn: ((String) -> Void)?,
         onRareCompanionTapped: ((String) -> Void)?
     ) {
         self.onLanded = onLanded
-        self.onSelectAuthor = onSelectAuthor
+        self.onSelect = onSelect
         self.onCompanionTapped = onCompanionTapped
         self.onRareCompanionBorn = onRareCompanionBorn
         self.onRareCompanionTapped = onRareCompanionTapped
@@ -454,6 +443,7 @@ final class BubbleDropPhysicsScene: SKScene, SKPhysicsContactDelegate {
     func releasePendingBubble() {
         guard let pendingNode, pendingNode.physicsBody?.isDynamic == false else { return }
         isDraggingPending = false
+        pendingNode.prepareForDrop(in: size.width)
         pendingNode.physicsBody?.isDynamic = true
         pendingNode.physicsBody?.affectedByGravity = true
         if !reduceMotion {
@@ -515,11 +505,12 @@ final class BubbleDropPhysicsScene: SKScene, SKPhysicsContactDelegate {
         }
 
         if pendingHasLanded,
-           containsNode(named: "feedback-author", at: point),
            let bubble = bubbleNode(at: point),
-           let selectedFeedback = feedbackByID[bubble.feedbackID],
-           selectedFeedback.senderID != nil {
-            onSelectAuthor?(selectedFeedback)
+           let selectedFeedback = feedbackByID[bubble.feedbackID] {
+            if !reduceMotion {
+                bubble.playPoyon()
+            }
+            onSelect?(selectedFeedback)
         }
     }
 
@@ -561,6 +552,9 @@ final class BubbleDropPhysicsScene: SKScene, SKPhysicsContactDelegate {
         guard otherBody.categoryBitMask & landedCategory != 0 else { return }
 
         pendingHasLanded = true
+        if !reduceMotion {
+            pendingNode.addLandingRock()
+        }
         spawnCompanion(for: pendingNode)
         onLanded?()
     }
@@ -586,7 +580,11 @@ final class BubbleDropPhysicsScene: SKScene, SKPhysicsContactDelegate {
         )
         for existingFeedback in existingFeedbacks.reversed() {
             guard let placement = placementByID[existingFeedback.id] else { continue }
-            let node = PhysicsBubbleNode(feedback: existingFeedback, size: placement.size)
+            let node = PhysicsBubbleNode(
+                feedback: existingFeedback,
+                size: placement.size,
+                rotationEnabled: !reduceMotion
+            )
             node.position = placement.position
             node.zRotation = reduceMotion ? 0 : placement.rotation
             node.physicsBody?.isDynamic = !reduceMotion
@@ -619,7 +617,11 @@ final class BubbleDropPhysicsScene: SKScene, SKPhysicsContactDelegate {
             for: feedback,
             width: size.width
         )
-        let pending = PhysicsBubbleNode(feedback: feedback, size: pendingSize)
+        let pending = PhysicsBubbleNode(
+            feedback: feedback,
+            size: pendingSize,
+            rotationEnabled: !reduceMotion
+        )
         pending.position = CGPoint(
             x: size.width / 2,
             y: worldHeight - pendingSize.height / 2 - 10

@@ -4,8 +4,10 @@ struct HomeView: View {
     @Environment(PocoStore.self) private var store
     @State private var selectedCategory: CategoryFilter = .all
     @State private var showsNotifications = false
+    @State private var showsAnnouncements = false
     @State private var showsScanner = false
     @State private var searchText = ""
+    @AppStorage("poco.announcements.lastSeenAt") private var lastSeenAnnouncementTimestamp = 0.0
 
     private var visibleProjects: [Project] {
         let categoryProjects = switch selectedCategory {
@@ -87,6 +89,25 @@ struct HomeView: View {
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button {
+                        showsAnnouncements = true
+                    } label: {
+                        Image(systemName: "megaphone")
+                            .overlay(alignment: .topTrailing) {
+                                if unreadAnnouncementCount > 0 {
+                                    Circle()
+                                        .fill(PocoTheme.primary)
+                                        .frame(width: 8, height: 8)
+                                        .offset(x: 2, y: -1)
+                                }
+                            }
+                    }
+                    .accessibilityLabel(
+                        unreadAnnouncementCount > 0
+                            ? "運営からのお知らせ、未読\(unreadAnnouncementCount)件"
+                            : "運営からのお知らせ"
+                    )
+
+                    Button {
                         showsScanner = true
                     } label: {
                         Image(systemName: "qrcode.viewfinder")
@@ -116,6 +137,9 @@ struct HomeView: View {
             .sheet(isPresented: $showsNotifications) {
                 NotificationCenterView()
             }
+            .sheet(isPresented: $showsAnnouncements) {
+                AnnouncementCenterView()
+            }
             .sheet(isPresented: $showsScanner) {
                 QRCodeScannerSheet { url in
                     store.open(url: url)
@@ -128,7 +152,16 @@ struct HomeView: View {
                     ContentUnavailableView("作品が見つかりません", systemImage: "questionmark.folder")
                 }
             }
+            .task {
+                await store.loadAnnouncements()
+            }
         }
+    }
+
+    private var unreadAnnouncementCount: Int {
+        store.announcements.lazy.filter {
+            $0.publishedAt.timeIntervalSince1970 > lastSeenAnnouncementTimestamp
+        }.count
     }
 
     @ViewBuilder

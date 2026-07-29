@@ -4,7 +4,6 @@ import UIKit
 
 struct PhysicsBubbleFieldView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @AppStorage("poco.settings.playfulMotion") private var playfulMotion = true
     @State private var scrollTrigger = 0
 
     let feedbacks: [Feedback]
@@ -12,14 +11,13 @@ struct PhysicsBubbleFieldView: View {
     var focusFeedbackID: UUID?
     var enablesCompanionEvolution = false
     var onSelect: ((Feedback) -> Void)?
-    var onSelectAuthor: ((Feedback) -> Void)?
     var onCompanionTapped: ((String) -> Void)?
     var onRareCompanionBorn: ((String) -> Void)?
     var onRareCompanionTapped: ((String) -> Void)?
 
     var body: some View {
         GeometryReader { proxy in
-            let shouldReduceMotion = reduceMotion || !playfulMotion
+            let shouldReduceMotion = reduceMotion
             let layout = BubbleFieldLayout.make(
                 feedbacks: feedbacks,
                 availableWidth: proxy.size.width
@@ -37,7 +35,6 @@ struct PhysicsBubbleFieldView: View {
                 focusFeedbackID: focusFeedbackID,
                 enablesCompanionEvolution: enablesCompanionEvolution,
                 onSelect: onSelect,
-                onSelectAuthor: onSelectAuthor,
                 onCompanionTapped: onCompanionTapped,
                 onRareCompanionBorn: onRareCompanionBorn,
                 onRareCompanionTapped: onRareCompanionTapped
@@ -85,7 +82,7 @@ struct PhysicsBubbleDropFieldView: View {
     let enablesCompanionEvolution: Bool
     @Binding var dropTrigger: Int
     let onLanded: () -> Void
-    var onSelectAuthor: ((Feedback) -> Void)?
+    var onSelect: ((Feedback) -> Void)?
     var onCompanionTapped: ((String) -> Void)?
     var onRareCompanionBorn: ((String) -> Void)?
     var onRareCompanionTapped: ((String) -> Void)?
@@ -101,18 +98,37 @@ struct PhysicsBubbleDropFieldView: View {
                 enablesCompanionEvolution: enablesCompanionEvolution,
                 dropTrigger: dropTrigger,
                 onLanded: onLanded,
-                onSelectAuthor: onSelectAuthor,
+                onSelect: onSelect,
                 onCompanionTapped: onCompanionTapped,
                 onRareCompanionBorn: onRareCompanionBorn,
                 onRareCompanionTapped: onRareCompanionTapped
             )
         }
         .background(PocoTheme.cardBackground.opacity(0.28))
-        .accessibilityRepresentation {
-            Button("フキダシをおとす") {
-                dropTrigger += 1
+        .overlay(alignment: .topTrailing) {
+            if isScrollEnabled {
+                Label("上下にスクロール", systemImage: "arrow.up.arrow.down")
+                    .pocoFont(.caption2, weight: .medium)
+                    .foregroundStyle(PocoTheme.secondaryText)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 6)
+                    .background(.thinMaterial, in: Capsule())
+                    .padding(12)
+                    .allowsHitTesting(false)
             }
-            .accessibilityHint("フキダシが上から落下し、ほかのフキダシに着地します")
+        }
+        .accessibilityRepresentation {
+            if isScrollEnabled {
+                Button("感想のフキダシ、\(existingFeedbacks.count + 1)件") {
+                    onSelect?(feedback)
+                }
+                .accessibilityHint("上下にスクロールできます。実行すると送った感想の詳細を開きます")
+            } else {
+                Button("フキダシをおとす") {
+                    dropTrigger += 1
+                }
+                .accessibilityHint("フキダシが上から落下し、ほかのフキダシに着地します")
+            }
         }
     }
 }
@@ -128,7 +144,6 @@ private struct BubbleWallPhysicsCanvas: UIViewRepresentable {
     let focusFeedbackID: UUID?
     let enablesCompanionEvolution: Bool
     let onSelect: ((Feedback) -> Void)?
-    let onSelectAuthor: ((Feedback) -> Void)?
     let onCompanionTapped: ((String) -> Void)?
     let onRareCompanionBorn: ((String) -> Void)?
     let onRareCompanionTapped: ((String) -> Void)?
@@ -163,7 +178,6 @@ private struct BubbleWallPhysicsCanvas: UIViewRepresentable {
             focusFeedbackID: focusFeedbackID,
             enablesCompanionEvolution: enablesCompanionEvolution,
             onSelect: onSelect,
-            onSelectAuthor: onSelectAuthor,
             onCompanionTapped: onCompanionTapped,
             onRareCompanionBorn: onRareCompanionBorn,
             onRareCompanionTapped: onRareCompanionTapped
@@ -205,7 +219,6 @@ private struct BubbleWallPhysicsCanvas: UIViewRepresentable {
             focusFeedbackID: UUID?,
             enablesCompanionEvolution: Bool,
             onSelect: ((Feedback) -> Void)?,
-            onSelectAuthor: ((Feedback) -> Void)?,
             onCompanionTapped: ((String) -> Void)?,
             onRareCompanionBorn: ((String) -> Void)?,
             onRareCompanionTapped: ((String) -> Void)?
@@ -219,7 +232,6 @@ private struct BubbleWallPhysicsCanvas: UIViewRepresentable {
                 enablesCompanionEvolution: enablesCompanionEvolution,
                 highlightedFeedbackIDs: highlightedFeedbackIDs,
                 onSelect: onSelect,
-                onSelectAuthor: onSelectAuthor,
                 onCompanionTapped: onCompanionTapped,
                 onRareCompanionBorn: onRareCompanionBorn,
                 onRareCompanionTapped: onRareCompanionTapped
@@ -256,7 +268,7 @@ private struct BubbleDropPhysicsCanvas: UIViewRepresentable {
     let enablesCompanionEvolution: Bool
     let dropTrigger: Int
     let onLanded: () -> Void
-    let onSelectAuthor: ((Feedback) -> Void)?
+    let onSelect: ((Feedback) -> Void)?
     let onCompanionTapped: ((String) -> Void)?
     let onRareCompanionBorn: ((String) -> Void)?
     let onRareCompanionTapped: ((String) -> Void)?
@@ -289,7 +301,7 @@ private struct BubbleDropPhysicsCanvas: UIViewRepresentable {
             enablesCompanionEvolution: enablesCompanionEvolution,
             dropTrigger: dropTrigger,
             onLanded: onLanded,
-            onSelectAuthor: onSelectAuthor,
+            onSelect: onSelect,
             onCompanionTapped: onCompanionTapped,
             onRareCompanionBorn: onRareCompanionBorn,
             onRareCompanionTapped: onRareCompanionTapped
@@ -328,7 +340,7 @@ private struct BubbleDropPhysicsCanvas: UIViewRepresentable {
             enablesCompanionEvolution: Bool,
             dropTrigger: Int,
             onLanded: @escaping () -> Void,
-            onSelectAuthor: ((Feedback) -> Void)?,
+            onSelect: ((Feedback) -> Void)?,
             onCompanionTapped: ((String) -> Void)?,
             onRareCompanionBorn: ((String) -> Void)?,
             onRareCompanionTapped: ((String) -> Void)?
@@ -340,7 +352,7 @@ private struct BubbleDropPhysicsCanvas: UIViewRepresentable {
                 reduceMotion: reduceMotion,
                 enablesCompanionEvolution: enablesCompanionEvolution,
                 onLanded: onLanded,
-                onSelectAuthor: onSelectAuthor,
+                onSelect: onSelect,
                 onCompanionTapped: onCompanionTapped,
                 onRareCompanionBorn: onRareCompanionBorn,
                 onRareCompanionTapped: onRareCompanionTapped

@@ -111,6 +111,10 @@ protocol NotificationRepository: Sendable {
     ) async -> AsyncThrowingStream<PocoNotification, any Error>
 }
 
+protocol AnnouncementRepository: Sendable {
+    nonisolated func fetchPublishedAnnouncements() async throws -> [AppAnnouncement]
+}
+
 protocol RightsHolderRequestRepository: Sendable {
     nonisolated func submit(_ request: RightsHolderRequest) async throws -> UUID
 }
@@ -169,7 +173,7 @@ actor MockFeedbackRepository: FeedbackRepository {
 
     func fetchFeedbacks(projectID: UUID) async throws -> [Feedback] {
         feedbacks
-            .filter { $0.projectID == projectID && $0.isPublic }
+            .filter { $0.projectID == projectID && $0.isPublic && $0.isVisible() }
             .sorted { $0.createdAt > $1.createdAt }
     }
 
@@ -183,7 +187,7 @@ actor MockFeedbackRepository: FeedbackRepository {
     func fetchLikedFeedbacks() async throws -> [Feedback] {
         let likedIDs = persistedLikedFeedbackIDs()
         return feedbacks
-            .filter { likedIDs.contains($0.id) && $0.isPublic }
+            .filter { likedIDs.contains($0.id) && $0.isPublic && $0.isVisible() }
             .sorted { $0.createdAt > $1.createdAt }
     }
 
@@ -231,6 +235,7 @@ actor MockFeedbackRepository: FeedbackRepository {
         }
         let receivedAt = feedbacks[index].creatorReceivedAt ?? .now
         feedbacks[index].creatorReceivedAt = receivedAt
+        feedbacks[index].expiresAt = nil
         let receipt = CreatorReceipt(feedbackID: feedbackID, createdAt: receivedAt)
         for continuation in receiptObservers.values {
             continuation.yield(receipt)
@@ -288,7 +293,9 @@ actor MockProfileRepository: ProfileRepository {
             MockData.tetraCreator,
             MockData.hoshikoCreator
         ] + Array(MockData.feedbackAuthors.values)
-        self.creators = Dictionary(uniqueKeysWithValues: values.map { ($0.id, $0) })
+        self.creators = values.reduce(into: [:]) { creatorsByID, creator in
+            creatorsByID[creator.id] = creator
+        }
     }
 
     func fetchProfile(id: UUID) async throws -> Creator {

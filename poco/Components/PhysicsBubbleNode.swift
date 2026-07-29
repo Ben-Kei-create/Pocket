@@ -18,7 +18,8 @@ final class PhysicsBubbleNode: SKNode {
     init(
         feedback: Feedback,
         size: CGSize,
-        highlighted: Bool = false
+        highlighted: Bool = false,
+        rotationEnabled: Bool = true
     ) {
         feedbackID = feedback.id
         visualSize = size
@@ -38,14 +39,44 @@ final class PhysicsBubbleNode: SKNode {
         physicsBody?.restitution = 0.22
         physicsBody?.friction = 0.78
         physicsBody?.linearDamping = 0.68
-        physicsBody?.angularDamping = 0.82
+        physicsBody?.angularDamping = 0.72
         let relativeArea = (size.width * size.height) / (116 * 60)
         physicsBody?.mass = min(0.28, max(0.14, 0.18 * relativeArea))
-        physicsBody?.allowsRotation = false
+        physicsBody?.allowsRotation = rotationEnabled
+        if rotationEnabled {
+            let maximumTilt = CGFloat.pi / 15
+            constraints = [
+                SKConstraint.zRotation(
+                    SKRange(lowerLimit: -maximumTilt, upperLimit: maximumTilt)
+                )
+            ]
+        }
     }
 
     required init?(coder aDecoder: NSCoder) {
         nil
+    }
+
+    func prepareForDrop(in sceneWidth: CGFloat) {
+        guard physicsBody?.allowsRotation == true else { return }
+        let horizontalOffset = position.x - sceneWidth / 2
+        let direction: CGFloat
+        if abs(horizontalOffset) > 10 {
+            direction = horizontalOffset < 0 ? -1 : 1
+        } else {
+            direction = stableUnit(feedbackID, salt: 113) < 0.5 ? -1 : 1
+        }
+        zRotation = direction * .pi / 90
+        physicsBody?.angularVelocity = direction * 0.20
+    }
+
+    func addLandingRock() {
+        guard let physicsBody, physicsBody.allowsRotation else { return }
+        let fallbackDirection: CGFloat = stableUnit(feedbackID, salt: 127) < 0.5 ? -1 : 1
+        let direction: CGFloat = abs(physicsBody.angularVelocity) > 0.02
+            ? (physicsBody.angularVelocity < 0 ? -1 : 1)
+            : fallbackDirection
+        physicsBody.angularVelocity += direction * 0.38
     }
 
     func playPoyon() {

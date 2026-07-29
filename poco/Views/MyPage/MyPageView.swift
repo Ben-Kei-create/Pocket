@@ -90,35 +90,6 @@ struct MyPageView: View {
                 if store.canCreateProjects {
                     Section("ごほうび") {
                         NavigationLink {
-                            MemberRewardCenterView()
-                        } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: "gift.fill")
-                                    .foregroundStyle(PocoTheme.primary)
-                                    .frame(width: 28)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("ログインボーナス")
-                                    Text(
-                                        store.memberRewardSnapshot.canClaimToday
-                                            ? "今日のごほうびが届いています"
-                                            : "\(store.memberRewardSnapshot.loginStreak)日つづいています"
-                                    )
-                                    .pocoFont(.caption)
-                                    .foregroundStyle(PocoTheme.secondaryText)
-                                }
-                                Spacer()
-                                if store.memberRewardSnapshot.canClaimToday {
-                                    Text("NEW")
-                                        .pocoFont(.caption2, weight: .bold)
-                                        .foregroundStyle(PocoTheme.primary)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 4)
-                                        .background(PocoTheme.bubble(.pink), in: Capsule())
-                                }
-                            }
-                        }
-
-                        NavigationLink {
                             AchievementStampsView()
                         } label: {
                             HStack {

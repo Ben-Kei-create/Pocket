@@ -4,7 +4,6 @@ struct PocoSettingsView: View {
     @Environment(PocoStore.self) private var store
     @AppStorage("poco.settings.reactionNotifications") private var reactionNotifications = true
     @AppStorage("poco.settings.creatorHeartNotifications") private var creatorHeartNotifications = true
-    @AppStorage("poco.settings.playfulMotion") private var playfulMotion = true
     @AppStorage("poco.hasCompletedWelcome") private var hasCompletedWelcome = true
     @State private var showsProfileEdit = false
     @State private var showsMembership = false
@@ -46,16 +45,6 @@ struct PocoSettingsView: View {
                 Text("通知")
             } footer: {
                 Text("プッシュ通知を利用するには、今後の通知許可も必要です。")
-            }
-
-            Section {
-                Toggle(isOn: $playfulMotion) {
-                    Label("ぷよん演出", systemImage: "sparkles")
-                }
-            } header: {
-                Text("フキダシの体験")
-            } footer: {
-                Text("端末の『視差効果を減らす』が有効な場合は、この設定より優先されます。")
             }
 
             Section("Pocoについて") {

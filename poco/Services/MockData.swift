@@ -66,7 +66,7 @@ enum MockData {
         category: .book,
         description: "やさしい気持ちになれる、森の小さな仲間たちの物語。絵本を届けたい。",
         imageName: nil,
-        feedbackCount: 1_234,
+        feedbackCount: 100,
         createdAt: Date(timeIntervalSince1970: 1_750_000_000),
         relationship: .creator,
         verificationStatus: .verified
@@ -78,7 +78,7 @@ enum MockData {
         category: .game,
         description: "ドット絵の世界で冒険する、心あたたまるインディーRPGです。",
         imageName: nil,
-        feedbackCount: 2_891,
+        feedbackCount: 6,
         createdAt: Date(timeIntervalSince1970: 1_749_000_000),
         relationship: .authorized,
         verificationStatus: .unverified
@@ -90,7 +90,7 @@ enum MockData {
         category: .manga,
         description: "心にそっとよりそう物語を描いています。",
         imageName: nil,
-        feedbackCount: 987,
+        feedbackCount: 6,
         createdAt: Date(timeIntervalSince1970: 1_748_000_000),
         relationship: .fan,
         verificationStatus: .unverified

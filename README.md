@@ -90,6 +90,8 @@ Migrationは次の順で再構築できます。
 - `024_retention_and_realtime_scope.sql`: 作者❤️Realtimeの作品単位購読、未解決通報だけを保持する30日パージ判定
 - `20260729100018_star_store_and_project_badges.sql`: ⭐︎カタログ、所有権、支出台帳、作品背景、3枠バッジケース、購入／装備RPC
 - `20260729100400_star_wallet_revision_and_pro_multiplier.sql`: 複数端末向けWallet Revisionと、活動報酬だけに適用するPro 2倍報酬
+- `20260729233000_public_announcements.sql`: 運営お知らせの公開読取専用テーブルとRLS
+- `20260729234000_guest_feedback_expiration.sql`: ゲスト名のサーバー強制、24時間公開期限、作者❤️による永続化、期限後も維持する投稿上限Query
 
 `feedback_count`は重複カラムにせず`projects_with_feedback_count` Viewで計算します。`likes_count`は`feedback_likes`のINSERT/DELETEトリガーだけで更新し、整合性を維持します。
 
@@ -124,8 +126,9 @@ AASAテンプレート、Associated Domains、実機確認手順は[`Docs/Univer
 ## ゲスト・Pocoユーザー・Poco Pro・広告
 
 - ゲスト投稿者にはSupabase Anonymous Authを使用し、登録画面なしで端末固有のユーザーIDを付与します。これにより、ゲストもRLSを保ったまま1つのフキダシへ1回いいねできます。Supabase DashboardでAnonymous Sign-Insを有効にしてください。
+- ゲストの表示名はクライアント入力を信用せず、`submit_feedback` RPCが一律「名無しさん」へ固定します。ゲスト感想は作成から24時間後に公開Query・件数から外れますが、投稿上限の生涯3件には引き続き算入します。作者が通常のいいねを付けた感想は`expires_at = NULL`へ昇格し、作者❤️とともに永続化します。行自体は即時物理削除せず、通報・監査用の保持方針に従います。登録済みユーザーの感想に期限はありません。
 - 閲覧・感想投稿・いいねはゲストでも利用できます。作品作成はPocoユーザー以上、共感順・自分の作品/感想に届いたいいね集計・広告非表示はPoco Proだけが利用できます。無料ユーザーは基本3作品、200⭐︎で4作品、追加400⭐︎で最大5作品まで永続拡張できる仕様です。Proは30作品が上限です。現在のMigration `013`は無料3／Pro 30の上限を強制しており、⭐︎拡張はServer Authorityフェーズで冪等消費RPCと永続Entitlementを追加します。Pro中は拡張UIを表示せず、RPCも⭐︎を減らさず拒否します。`013`以降はユーザー単位のTransaction Advisory Lockを使い、複数端末からの同時作成でもDB側で上限を強制します。`006_registered_creators.sql`はAnonymous Authユーザーによる作品作成と画像更新をDB側でも拒否します。
-- PocoユーザーとPoco Proはマイページからログインボーナスと達成スタンプを利用できます。`014`のボーナスは日本時間で1日1回、DBのTransaction Advisory Lockで多重受取を防ぎます。スタンプ条件はDBの所有権・いいね・作者❤️から評価され、クライアントが任意に解放することはできません。
+- PocoユーザーとPoco Proには、その日最初のHome表示時にログインボーナスを自動表示・受取します。QR／Universal Linkの作品着地、感想入力、Bubble Dropをシートで覆わず、Homeへ戻ってから遅延表示します。`014`のボーナスは日本時間で1日1回、DBのTransaction Advisory Lockで多重受取を防ぎます。達成スタンプはマイページから確認でき、条件はDBの所有権・いいね・作者❤️から評価されます。
 - `015`以降、感想送信・キャラタップ・レアキャラ誕生を含む⭐︎付与は`claim_star_coin_event`だけが更新します。アプリは金額を送らず、DBが感想所有権、15%／5%の決定的出現条件、Pro資格、重複、日次上限を再検証して`star_coin_transactions`へ記録します。通常のキャラ操作は1日30⭐︎、感想送信報酬は1日20件を上限とします。
 - いいね済み状態は`feedback_likes`から復元します。画面内の連打防止だけに依存せず、DBの`unique(feedback_id, user_id)`を最終的な保証にしています。
 - `memberships`はアプリから更新できません。本番ではStoreKit 2の購入結果をApp Store Server Notificationsで検証し、service roleを持つEdge Functionなどからのみ更新します。
@@ -147,7 +150,7 @@ AASAテンプレート、Associated Domains、実機確認手順は[`Docs/Univer
 
 `POCO_AD_PROVIDER`と`POCO_AD_UNIT_ID`は広告Adapter用の設定境界です。広告事業者を決めた後、SDKをSwift Package Managerで追加し、`PocoAdBanner`内部をProvider固有Viewへ差し替えてください。開発中は必ずテスト広告ユニットIDを使い、ATT同意・プライバシーマニフェスト・子ども向けコンテンツ設定・同意管理を審査前に確認します。広告認証情報が未設定の現在は、実広告を要求せずプレースホルダーを表示します。
 
-匿名Feedbackは`sender_id = null`で投稿できます。匿名投稿は後から本人確認して更新・削除できないため、将来のAuth導入時には端末トークンまたはEdge Functionを使った所有権設計を追加してください。また、公開Anon投稿はBot対策、Rate Limit、内容モデレーションを本番公開前に追加する必要があります。
+ゲストFeedbackの所有者は公開プロフィールへ出さず、`feedback_ownership`にAnonymous Auth IDを非公開保存します。これにより3件上限、Like重複防止、通報、将来の登録時Identity Linkを維持しながら、公開側では「名無しさん」と24時間期限だけを見せます。本番ではApp Attest／CAPTCHA Gatewayも併用してください。
 
 ## Storage
 
@@ -169,7 +172,11 @@ profile-avatars/profiles/{userID}/avatar.jpg
 
 登録ユーザーはマイページから表示名・標準アバター・自分の写真を変更できます。新しいプロフィールのDB保存が成功した後だけ、不要になった旧Storage画像を削除します。公開投稿者のフキダシは`author_profile_id`からプロフィールを補完してアバターを表示し、匿名投稿の所有者IDは非公開のままニックネームの頭文字を表示します。
 
-Feedbackには15%の安定した確率で、フキダシとは独立した物理オブジェクト「顔ぷよ」を表示します。同じFeedbackは再描画後も出現有無が変わりません。標準アバター利用者は同じ動物、写真利用者・匿名投稿はFeedback UUIDから安定して選ばれる動物を使用します。新規投稿で顔ぷよが選ばれた場合は、フキダシ着地後に横から飛び出し、フキダシや他の顔ぷよと衝突します。顔ぷよをタップすると顔ぷよだけが「ぷよっ」と反応します。投稿者アイコン／表示名は登録ユーザーの場合、作品一覧を含む公開プロフィールへ遷移します。感想フィールドの最下部はスクロール範囲のクランプで示し、説明ラベルは表示しません。
+Feedbackには15%の安定した確率で、フキダシとは独立した物理オブジェクト「顔ぷよ」を表示します。同じFeedbackは再描画後も出現有無が変わりません。標準アバター利用者は同じ動物、写真利用者・匿名投稿はFeedback UUIDから安定して選ばれる動物を使用します。新規投稿で顔ぷよが選ばれた場合は、フキダシ着地後に横から飛び出し、フキダシや他の顔ぷよと衝突します。顔ぷよをタップすると顔ぷよだけが「ぷよっ」と反応します。フキダシのタップは必ず感想詳細を開き、登録ユーザーだけが詳細内の投稿者表示から公開プロフィールへ進めます。感想フィールドの最下部はスクロール範囲のクランプで示し、説明ラベルは表示しません。
+
+## 運営からのお知らせ
+
+Homeのメガホンから、公開済みの`app_announcements`を新しい順に表示します。Anon Keyを持つアプリは有効な行のSELECTだけが可能で、INSERT／UPDATE／DELETEはできません。運営はSupabase DashboardまたはService Roleを保管した管理環境から`kind`（`news`／`update`／`maintenance`）、タイトル、本文、公開日時を登録してください。Service Role KeyはiOSアプリやGitへ含めません。
 
 Poco Proでは、同じ種類の顔ぷよ同士が衝突すると2体を消費して合体します。合体ごとに5%の安定した判定で全身キャラクターが誕生し、ねこ・ぶた・くま・いぬ・ライオンに加えて、ねずみ・うさぎ・やぎをシークレット枠として収録しています。Reduce Motion有効時は誕生・消滅結果を保ちながら、拡縮や跳ねの演出を省略します。
 

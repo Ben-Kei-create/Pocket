@@ -10,7 +10,6 @@ struct FeedbackComposeView: View {
     @State private var nickname = ""
     @State private var isPublic = true
     @State private var showsFeedbackLimitAlert = false
-    @AppStorage("poco.guestNickname") private var savedGuestNickname = ""
     @FocusState private var focusedField: Field?
 
     private let limit = 500
@@ -29,15 +28,7 @@ struct FeedbackComposeView: View {
 
                     messageEditor
 
-                    VStack(alignment: .leading, spacing: 9) {
-                        Text("あなたの名前（ニックネーム）")
-                            .pocoFont(.subheadline, weight: .medium)
-                        TextField("例：そらのひつじ", text: $nickname)
-                            .textInputAutocapitalization(.never)
-                            .focused($focusedField, equals: .nickname)
-                            .padding(16)
-                            .pocoCard(cornerRadius: PocoTheme.cornerSmall)
-                    }
+                    nicknameSection
 
                     Toggle(isOn: $isPublic) {
                         Label("みんなに公開する", systemImage: "globe")
@@ -54,7 +45,11 @@ struct FeedbackComposeView: View {
                     .opacity(trimmedMessage.isEmpty || trimmedNickname.isEmpty ? 0.48 : 1)
                     .accessibilityHint("次の画面でフキダシを落とします")
 
-                    Text("送信するとフキダシをPocoに追加できます")
+                    Text(
+                        store.canCreateProjects
+                            ? "送信するとフキダシをPocoに追加できます"
+                            : "ゲストの感想は24時間表示されます。無料登録すると、名前と一緒に残せます"
+                    )
                         .pocoFont(.caption)
                         .foregroundStyle(PocoTheme.secondaryText)
                         .frame(maxWidth: .infinity)
@@ -78,7 +73,7 @@ struct FeedbackComposeView: View {
                 if nickname.isEmpty {
                     nickname = store.canCreateProjects
                         ? store.currentDisplayName
-                        : savedGuestNickname
+                        : "名無しさん"
                 }
                 focusedField = .message
             }
@@ -117,12 +112,50 @@ struct FeedbackComposeView: View {
         .accessibilityLabel("感想")
     }
 
+    @ViewBuilder
+    private var nicknameSection: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            Text("あなたの名前（ニックネーム）")
+                .pocoFont(.subheadline, weight: .medium)
+
+            if store.canCreateProjects {
+                TextField("例：そらのひつじ", text: $nickname)
+                    .textInputAutocapitalization(.never)
+                    .focused($focusedField, equals: .nickname)
+                    .padding(16)
+                    .pocoCard(cornerRadius: PocoTheme.cornerSmall)
+            } else {
+                HStack(spacing: 10) {
+                    Image(systemName: "person.crop.circle.dashed")
+                        .foregroundStyle(PocoTheme.secondaryText)
+                    Text("名無しさん")
+                        .pocoFont(.body, weight: .medium)
+                    Spacer()
+                    Text("ゲスト")
+                        .pocoFont(.caption, weight: .medium)
+                        .foregroundStyle(PocoTheme.primary)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 5)
+                        .background(PocoTheme.bubble(.pink), in: Capsule())
+                }
+                .padding(16)
+                .pocoCard(cornerRadius: PocoTheme.cornerSmall)
+
+                Text("ゲスト投稿は一律「名無しさん」となり、24時間後に公開一覧から消えます。")
+                    .pocoFont(.caption)
+                    .foregroundStyle(PocoTheme.secondaryText)
+            }
+        }
+    }
+
     private var trimmedMessage: String {
         message.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private var trimmedNickname: String {
-        nickname.trimmingCharacters(in: .whitespacesAndNewlines)
+        store.canCreateProjects
+            ? nickname.trimmingCharacters(in: .whitespacesAndNewlines)
+            : "名無しさん"
     }
 
     private func makeFeedback() {
@@ -131,9 +164,6 @@ struct FeedbackComposeView: View {
             return
         }
         focusedField = nil
-        if !store.canCreateProjects {
-            savedGuestNickname = trimmedNickname
-        }
         let colorIndex = abs(trimmedMessage.hashValue) % BubbleColor.allCases.count
         let senderID = store.canCreateProjects ? store.currentUserID : nil
         let feedback = Feedback(
@@ -147,7 +177,8 @@ struct FeedbackComposeView: View {
             bubbleColor: BubbleColor.allCases[colorIndex],
             senderID: senderID,
             senderAvatarName: senderID == nil ? nil : store.currentProfile?.avatarName,
-            senderAvatarURL: senderID == nil ? nil : store.currentProfile?.avatarURL
+            senderAvatarURL: senderID == nil ? nil : store.currentProfile?.avatarURL,
+            expiresAt: senderID == nil ? Date.now.addingTimeInterval(24 * 60 * 60) : nil
         )
         onDrop(feedback)
     }

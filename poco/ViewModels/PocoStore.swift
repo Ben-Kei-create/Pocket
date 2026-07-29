@@ -7,8 +7,10 @@ final class PocoStore {
     var projects: [Project]
     var feedbacks: [Feedback]
     private(set) var notifications: [PocoNotification] = []
+    private(set) var announcements: [AppAnnouncement] = []
     var selectedTab = AppTab.home
     var homePath: [UUID] = []
+    private(set) var isResolvingDeepLink = false
     var errorMessage: String?
     private(set) var membershipTier: MembershipTier = .guest
     private(set) var accountStatus: AccountStatus = .guest
@@ -28,6 +30,7 @@ final class PocoStore {
     private(set) var activityLoadState: LoadState = .idle
     private(set) var memberRewardLoadState: LoadState = .idle
     private(set) var notificationLoadState: LoadState = .idle
+    private(set) var announcementLoadState: LoadState = .idle
     private(set) var starStoreLoadState: LoadState = .idle
     private(set) var memberRewardSnapshot = MemberRewardSnapshot.empty
     private(set) var lastDailyLoginClaim: DailyLoginBonusClaim?
@@ -46,6 +49,7 @@ final class PocoStore {
     private let starStoreRepository: any StarStoreRepository
     private let moderationRepository: any ModerationRepository
     private let notificationRepository: any NotificationRepository
+    private let announcementRepository: any AnnouncementRepository
     private let rightsHolderRequestRepository: any RightsHolderRequestRepository
     private let membershipPurchaseService: any MembershipPurchaseService
     private let serverAuthorityService: any ServerAuthorityService
@@ -76,6 +80,7 @@ final class PocoStore {
         starStoreRepository: (any StarStoreRepository)? = nil,
         moderationRepository: (any ModerationRepository)? = nil,
         notificationRepository: (any NotificationRepository)? = nil,
+        announcementRepository: (any AnnouncementRepository)? = nil,
         rightsHolderRequestRepository: (any RightsHolderRequestRepository)? = nil,
         membershipPurchaseService: (any MembershipPurchaseService)? = nil,
         serverAuthorityService: (any ServerAuthorityService)? = nil,
@@ -95,6 +100,7 @@ final class PocoStore {
         self.starStoreRepository = starStoreRepository ?? MockStarStoreRepository()
         self.moderationRepository = moderationRepository ?? MockModerationRepository()
         self.notificationRepository = notificationRepository ?? MockNotificationRepository()
+        self.announcementRepository = announcementRepository ?? MockAnnouncementRepository()
         self.rightsHolderRequestRepository = rightsHolderRequestRepository
             ?? MockRightsHolderRequestRepository()
         self.membershipPurchaseService = membershipPurchaseService ?? DisabledMembershipPurchaseService()
@@ -199,6 +205,7 @@ final class PocoStore {
             .filter {
                 $0.projectID == projectID
                     && $0.isPublic
+                    && $0.isVisible()
                     && !($0.senderID.map(blockedProfileIDs.contains) ?? false)
             }
             .sorted { $0.createdAt > $1.createdAt }
@@ -222,6 +229,18 @@ final class PocoStore {
             notificationLoadState = .loaded
         } catch {
             notificationLoadState = .error(map(error))
+        }
+    }
+
+    func loadAnnouncements() async {
+        guard announcementLoadState != .loading else { return }
+        announcementLoadState = .loading
+        do {
+            announcements = try await announcementRepository.fetchPublishedAnnouncements()
+            announcementLoadState = .loaded
+        } catch {
+            let appError = map(error)
+            announcementLoadState = .error(appError)
         }
     }
 
@@ -1398,8 +1417,10 @@ final class PocoStore {
             deepLinkResolutionTask?.cancel()
             pendingDeepLinkProjectID = nil
             homePath = [id]
+            isResolvingDeepLink = false
         } else {
             pendingDeepLinkProjectID = id
+            isResolvingDeepLink = true
             resolveDeepLinkProject(id)
         }
         return true
@@ -1421,11 +1442,13 @@ final class PocoStore {
                 self.pendingDeepLinkProjectID = nil
                 self.selectedTab = .home
                 self.homePath = [id]
+                self.isResolvingDeepLink = false
             } catch is CancellationError {
                 return
             } catch {
                 guard !Task.isCancelled, let self else { return }
                 self.pendingDeepLinkProjectID = nil
+                self.isResolvingDeepLink = false
                 self.errorMessage = self.map(error).userMessage
             }
         }
@@ -1461,6 +1484,10 @@ final class PocoStore {
         for index in feedbacks.indices {
             if let receivedAt = receipts[feedbacks[index].id] {
                 feedbacks[index].creatorReceivedAt = receivedAt
+                // A creator heart promotes an ephemeral guest message into a
+                // permanent received message. The database trigger remains
+                // the source of truth; this keeps optimistic UI consistent.
+                feedbacks[index].expiresAt = nil
             }
         }
     }
@@ -1555,6 +1582,7 @@ final class PocoStore {
         pendingDeepLinkProjectID = nil
         selectedTab = .home
         homePath = [id]
+        isResolvingDeepLink = false
     }
 
     private func map(_ error: any Error) -> AppError {

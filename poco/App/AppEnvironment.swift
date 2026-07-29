@@ -45,6 +45,7 @@ enum AppEnvironment {
                     client: client,
                     currentUserProvider: authenticatedUserProvider
                 ),
+                announcementRepository: SupabaseAnnouncementRepository(client: client),
                 rightsHolderRequestRepository: SupabaseRightsHolderRequestRepository(
                     client: client,
                     currentUserProvider: authenticatedUserProvider
@@ -90,6 +91,7 @@ enum AppEnvironment {
             starStoreRepository: unavailable,
             moderationRepository: unavailable,
             notificationRepository: unavailable,
+            announcementRepository: unavailable,
             rightsHolderRequestRepository: unavailable,
             membershipPurchaseService: DisabledMembershipPurchaseService(),
             serverAuthorityService: unavailable,

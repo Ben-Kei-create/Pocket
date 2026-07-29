@@ -256,6 +256,11 @@ nonisolated struct Feedback: Identifiable, Hashable, Codable, Sendable {
     var senderAvatarURL: URL? = nil
     var senderHandle: String? = nil
     var creatorReceivedAt: Date? = nil
+    var expiresAt: Date? = nil
+
+    func isVisible(at date: Date = .now) -> Bool {
+        expiresAt.map { $0 > date } ?? true
+    }
 }
 
 nonisolated struct CreatorReceipt: Equatable, Sendable {

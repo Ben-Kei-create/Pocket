@@ -8,6 +8,7 @@ nonisolated struct UnavailableBackendServices: ProjectRepository,
     StarStoreRepository,
     ModerationRepository,
     NotificationRepository,
+    AnnouncementRepository,
     RightsHolderRequestRepository,
     AuthRepository,
     CurrentUserProvider,
@@ -77,6 +78,8 @@ nonisolated struct UnavailableBackendServices: ProjectRepository,
     func observeNotifications() async -> AsyncThrowingStream<PocoNotification, any Error> {
         unavailableStream()
     }
+
+    func fetchPublishedAnnouncements() async throws -> [AppAnnouncement] { throw error }
 
     func submit(_ request: RightsHolderRequest) async throws -> UUID { throw error }
     func signInWithApple(
