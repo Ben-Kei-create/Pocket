@@ -236,6 +236,7 @@ nonisolated struct FeedbackDTO: Codable, Sendable {
     let isPublic: Bool
     let bubbleColor: String
     let likesCount: Int
+    let moderationStatus: String
     let createdAt: Date
 
     enum CodingKeys: String, CodingKey {
@@ -247,6 +248,7 @@ nonisolated struct FeedbackDTO: Codable, Sendable {
         case isPublic = "is_public"
         case bubbleColor = "bubble_color"
         case likesCount = "likes_count"
+        case moderationStatus = "moderation_status"
         case createdAt = "created_at"
     }
 
@@ -259,6 +261,7 @@ nonisolated struct FeedbackDTO: Codable, Sendable {
         isPublic = feedback.isPublic
         bubbleColor = feedback.bubbleColor.rawValue
         likesCount = feedback.likes
+        moderationStatus = "visible"
         createdAt = feedback.createdAt
     }
 
@@ -358,6 +361,30 @@ nonisolated struct ModerateFeedbackParameters: Encodable, Sendable {
     enum CodingKeys: String, CodingKey {
         case feedbackID = "p_feedback_id"
         case action = "p_action"
+    }
+}
+
+nonisolated struct SubmitRightsHolderRequestParameters: Encodable, Sendable {
+    let projectID: UUID
+    let requesterName: String
+    let requesterEmail: String
+    let relationship: String
+    let details: String
+
+    enum CodingKeys: String, CodingKey {
+        case projectID = "p_project_id"
+        case requesterName = "p_requester_name"
+        case requesterEmail = "p_requester_email"
+        case relationship = "p_relationship"
+        case details = "p_details"
+    }
+}
+
+nonisolated struct RightsHolderRequestResultDTO: Decodable, Sendable {
+    let requestID: UUID
+
+    enum CodingKeys: String, CodingKey {
+        case requestID = "request_id"
     }
 }
 

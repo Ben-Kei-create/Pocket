@@ -27,7 +27,7 @@ struct AppConfiguration: Sendable {
         return true
     }
 
-    static func load(from bundle: Bundle = .main) -> AppConfiguration {
+    nonisolated static func load(from bundle: Bundle = .main) -> AppConfiguration {
         let backendValue = bundle.object(forInfoDictionaryKey: "PocoBackend") as? String
         let urlValue = bundle.object(forInfoDictionaryKey: "SupabaseURL") as? String
         let keyValue = bundle.object(forInfoDictionaryKey: "SupabaseAnonKey") as? String
@@ -58,5 +58,5 @@ struct AppConfiguration: Sendable {
 }
 
 private extension String {
-    var nilIfEmpty: String? { isEmpty ? nil : self }
+    nonisolated var nilIfEmpty: String? { isEmpty ? nil : self }
 }

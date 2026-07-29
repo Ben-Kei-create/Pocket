@@ -4,6 +4,8 @@ SwiftUIで作られた、クリエイターへパステルカラーのフキダ�
 
 プロダクト原則、画面遷移、権限、イベント、実装済み／未実装機能は
 [`Docs/PocoBasicDesign.md`](Docs/PocoBasicDesign.md)にまとめています。
+本番公開前のBot対策、App Attest、監視、Backup、インシデント対応は
+[`Docs/SecurityOperations.md`](Docs/SecurityOperations.md)を必須チェックリストとして使います。
 
 ## Requirements
 
@@ -54,7 +56,7 @@ Regular／Medium／Boldをアプリへ同梱し、`PocoTypography`からDynamic 
 
 - Preview / Mock: `POCO_BACKEND = mock`。ネットワーク不要です。
 - Development / Production: `POCO_BACKEND = supabase`と有効なURL・Anon Keyが必要です。
-- Supabase指定時に設定が欠けている場合、クラッシュを避けてMockへフォールバックし、設定エラーをStoreへ記録します。
+- DebugでSupabase設定が欠ける場合はMockで開発を継続できます。Releaseは設定不備時に通信機能をfail-closedし、Mockへ自動退避しないため、未送信を送信済みと見せません。
 
 Auth UI完成前にCreator作成を試す場合だけ、Dashboardで作ったAuth UserのUUIDを`POCO_DEVELOPMENT_USER_ID`へ指定し、`supabase/development/001_unsafe_anonymous_creator_policies.sql`を開発Projectへ手動適用できます。このSQLは匿名の作品・画像作成を許すため、本番Projectへ適用してはいけません。通常のMigrationには含まれません。確認後は`supabase/development/999_remove_unsafe_anonymous_creator_policies.sql`を実行し、追加したPolicyと権限を必ず削除してください。
 
@@ -81,6 +83,11 @@ Migrationは次の順で再構築できます。
 - `017_content_ratings_and_safe_browsing.sql`: 作品対象区分、非公開閲覧設定、成人向け情報を除去する検索RPC
 - `018_soft_delete_projects.sql`: 作品の即時非公開、30日保持、削除監査、通報証跡を守るパージRPC
 - `019_universal_link_project_lookup.sql`: URLから1作品だけを安全に解決する公開Project RPC
+- `020_rights_holder_requests.sql`: イベント／頒布用区分、権利者向け削除申請、非公開連絡先、進行中重複防止、日次レート制限
+- `021_abuse_and_moderation_hardening.sql`: 通報原文の不変証拠、通報／投稿／Likeレート制限の同時実行対策、ブロック強制、Moderation冪等化
+- `022_storage_and_access_hardening.sql`: 成人向け閲覧判定の共通化、Storage一覧防止、作品／プロフィール画像を1枚の決定的パスへ制限、TLS URL制約
+- `023_profile_privacy_and_query_guards.sql`: 匿名プロフィール非公開、Home／作者／活動Queryの上限、単一作品取得の定数時間化
+- `024_retention_and_realtime_scope.sql`: 作者❤️Realtimeの作品単位購読、未解決通報だけを保持する30日パージ判定
 
 `feedback_count`は重複カラムにせず`projects_with_feedback_count` Viewで計算します。`likes_count`は`feedback_likes`のINSERT/DELETEトリガーだけで更新し、整合性を維持します。
 
@@ -90,13 +97,15 @@ Migrationは次の順で再構築できます。
 
 `016`以降、自作品へ届いた新着感想と、登録ユーザー自身の感想へ付いた通常Like／作者❤️は、DB Triggerだけが`notifications`へ追加します。`recipient_id + event_key`のUNIQUE制約で同じ出来事の二重通知を防ぎ、クライアントは通知本文を追加・変更できません。既読は本人確認付き`mark_notification_read` RPCで通知を開いた1件だけ更新します。Anonymous Authゲストは通知レコードとPush配信の対象外で、表示中のFeedback Realtimeだけを利用します。
 
-作品登録時は`creator`（制作者本人）、`authorized`（許可を得ている）、`fan`（非公式なファンの感想箱）のいずれかを選びます。本人・許諾確認が済むまでは`verification_status = unverified`として表示し、一般クライアントから`verified`へ変更できないDBトリガーを設定しています。公開ルールへの同意はバージョンと日時を保存し、同意情報のない新規作品をDBでも拒否します。
+作品登録時は`creator`（制作者本人）、`authorized`（許可を得ている）、`fan`（非公式なファンの感想箱）、`event`（イベント・頒布用）のいずれかを選びます。本人・許諾確認が済むまでは`verification_status = unverified`として表示し、一般クライアントから`verified`へ変更できないDBトリガーを設定しています。公開ルールへの同意はバージョンと日時を保存し、同意情報のない新規作品をDBでも拒否します。
 
-登録ユーザーはCreator Dashboardから自分の作品だけを編集・削除できます。編集時も作品UUID、共有URL、QRコードは維持されます。画像差し替えは新画像のUploadとDB更新が成功してから旧画像を削除し、失敗時は新しい孤立画像を掃除します。作品削除は作者本人だけがRPCで要求でき、作品・感想・画像を即時非公開にしたまま30日間保持します。クライアントの物理DELETE権限はなく、通報履歴またはModeration履歴がある作品は自動パージ対象から除外されます。パージWorkerはStorage画像を先に削除し、service-role専用RPCでDBを物理削除します。
+登録ユーザーはCreator Dashboardから自分の作品だけを編集・削除できます。編集時も作品UUID、共有URL、QRコードは維持されます。作品画像は作品ごとの`cover.jpg`へ上書きし、孤立画像の無制限増加を防ぎます。作品削除は作者本人だけがRPCで要求でき、作品・感想・画像を即時非公開にしたまま30日間保持します。クライアントの物理DELETE権限はなく、未解決の通報または権利者申請がある作品は自動パージ対象から除外されます。解決後も不変の通報証拠は保持し、パージWorkerはStorage画像を先に削除してからservice-role専用RPCでDBを物理削除します。
 
 `009`以降、通報はAnonymous Authを含む全ユーザーが利用できます。同じユーザーから同じ感想への通報は1件に集約し、1日20件の基本レート制限を設けます。投稿者本人の削除は公開本文・投稿者名・プロフィール参照を消去し、作者の操作は監査可能な`hidden_by_creator`として保持します。通報内容と`feedback_moderation_events`は公開されません。ブロック情報も本人だけが読み書きできます。
 
 `010`以降、同じAuthユーザーが1作品へ保持できる感想は3件までです。アプリで残数を案内し、DB TriggerとTransaction Advisory Lockでも同時投稿を含めて上限を強制します。投稿者本人が削除した感想は上限から除外します。
+
+`020`以降、登録ユーザーは作品詳細から権利者向け削除申請を送信できます。氏名・メールアドレス・申請理由はRLSで一般クライアントから完全に隠し、`service_role`だけが確認できます。同一ユーザー・同一作品の進行中申請は1件、送信は1日5件までとし、作品削除後も審査に必要なタイトル・登録者・登録区分のSnapshotを保持します。
 
 ## QR・Universal Link
 
@@ -139,7 +148,7 @@ AASAテンプレート、Associated Domains、実機確認手順は[`Docs/Univer
 作品画像は選択後、長辺1600px以内・JPEG品質0.8へ変換され、次のパスへ保存されます。
 
 ```text
-project-images/projects/{creatorID}/{projectID}/{imageID}.jpg
+project-images/projects/{creatorID}/{projectID}/cover.jpg
 ```
 
 DBにはBase64ではなく公開URLだけを保存します。アップロード上限は6MB、MIME typeは`image/jpeg`です。
@@ -147,7 +156,7 @@ DBにはBase64ではなく公開URLだけを保存します。アップロード
 登録時のプロフィール画像は、アプリ同梱の5種類または写真ライブラリから選択できます。同梱画像は`profiles.avatar_name`、ユーザー画像は長辺512px・JPEG品質0.82へ変換して次のパスへ保存し、`profiles.avatar_url`へ公開URLだけを保持します。
 
 ```text
-profile-avatars/profiles/{userID}/{imageID}.jpg
+profile-avatars/profiles/{userID}/avatar.jpg
 ```
 
 プロフィール画像のアップロード上限は2MBです。Storage Policyにより、読み取りは公開、追加・更新・削除は本人かつ匿名ではない登録ユーザーだけに制限します。

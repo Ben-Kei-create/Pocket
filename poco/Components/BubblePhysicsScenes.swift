@@ -108,7 +108,6 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
 
         if let rareCompanion = rareCompanionNode(at: point) {
             if !reduceMotion {
-                rareCompanion.physicsBody?.applyImpulse(CGVector(dx: 0, dy: 0.12))
                 rareCompanion.playPoyon()
             }
             if rareCompanion.claimTapReward() {
@@ -119,7 +118,6 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
 
         if let companion = companionNode(at: point) {
             if !reduceMotion {
-                companion.physicsBody?.applyImpulse(CGVector(dx: 0, dy: 0.10))
                 companion.playPoyon()
             }
             if companion.claimTapReward() {
@@ -152,6 +150,11 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
     }
 
     func didBegin(_ contact: SKPhysicsContact) {
+        (contact.bodyA.node as? PhysicsCompanionNode)?.settleAfterContact()
+        (contact.bodyB.node as? PhysicsCompanionNode)?.settleAfterContact()
+        (contact.bodyA.node as? PhysicsRareCompanionNode)?.settleAfterContact()
+        (contact.bodyB.node as? PhysicsRareCompanionNode)?.settleAfterContact()
+
         if !reduceMotion {
             (contact.bodyA.node as? PhysicsBubbleNode)?.playPoyon()
             (contact.bodyB.node as? PhysicsBubbleNode)?.playPoyon()
@@ -494,7 +497,6 @@ final class BubbleDropPhysicsScene: SKScene, SKPhysicsContactDelegate {
         if let rareCompanion = rareCompanionNode(at: point) {
             if !reduceMotion {
                 rareCompanion.playPoyon()
-                rareCompanion.physicsBody?.applyImpulse(CGVector(dx: 0, dy: 0.12))
             }
             if rareCompanion.claimTapReward() {
                 onRareCompanionTapped?("rare-tap:\(rareCompanion.eventKey)")
@@ -505,7 +507,6 @@ final class BubbleDropPhysicsScene: SKScene, SKPhysicsContactDelegate {
         if let companion = companionNode(at: point) {
             if !reduceMotion {
                 companion.playPoyon()
-                companion.physicsBody?.applyImpulse(CGVector(dx: 0, dy: 0.10))
             }
             if companion.claimTapReward() {
                 onCompanionTapped?("companion-tap:\(companion.feedbackID.uuidString)")
@@ -530,6 +531,11 @@ final class BubbleDropPhysicsScene: SKScene, SKPhysicsContactDelegate {
     func didBegin(_ contact: SKPhysicsContact) {
         let bubbleA = contact.bodyA.node as? PhysicsBubbleNode
         let bubbleB = contact.bodyB.node as? PhysicsBubbleNode
+
+        (contact.bodyA.node as? PhysicsCompanionNode)?.settleAfterContact()
+        (contact.bodyB.node as? PhysicsCompanionNode)?.settleAfterContact()
+        (contact.bodyA.node as? PhysicsRareCompanionNode)?.settleAfterContact()
+        (contact.bodyB.node as? PhysicsRareCompanionNode)?.settleAfterContact()
 
         if !reduceMotion {
             bubbleA?.playPoyon()

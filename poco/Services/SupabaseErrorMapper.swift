@@ -22,12 +22,18 @@ enum SupabaseErrorMapper {
             switch postgrestError.code {
             case "42501", "PGRST301":
                 return .unauthorized
-            case "PGRST116":
+            case "PGRST116", "P0002":
                 return .notFound
             case "P0003":
                 return .feedbackLimitReached
             case "P0004":
                 return .projectLimitReached
+            case "P0006":
+                return .requestAlreadySubmitted
+            case "P0007":
+                return .rateLimited
+            case "22023":
+                return .invalidInput
             default:
                 return .unknown(postgrestError.message)
             }

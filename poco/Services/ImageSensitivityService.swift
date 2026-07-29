@@ -10,8 +10,10 @@ nonisolated enum ImageSensitivityResult: Equatable, Sendable {
 
 nonisolated enum ImageSensitivityService {
     static func analyze(_ data: Data) async -> ImageSensitivityResult {
-        guard let image = UIImage(data: data),
-              let cgImage = image.cgImage else {
+        guard let cgImage = RemoteImageDecoder.decode(
+            data,
+            maximumPixelSize: 1_600
+        )?.cgImage else {
             return .unavailable
         }
 

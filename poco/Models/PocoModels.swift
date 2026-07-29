@@ -148,6 +148,7 @@ nonisolated enum ProjectRelationship: String, CaseIterable, Identifiable, Codabl
     case creator
     case authorized
     case fan
+    case event
 
     var id: Self { self }
 
@@ -156,6 +157,7 @@ nonisolated enum ProjectRelationship: String, CaseIterable, Identifiable, Codabl
         case .creator: "制作者本人"
         case .authorized: "許可を得ている"
         case .fan: "ファンの感想箱"
+        case .event: "イベント・頒布用"
         }
     }
 
@@ -164,6 +166,7 @@ nonisolated enum ProjectRelationship: String, CaseIterable, Identifiable, Codabl
         case .creator: "私または所属チームが制作した作品です"
         case .authorized: "権利者・制作関係者から登録の許可を得ています"
         case .fan: "作品を応援するための非公式な感想箱です"
+        case .event: "イベントや頒布の場で感想を集めるページです"
         }
     }
 
@@ -172,17 +175,23 @@ nonisolated enum ProjectRelationship: String, CaseIterable, Identifiable, Codabl
         case .creator: "person.crop.circle.badge.checkmark"
         case .authorized: "checkmark.seal"
         case .fan: "heart.circle"
+        case .event: "ticket"
         }
     }
 
     func badgeTitle(verificationStatus: ProjectVerificationStatus) -> String {
-        if verificationStatus == .verified, self != .fan {
-            return "公式クリエイター"
+        if verificationStatus == .verified {
+            return switch self {
+            case .creator, .authorized: "公式クリエイター"
+            case .fan: "ファンの感想箱・非公式"
+            case .event: "イベント感想箱・確認済み"
+            }
         }
         return switch self {
         case .creator: "制作者として登録・未確認"
         case .authorized: "許諾済みとして登録・未確認"
         case .fan: "ファンの感想箱・非公式"
+        case .event: "イベント感想箱・未確認"
         }
     }
 }
@@ -274,6 +283,32 @@ nonisolated enum FeedbackReportReason: String, CaseIterable, Identifiable, Codab
         case .other: "その他"
         }
     }
+}
+
+nonisolated enum RightsHolderRelationship: String, CaseIterable, Identifiable, Codable, Sendable {
+    case rightsHolder = "rights_holder"
+    case authorizedRepresentative = "authorized_representative"
+    case creator
+    case other
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .rightsHolder: "権利者本人"
+        case .authorizedRepresentative: "権利者の代理人"
+        case .creator: "作品の制作者・関係者"
+        case .other: "その他"
+        }
+    }
+}
+
+nonisolated struct RightsHolderRequest: Sendable {
+    let projectID: UUID
+    let requesterName: String
+    let requesterEmail: String
+    let relationship: RightsHolderRelationship
+    let details: String
 }
 
 nonisolated extension Feedback {
@@ -372,6 +407,13 @@ nonisolated enum AccountStatus: String, Codable, Sendable {
     case registered
 
     var canCreateProjects: Bool { self == .registered }
+}
+
+nonisolated enum PocoOnboardingGuide: String, Identifiable, Sendable {
+    case member
+    case pro
+
+    var id: Self { self }
 }
 
 nonisolated struct AuthenticatedAccount: Equatable, Sendable {

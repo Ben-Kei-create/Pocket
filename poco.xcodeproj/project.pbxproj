@@ -45,6 +45,14 @@
 			);
 			sourceTree = "<group>";
 		};
+		A5B2163830163B3000581200 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A5B2163730163B3000581200 /* poco.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
 		A5B2164630163B3100581200 /* Config */ = {
 			isa = PBXGroup;
 			children = (
@@ -52,14 +60,6 @@
 				A5B2164830163B3100581200 /* Secrets.example.xcconfig */,
 			);
 			path = Config;
-			sourceTree = "<group>";
-		};
-		A5B2163830163B3000581200 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				A5B2163730163B3000581200 /* poco.app */,
-			);
-			name = Products;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -112,12 +112,12 @@
 			);
 			mainGroup = A5B2162E30163B2F00581200;
 			minimizedProjectReferenceProxies = 1;
-			preferredProjectObjectVersion = 77;
-			productRefGroup = A5B2163830163B3000581200 /* Products */;
-			projectDirPath = "";
 			packageReferences = (
 				A5B2164930163B3100581200 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = A5B2163830163B3000581200 /* Products */;
+			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				A5B2163630163B3000581200 /* poco */,

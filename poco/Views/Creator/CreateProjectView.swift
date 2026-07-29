@@ -86,7 +86,7 @@ struct CreateProjectView: View {
                                         .scaledToFill()
                                 } else if !removesExistingImage,
                                           let imageURL = project?.imageURL {
-                                    AsyncImage(url: imageURL) { phase in
+                                    SecureRemoteImage(url: imageURL) { phase in
                                         switch phase {
                                         case .success(let image):
                                             image
@@ -97,8 +97,6 @@ struct CreateProjectView: View {
                                         case .failure:
                                             Image(systemName: "photo.badge.plus")
                                                 .foregroundStyle(PocoTheme.primary)
-                                        @unknown default:
-                                            EmptyView()
                                         }
                                     }
                                 } else {
@@ -230,15 +228,21 @@ struct CreateProjectView: View {
                     isAnalyzingImage = true
                     defer { isAnalyzingImage = false }
                     guard let data = try? await item?.loadTransferable(type: Data.self),
-                          let image = UIImage(data: data) else { return }
-                    guard await ImageSensitivityService.analyze(data) != .sensitive else {
+                          let sanitizedData = try? ProjectImageProcessor.compressedJPEG(
+                            from: data
+                          ),
+                          let image = RemoteImageDecoder.decode(
+                            sanitizedData,
+                            maximumPixelSize: 1_600
+                          ) else { return }
+                    guard await ImageSensitivityService.analyze(sanitizedData) != .sensitive else {
                         selectedPhoto = nil
                         selectedImageData = nil
                         selectedImage = nil
                         saveErrorMessage = "露骨な性的表現を含む可能性がある画像は、対象区分にかかわらず登録できません。"
                         return
                     }
-                    selectedImageData = data
+                    selectedImageData = sanitizedData
                     selectedImage = image
                     removesExistingImage = false
                 }

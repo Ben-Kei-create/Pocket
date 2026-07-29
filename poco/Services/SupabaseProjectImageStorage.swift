@@ -18,7 +18,7 @@ final class SupabaseProjectImageStorage: ProjectImageStorage, Sendable {
             "projects",
             creatorID.uuidString.lowercased(),
             projectID.uuidString.lowercased(),
-            "\(UUID().uuidString.lowercased()).jpg"
+            "cover.jpg"
         ].joined(separator: "/")
 
         do {
@@ -28,14 +28,15 @@ final class SupabaseProjectImageStorage: ProjectImageStorage, Sendable {
                     path,
                     data: data,
                     options: FileOptions(
-                        cacheControl: "31536000",
+                        cacheControl: "3600",
                         contentType: "image/jpeg",
-                        upsert: false
+                        upsert: true
                     )
                 )
-            return try client.storage
+            let publicURL = try client.storage
                 .from(bucket)
                 .getPublicURL(path: path)
+            return versioned(publicURL)
         } catch {
             throw SupabaseErrorMapper.map(error)
         }
@@ -56,5 +57,13 @@ final class SupabaseProjectImageStorage: ProjectImageStorage, Sendable {
         } catch {
             throw SupabaseErrorMapper.map(error)
         }
+    }
+
+    private nonisolated func versioned(_ url: URL) -> URL {
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return url
+        }
+        components.queryItems = [URLQueryItem(name: "v", value: UUID().uuidString.lowercased())]
+        return components.url ?? url
     }
 }

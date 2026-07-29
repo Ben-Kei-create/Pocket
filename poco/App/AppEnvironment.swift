@@ -8,9 +8,14 @@ enum AppEnvironment {
         if configuration.backendMode == .supabase,
            let client = try? SupabaseClientProvider.makeClient(configuration: configuration) {
             let authenticatedUserProvider = SupabaseCurrentUserProvider(client: client)
+            #if DEBUG
+            let developmentUserID = configuration.developmentUserID
+            #else
+            let developmentUserID: UUID? = nil
+            #endif
             let creatorUserProvider = DevelopmentCurrentUserProvider(
                 authenticatedProvider: authenticatedUserProvider,
-                fallbackUserID: configuration.developmentUserID
+                fallbackUserID: developmentUserID
             )
             let serverAuthorityService = SupabaseServerAuthorityService(
                 client: client,
@@ -36,6 +41,10 @@ enum AppEnvironment {
                     client: client,
                     currentUserProvider: authenticatedUserProvider
                 ),
+                rightsHolderRequestRepository: SupabaseRightsHolderRequestRepository(
+                    client: client,
+                    currentUserProvider: authenticatedUserProvider
+                ),
                 membershipPurchaseService: StoreKitMembershipService(
                     productID: configuration.membershipProductID
                 ),
@@ -50,6 +59,7 @@ enum AppEnvironment {
             )
         }
 
+        #if DEBUG
         let store = PocoStore(
             membershipRepository: MockMembershipRepository(),
             memberRewardRepository: MockMemberRewardRepository(),
@@ -64,5 +74,27 @@ enum AppEnvironment {
             store.errorMessage = AppError.configuration.userMessage
         }
         return store
+        #else
+        let unavailable = UnavailableBackendServices()
+        let store = PocoStore(
+            projectRepository: unavailable,
+            feedbackRepository: unavailable,
+            profileRepository: unavailable,
+            membershipRepository: unavailable,
+            memberRewardRepository: unavailable,
+            moderationRepository: unavailable,
+            notificationRepository: unavailable,
+            rightsHolderRequestRepository: unavailable,
+            membershipPurchaseService: DisabledMembershipPurchaseService(),
+            serverAuthorityService: unavailable,
+            authRepository: unavailable,
+            currentUserProvider: unavailable,
+            backendMode: .supabase,
+            initialProjects: [],
+            initialFeedbacks: []
+        )
+        store.errorMessage = AppError.configuration.userMessage
+        return store
+        #endif
     }
 }

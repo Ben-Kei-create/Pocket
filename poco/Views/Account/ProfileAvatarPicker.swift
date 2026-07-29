@@ -71,13 +71,21 @@ struct ProfileAvatarPicker: View {
             Task {
                 defer { isLoadingPhoto = false }
                 guard let data = try? await item.loadTransferable(type: Data.self),
-                      UIImage(data: data) != nil else { return }
-                guard await ImageSensitivityService.analyze(data) != .sensitive else {
+                      let sanitizedData = try? ProjectImageProcessor.compressedJPEG(
+                        from: data,
+                        maximumDimension: 1_024,
+                        quality: 0.82
+                      ),
+                      RemoteImageDecoder.decode(
+                        sanitizedData,
+                        maximumPixelSize: 1_024
+                      ) != nil else { return }
+                guard await ImageSensitivityService.analyze(sanitizedData) != .sensitive else {
                     showsSensitiveImageAlert = true
                     selectedPhoto = nil
                     return
                 }
-                avatarImageData = data
+                avatarImageData = sanitizedData
                 avatarName = nil
             }
         }

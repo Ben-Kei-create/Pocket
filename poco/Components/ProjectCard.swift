@@ -89,6 +89,7 @@ struct ProjectRelationshipBadge: View {
         case .creator: PocoTheme.primary
         case .authorized: .blue
         case .fan: .purple
+        case .event: .orange
         }
     }
 }
@@ -112,10 +113,7 @@ struct ProjectArtworkThumbnail: View {
                 }
                 .accessibilityLabel("年齢制限により画像を非表示")
         } else if let imageURL = project.imageURL {
-            AsyncImage(
-                url: imageURL,
-                transaction: Transaction(animation: .easeInOut(duration: 0.2))
-            ) { phase in
+            SecureRemoteImage(url: imageURL) { phase in
                 switch phase {
                 case .success(let image):
                     image
@@ -129,8 +127,6 @@ struct ProjectArtworkThumbnail: View {
                                 .controlSize(.small)
                         }
                 case .failure:
-                    ProjectArtworkView(category: project.category)
-                @unknown default:
                     ProjectArtworkView(category: project.category)
                 }
             }

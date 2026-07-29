@@ -14,7 +14,7 @@ struct ProjectPublishingGuidelinesView: View {
                     guideline(
                         symbol: "person.crop.circle.badge.checkmark",
                         title: "正しい立場を選ぶ",
-                        detail: "制作者本人、許可を得ている、ファンの感想箱から、実際の関係に合うものを選びます。"
+                        detail: "制作者本人、許可を得ている、ファンの感想箱、イベント・頒布用から、実際の関係と用途に合うものを選びます。"
                     )
                     guideline(
                         symbol: "person.crop.circle.badge.xmark",
@@ -30,6 +30,11 @@ struct ProjectPublishingGuidelinesView: View {
                         symbol: "heart.circle",
                         title: "ファンの感想箱は非公式",
                         detail: "作品を応援する目的で作り、作者本人の公式ページとは表示しません。権利者から要請があった場合は非公開・削除の対象になります。"
+                    )
+                    guideline(
+                        symbol: "ticket",
+                        title: "イベント・頒布用も立場を明確に",
+                        detail: "イベント会場や頒布時に使う感想箱です。主催者・制作者・許諾済みのどれに当たるかを説明し、公式と誤認させません。"
                     )
                 }
                 .padding(PocoTheme.pagePadding)

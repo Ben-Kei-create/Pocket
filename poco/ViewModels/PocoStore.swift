@@ -31,6 +31,7 @@ final class PocoStore {
     private(set) var memberRewardSnapshot = MemberRewardSnapshot.empty
     private(set) var lastDailyLoginClaim: DailyLoginBonusClaim?
     private(set) var starCoinBalance = 0
+    var onboardingGuideRequest: PocoOnboardingGuide?
     let backendMode: BackendMode
 
     private let projectRepository: any ProjectRepository
@@ -40,6 +41,7 @@ final class PocoStore {
     private let memberRewardRepository: any MemberRewardRepository
     private let moderationRepository: any ModerationRepository
     private let notificationRepository: any NotificationRepository
+    private let rightsHolderRequestRepository: any RightsHolderRequestRepository
     private let membershipPurchaseService: any MembershipPurchaseService
     private let serverAuthorityService: any ServerAuthorityService
     private let authRepository: any AuthRepository
@@ -66,6 +68,7 @@ final class PocoStore {
         memberRewardRepository: (any MemberRewardRepository)? = nil,
         moderationRepository: (any ModerationRepository)? = nil,
         notificationRepository: (any NotificationRepository)? = nil,
+        rightsHolderRequestRepository: (any RightsHolderRequestRepository)? = nil,
         membershipPurchaseService: (any MembershipPurchaseService)? = nil,
         serverAuthorityService: (any ServerAuthorityService)? = nil,
         authRepository: (any AuthRepository)? = nil,
@@ -83,6 +86,8 @@ final class PocoStore {
         self.memberRewardRepository = memberRewardRepository ?? MockMemberRewardRepository()
         self.moderationRepository = moderationRepository ?? MockModerationRepository()
         self.notificationRepository = notificationRepository ?? MockNotificationRepository()
+        self.rightsHolderRequestRepository = rightsHolderRequestRepository
+            ?? MockRightsHolderRequestRepository()
         self.membershipPurchaseService = membershipPurchaseService ?? DisabledMembershipPurchaseService()
         self.serverAuthorityService = serverAuthorityService ?? MockServerAuthorityService()
         self.authRepository = authRepository ?? MockAuthRepository()
@@ -492,6 +497,31 @@ final class PocoStore {
         capabilities.canCreateProject
     }
 
+    var onboardingStateToken: String {
+        "\(currentUserID?.uuidString ?? "guest"):\(role.rawValue)"
+    }
+
+    func presentOnboardingIfNeeded() {
+        guard onboardingGuideRequest == nil,
+              accountStatus == .registered,
+              let currentUserID else { return }
+        let guide: PocoOnboardingGuide = role == .pro ? .pro : .member
+        guard PocoOnboardingProgress.shouldPresent(guide, userID: currentUserID) else { return }
+        onboardingGuideRequest = guide
+    }
+
+    func completeOnboarding(_ guide: PocoOnboardingGuide) {
+        if let currentUserID {
+            PocoOnboardingProgress.complete(guide, userID: currentUserID)
+        }
+        onboardingGuideRequest = nil
+    }
+
+    func replayOnboarding() {
+        guard accountStatus == .registered else { return }
+        onboardingGuideRequest = role == .pro ? .pro : .member
+    }
+
     func claimStarCoinReward(eventKey: String) {
         guard let event = StarCoinEvent(eventKey: eventKey),
               rewardedCoinEventKeys.insert(event.eventKey).inserted else { return }
@@ -611,6 +641,55 @@ final class PocoStore {
             errorMessage = appError.userMessage
             return .failure(appError)
         }
+    }
+
+    func submitRightsHolderRequest(
+        for project: Project,
+        requesterName: String,
+        requesterEmail: String,
+        relationship: RightsHolderRelationship,
+        details: String
+    ) async -> Result<UUID, AppError> {
+        let normalizedName = requesterName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedEmail = requesterEmail
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let normalizedDetails = details.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !normalizedName.isEmpty,
+              normalizedName.count <= 80,
+              normalizedEmail.count <= 254,
+              Self.isPlausibleEmail(normalizedEmail),
+              !normalizedDetails.isEmpty,
+              normalizedDetails.count <= 1_000 else {
+            return .failure(.invalidInput)
+        }
+
+        do {
+            let requestID = try await rightsHolderRequestRepository.submit(
+                RightsHolderRequest(
+                    projectID: project.id,
+                    requesterName: normalizedName,
+                    requesterEmail: normalizedEmail,
+                    relationship: relationship,
+                    details: normalizedDetails
+                )
+            )
+            return .success(requestID)
+        } catch {
+            let appError = map(error)
+            errorMessage = appError.userMessage
+            return .failure(appError)
+        }
+    }
+
+    private static func isPlausibleEmail(_ value: String) -> Bool {
+        guard let atIndex = value.lastIndex(of: "@"),
+              atIndex != value.startIndex else { return false }
+        let domainStart = value.index(after: atIndex)
+        guard domainStart < value.endIndex else { return false }
+        let domain = value[domainStart...]
+        return domain.contains(".") && !value.contains(where: { $0.isWhitespace })
     }
 
     func deleteOwnFeedback(_ feedback: Feedback) async -> Result<Void, AppError> {
@@ -979,8 +1058,36 @@ final class PocoStore {
 
         let projectID = UUID()
         var imageURL: URL?
+        var createdProject: Project?
 
         do {
+            let creator = Creator(
+                id: creatorID,
+                name: creatorName,
+                avatarName: currentProfile?.id == creatorID ? currentProfile?.avatarName : nil,
+                avatarURL: currentProfile?.id == creatorID ? currentProfile?.avatarURL : nil,
+                handle: currentProfile?.id == creatorID ? currentProfile?.handle : nil
+            )
+            var project = Project(
+                id: projectID,
+                title: title,
+                creator: creator,
+                category: category,
+                description: description,
+                imageName: nil,
+                imageURL: nil,
+                feedbackCount: 0,
+                createdAt: .now,
+                relationship: relationship,
+                verificationStatus: .unverified,
+                contentRating: contentRating
+            )
+
+            // The database row is created first so Storage RLS can verify that
+            // this project ID really belongs to the uploader.
+            try await projectRepository.createProject(project)
+            createdProject = project
+
             if let imageData, let projectImageStorage {
                 let compressedData = try await Task.detached(priority: .userInitiated) {
                     try ProjectImageProcessor.compressedJPEG(from: imageData)
@@ -990,36 +1097,19 @@ final class PocoStore {
                     projectID: projectID,
                     creatorID: creatorID
                 )
+                project.imageURL = imageURL
+                try await projectRepository.updateProject(project)
+                createdProject = project
             }
 
-            let creator = Creator(
-                id: creatorID,
-                name: creatorName,
-                avatarName: currentProfile?.id == creatorID ? currentProfile?.avatarName : nil,
-                avatarURL: currentProfile?.id == creatorID ? currentProfile?.avatarURL : nil,
-                handle: currentProfile?.id == creatorID ? currentProfile?.handle : nil
-            )
-            let project = Project(
-                id: projectID,
-                title: title,
-                creator: creator,
-                category: category,
-                description: description,
-                imageName: nil,
-                imageURL: imageURL,
-                feedbackCount: 0,
-                createdAt: .now,
-                relationship: relationship,
-                verificationStatus: .unverified,
-                contentRating: contentRating
-            )
-
-            try await projectRepository.createProject(project)
             projects.insert(project, at: 0)
             return .success(project)
         } catch {
             if let imageURL, let projectImageStorage {
                 try? await projectImageStorage.deleteProjectImage(at: imageURL)
+            }
+            if createdProject != nil {
+                try? await projectRepository.deleteProject(id: projectID)
             }
             let appError = map(error)
             errorMessage = appError.userMessage
@@ -1150,7 +1240,7 @@ final class PocoStore {
 
         realtimeReceiptTasks[projectID] = Task { [weak self] in
             guard let self else { return }
-            let stream = await repository.observeCreatorReceipts()
+            let stream = await repository.observeCreatorReceipts(projectID: projectID)
             do {
                 for try await receipt in stream {
                     guard !Task.isCancelled else { break }
@@ -1291,15 +1381,20 @@ final class PocoStore {
         let missingIDs = senderIDs.filter { profileCache[$0] == nil }
         let repository = profileRepository
 
-        await withTaskGroup(of: (UUID, Creator?).self) { group in
-            for id in missingIDs {
-                group.addTask {
-                    (id, try? await repository.fetchProfile(id: id))
+        let orderedMissingIDs = Array(missingIDs)
+        for start in stride(from: 0, to: orderedMissingIDs.count, by: 8) {
+            let end = min(start + 8, orderedMissingIDs.count)
+            let batch = orderedMissingIDs[start..<end]
+            await withTaskGroup(of: (UUID, Creator?).self) { group in
+                for id in batch {
+                    group.addTask {
+                        (id, try? await repository.fetchProfile(id: id))
+                    }
                 }
-            }
-            for await (id, profile) in group {
-                if let profile {
-                    profileCache[id] = profile
+                for await (id, profile) in group {
+                    if let profile {
+                        profileCache[id] = profile
+                    }
                 }
             }
         }

@@ -59,6 +59,20 @@ struct PocoSettingsView: View {
             }
 
             Section("Pocoについて") {
+                if store.canCreateProjects {
+                    Button {
+                        store.replayOnboarding()
+                    } label: {
+                        Label(
+                            store.isPocoMember
+                                ? "Proの使い方をもう一度見る"
+                                : "Pocoの使い方をもう一度見る",
+                            systemImage: "questionmark.circle"
+                        )
+                    }
+                    .foregroundStyle(.primary)
+                }
+
                 Button {
                     hasCompletedWelcome = false
                 } label: {

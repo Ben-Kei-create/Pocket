@@ -45,11 +45,11 @@ final class PhysicsCompanionNode: SKNode {
         physicsBody?.contactTestBitMask = PhysicsCategory.bubble
             | PhysicsCategory.companion
             | PhysicsCategory.floor
-        physicsBody?.restitution = 0.58
-        physicsBody?.friction = 0.48
-        physicsBody?.linearDamping = 0.66
-        physicsBody?.angularDamping = 0.86
-        physicsBody?.mass = 0.075
+        physicsBody?.restitution = 0.10
+        physicsBody?.friction = 0.72
+        physicsBody?.linearDamping = 1.35
+        physicsBody?.angularDamping = 1.0
+        physicsBody?.mass = 0.045
         physicsBody?.allowsRotation = false
     }
 
@@ -61,17 +61,26 @@ final class PhysicsCompanionNode: SKNode {
         guard visualContainer.action(forKey: "poyon") == nil else { return }
         let action = SKAction.sequence([
             .group([
-                .scaleX(to: 1.18, duration: 0.07),
-                .scaleY(to: 0.80, duration: 0.07)
+                .scaleX(to: 0.92, duration: 0.045),
+                .scaleY(to: 0.84, duration: 0.045)
             ]),
             .group([
-                .scaleX(to: 0.91, duration: 0.08),
-                .scaleY(to: 1.15, duration: 0.08)
+                .scaleX(to: 1.08, duration: 0.055),
+                .scaleY(to: 1.13, duration: 0.055)
             ]),
-            .scale(to: 1, duration: 0.12)
+            .scale(to: 1, duration: 0.05)
         ])
         action.timingMode = .easeInEaseOut
         visualContainer.run(action, withKey: "poyon")
+    }
+
+    func settleAfterContact() {
+        guard let physicsBody else { return }
+        physicsBody.velocity = CGVector(
+            dx: physicsBody.velocity.dx * 0.08,
+            dy: physicsBody.velocity.dy * 0.35
+        )
+        physicsBody.angularVelocity = 0
     }
 
     func playSpawn(reduceMotion: Bool, horizontalDirection: CGFloat) {
@@ -163,11 +172,11 @@ final class PhysicsRareCompanionNode: SKNode {
         physicsBody?.contactTestBitMask = PhysicsCategory.bubble
             | PhysicsCategory.companion
             | PhysicsCategory.floor
-        physicsBody?.restitution = 0.60
-        physicsBody?.friction = 0.50
-        physicsBody?.linearDamping = 0.68
-        physicsBody?.angularDamping = 0.88
-        physicsBody?.mass = 0.09
+        physicsBody?.restitution = 0.10
+        physicsBody?.friction = 0.74
+        physicsBody?.linearDamping = 1.35
+        physicsBody?.angularDamping = 1.0
+        physicsBody?.mass = 0.052
         physicsBody?.allowsRotation = false
     }
 
@@ -185,17 +194,26 @@ final class PhysicsRareCompanionNode: SKNode {
         guard visualContainer.action(forKey: "poyon") == nil else { return }
         let action = SKAction.sequence([
             .group([
-                .scaleX(to: 1.20, duration: 0.07),
-                .scaleY(to: 0.78, duration: 0.07)
+                .scaleX(to: 0.92, duration: 0.045),
+                .scaleY(to: 0.84, duration: 0.045)
             ]),
             .group([
-                .scaleX(to: 0.90, duration: 0.08),
-                .scaleY(to: 1.16, duration: 0.08)
+                .scaleX(to: 1.08, duration: 0.055),
+                .scaleY(to: 1.13, duration: 0.055)
             ]),
-            .scale(to: 1, duration: 0.13)
+            .scale(to: 1, duration: 0.05)
         ])
         action.timingMode = .easeInEaseOut
         visualContainer.run(action, withKey: "poyon")
+    }
+
+    func settleAfterContact() {
+        guard let physicsBody else { return }
+        physicsBody.velocity = CGVector(
+            dx: physicsBody.velocity.dx * 0.08,
+            dy: physicsBody.velocity.dy * 0.35
+        )
+        physicsBody.angularVelocity = 0
     }
 
     func playBirth(reduceMotion: Bool) {

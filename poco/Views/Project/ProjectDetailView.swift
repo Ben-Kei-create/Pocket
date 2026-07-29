@@ -8,6 +8,7 @@ struct ProjectDetailView: View {
     @State private var showsFeedbackLimitAlert = false
     @State private var pendingFeedback: Feedback?
     @State private var dropFeedback: Feedback?
+    @State private var showsRightsHolderRequest = false
 
     private var project: Project? {
         store.project(id: projectID)
@@ -57,6 +58,13 @@ struct ProjectDetailView: View {
                                 }
                                 .buttonStyle(PocoPrimaryButtonStyle())
 
+                                if store.role == .guest {
+                                    Label("登録なしで、すぐに感想を書けます", systemImage: "bolt.fill")
+                                        .pocoFont(.caption, weight: .medium)
+                                        .foregroundStyle(PocoTheme.primary)
+                                        .accessibilityLabel("ユーザー登録なしで感想を送れます")
+                                }
+
                                 Text(
                                     "この作品には1人\(PocoLimits.feedbacksPerProject)件まで送れます（現在\(store.ownFeedbackCount(for: project.id))件）"
                                 )
@@ -93,6 +101,17 @@ struct ProjectDetailView: View {
                                 Image(systemName: "square.and.arrow.up")
                             }
                             .accessibilityLabel("作品を共有")
+
+                            Menu {
+                                Button {
+                                    showsRightsHolderRequest = true
+                                } label: {
+                                    Label("権利に関する削除申請", systemImage: "checkmark.shield")
+                                }
+                            } label: {
+                                Image(systemName: "ellipsis.circle")
+                            }
+                            .accessibilityLabel("作品のその他の操作")
                         }
                     }
                     .sheet(isPresented: $showsCompose, onDismiss: showDropIfNeeded) {
@@ -109,6 +128,9 @@ struct ProjectDetailView: View {
                         ) {
                             await store.submit(feedback)
                         }
+                    }
+                    .sheet(isPresented: $showsRightsHolderRequest) {
+                        ProjectRightsHolderRequestView(project: project)
                     }
                     .task(id: project.id) {
                         await store.refreshOwnFeedbackCount(for: project.id)
@@ -148,26 +170,44 @@ struct ProjectDetailView: View {
     }
 
     private func creatorCard(_ project: Project) -> some View {
-        HStack(spacing: 14) {
-            ProfileAvatarView(creator: project.creator, size: 44)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(project.relationship == .fan ? "作品の作者・クリエイター" : "クリエイター")
-                    .pocoFont(.caption)
+        NavigationLink {
+            PublicProfileView(creator: project.creator)
+        } label: {
+            HStack(spacing: 14) {
+                ProfileAvatarView(creator: project.creator, size: 44)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(creatorCardTitle(project))
+                        .pocoFont(.caption)
+                        .foregroundStyle(PocoTheme.secondaryText)
+                    Text(project.creator.name)
+                        .pocoFont(.headline, weight: .medium)
+                        .foregroundStyle(.primary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .pocoFont(.caption, weight: .bold)
                     .foregroundStyle(PocoTheme.secondaryText)
-                Text(project.creator.name)
-                    .pocoFont(.headline, weight: .medium)
             }
-            Spacer()
-            Image(systemName: "heart.fill")
-                .foregroundStyle(PocoTheme.primary.opacity(0.85))
+            .padding(18)
+            .pocoCard()
         }
-        .padding(18)
-        .pocoCard()
+        .buttonStyle(.plain)
+        .accessibilityHint("公開プロフィールを表示します")
+    }
+
+    private func creatorCardTitle(_ project: Project) -> String {
+        switch project.relationship {
+        case .creator: "クリエイター"
+        case .authorized, .event: "感想箱の登録者"
+        case .fan: "この感想箱を作った人"
+        }
     }
 
     @ViewBuilder
     private func relationshipNotice(_ project: Project) -> some View {
-        if project.relationship == .fan || project.verificationStatus != .verified {
+        if project.relationship == .fan
+            || project.relationship == .event
+            || project.verificationStatus != .verified {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: project.relationship.symbolName)
                     .foregroundStyle(PocoTheme.primary)
@@ -190,6 +230,9 @@ struct ProjectDetailView: View {
         }
         if project.relationship == .authorized {
             return "許可を得ているとして登録されたページです。Pocoによる確認はまだ完了していません。"
+        }
+        if project.relationship == .event {
+            return "イベントや頒布の場で感想を集めるページです。公式・許諾済みかどうかは登録区分の表示をご確認ください。"
         }
         return "制作者本人として登録されたページです。Pocoによる本人確認はまだ完了していません。"
     }

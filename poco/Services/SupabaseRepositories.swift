@@ -153,6 +153,7 @@ final class SupabaseFeedbackRepository: FeedbackRepository, Sendable {
                 .eq("is_public", value: true)
                 .eq("moderation_status", value: "visible")
                 .order("created_at", ascending: false)
+                .limit(500)
                 .execute()
                 .value
             return rows.map(\.domainModel)
@@ -299,15 +300,20 @@ final class SupabaseFeedbackRepository: FeedbackRepository, Sendable {
         }
     }
 
-    nonisolated func observeCreatorReceipts() async -> AsyncThrowingStream<CreatorReceipt, any Error> {
+    nonisolated func observeCreatorReceipts(
+        projectID: UUID
+    ) async -> AsyncThrowingStream<CreatorReceipt, any Error> {
         let client = client
         return AsyncThrowingStream { continuation in
             let task = Task {
-                let channel = client.channel("feedback-creator-receipts")
+                let channel = client.channel(
+                    "feedback-creator-receipts:\(projectID.uuidString)"
+                )
                 let insertions = channel.postgresChange(
                     InsertAction.self,
                     schema: "public",
-                    table: "feedback_creator_receipts"
+                    table: "feedback_creator_receipts",
+                    filter: .eq("project_id", value: projectID)
                 )
 
                 do {
@@ -358,7 +364,7 @@ final class SupabaseFeedbackRepository: FeedbackRepository, Sendable {
                             as: FeedbackDTO.self,
                             decoder: DatabaseCoding.decoder()
                         )
-                        if dto.isPublic {
+                        if dto.isPublic && dto.moderationStatus == "visible" {
                             continuation.yield(dto.domainModel)
                         }
                     }
@@ -536,6 +542,46 @@ final class SupabaseModerationRepository: ModerationRepository, Sendable {
                     params: ModerateFeedbackParameters(feedbackID: id, action: action)
                 )
                 .execute()
+        } catch {
+            throw SupabaseErrorMapper.map(error)
+        }
+    }
+}
+
+final class SupabaseRightsHolderRequestRepository: RightsHolderRequestRepository, Sendable {
+    private let client: SupabaseClient
+    private let currentUserProvider: any CurrentUserProvider
+
+    init(client: SupabaseClient, currentUserProvider: any CurrentUserProvider) {
+        self.client = client
+        self.currentUserProvider = currentUserProvider
+    }
+
+    nonisolated func submit(_ request: RightsHolderRequest) async throws -> UUID {
+        guard await currentUserProvider.currentUserID() != nil else {
+            throw AppError.unauthorized
+        }
+
+        do {
+            let rows: [RightsHolderRequestResultDTO] = try await client
+                .rpc(
+                    "submit_rights_holder_request",
+                    params: SubmitRightsHolderRequestParameters(
+                        projectID: request.projectID,
+                        requesterName: request.requesterName,
+                        requesterEmail: request.requesterEmail,
+                        relationship: request.relationship.rawValue,
+                        details: request.details
+                    )
+                )
+                .execute()
+                .value
+            guard let requestID = rows.first?.requestID else {
+                throw AppError.decoding
+            }
+            return requestID
+        } catch let error as AppError {
+            throw error
         } catch {
             throw SupabaseErrorMapper.map(error)
         }

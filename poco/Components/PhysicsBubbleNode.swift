@@ -179,7 +179,7 @@ final class PhysicsBubbleNode: SKNode {
     private func loadRemoteAvatar(_ url: URL, into container: SKNode, diameter: CGFloat) {
         Task { [weak self, weak container] in
             guard let data = await RemoteAvatarDataCache.shared.data(for: url),
-                  let image = UIImage(data: data),
+                  let image = RemoteImageDecoder.decode(data, maximumPixelSize: 128),
                   let self,
                   let container,
                   container.parent != nil else { return }
@@ -376,6 +376,7 @@ struct BubbleFieldLayout: Equatable {
         }
 
         var placements: [BubbleFieldPlacement] = []
+        var collisionCandidates: [BubbleFieldPlacement] = []
         var highestEdge = BubblePhysicsMetrics.wallBottomStartY
 
         for feedback in feedbacks.reversed() {
@@ -390,6 +391,12 @@ struct BubbleFieldLayout: Equatable {
                 BubblePhysicsMetrics.wallBottomStartY,
                 highestEdge - bubbleSize.height * 0.72
             )
+            // Placements far below the active band cannot raise this bubble.
+            // Keeping only a generous nearby window avoids O(n²) layout work
+            // when a project has hundreds of feedbacks.
+            collisionCandidates.removeAll { existing in
+                existing.position.y + existing.size.height < lowerBand - 120
+            }
             var bestPosition = CGPoint(x: availableWidth / 2, y: lowerBand)
             var bestScore = CGFloat.greatestFiniteMagnitude
 
@@ -398,7 +405,7 @@ struct BubbleFieldLayout: Equatable {
                     + stableUnit(feedback.id, salt: attempt) * (maximumX - minimumX)
                 var y = lowerBand
 
-                for existing in placements {
+                for existing in collisionCandidates {
                     let deltaX = abs(x - existing.position.x)
                     let horizontalClearance = (bubbleSize.width + existing.size.width) * 0.44
                     guard deltaX < horizontalClearance else { continue }
@@ -424,6 +431,7 @@ struct BubbleFieldLayout: Equatable {
                 size: bubbleSize
             )
             placements.append(placement)
+            collisionCandidates.append(placement)
             highestEdge = max(highestEdge, bestPosition.y + bubbleSize.height / 2)
         }
 

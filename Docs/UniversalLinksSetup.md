@@ -8,6 +8,29 @@
 
 ProjectはUUIDを保ったまま編集されるため、公開済みURLとQRコードは変わりません。
 
+## 保留中TODO：公式Webサイトと独自ドメイン
+
+現在は独自ドメインの取得とWebサイト公開を保留します。アプリは引き続き
+`poco://`を開発用Fallbackとして使用し、ドメインが決まるまで正式配布用QRを
+印刷しません。
+
+再開時は、費用を抑えるため次の構成を第一候補とします。
+
+- [ ] 公式Web用の別GitHub Repository（仮称`poco-web`）を作成する
+- [ ] Cloudflare PagesのFree PlanへRepositoryを接続する
+- [ ] 初年度価格だけでなく更新価格も比較し、安価な独自ドメインを取得する
+- [ ] Cloudflareへ独自ドメインを接続し、HTTPSとDNSを確認する
+- [ ] Poco紹介、App Store導線、利用規約、Privacy、問い合わせ、権利者向け削除申請を公開する
+- [ ] `/project/{UUID}`と`/p/{UUID}`に、未インストール時のApp Store案内と再読込案内を用意する
+- [ ] `/.well-known/apple-app-site-association`をリダイレクトなしで配信する
+- [ ] `POCO_PUBLIC_BASE_URL`と`POCO_ASSOCIATED_DOMAIN`へ確定ドメインを設定する
+- [ ] Apple DeveloperのAssociated DomainsとProvisioning Profileを更新する
+- [ ] 実機でインストール済み／未インストールの両方を確認してから正式QRを発行する
+
+Cloudflare Pagesはホスティング先であり、独自ドメインは別途Registrarで取得します。
+ドメイン名・Registrar・実費は、公開作業の再開時点で空き状況と更新価格を確認して
+最終決定します。
+
 ## 実ドメイン決定後に行うこと
 
 1. `Config/Secrets.xcconfig`へ次を設定します。xcconfig内の`//`対策として

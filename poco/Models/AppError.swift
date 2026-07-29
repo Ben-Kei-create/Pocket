@@ -11,6 +11,9 @@ nonisolated enum AppError: Error, Equatable, Sendable {
     case feedbackLimitReached
     case projectLimitReached
     case handleUnavailable
+    case invalidInput
+    case requestAlreadySubmitted
+    case rateLimited
     case purchase
     case unknown(String?)
 
@@ -36,6 +39,12 @@ nonisolated enum AppError: Error, Equatable, Sendable {
             "現在のプランで作成できる作品数の上限に達しました。"
         case .handleUnavailable:
             "このクリエイターIDは使用されています。別のIDをお試しください。"
+        case .invalidInput:
+            "入力内容を確認してください。"
+        case .requestAlreadySubmitted:
+            "この作品についての申請はすでに受け付けています。"
+        case .rateLimited:
+            "短時間に多くの操作が行われました。時間をおいてお試しください。"
         case .purchase:
             "購入を完了できませんでした。もう一度お試しください。"
         case .unknown:

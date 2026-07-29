@@ -18,7 +18,9 @@ protocol FeedbackRepository: Sendable {
     nonisolated func fetchLikedFeedbackIDs(feedbackIDs: [UUID]) async throws -> Set<UUID>
     nonisolated func fetchCreatorReceipts(feedbackIDs: [UUID]) async throws -> [UUID: Date]
     nonisolated func markReceivedByCreator(feedbackID: UUID) async throws -> Date
-    nonisolated func observeCreatorReceipts() async -> AsyncThrowingStream<CreatorReceipt, any Error>
+    nonisolated func observeCreatorReceipts(
+        projectID: UUID
+    ) async -> AsyncThrowingStream<CreatorReceipt, any Error>
     nonisolated func observeFeedbacks(
         projectID: UUID
     ) async -> AsyncThrowingStream<Feedback, any Error>
@@ -90,6 +92,10 @@ protocol NotificationRepository: Sendable {
     nonisolated func markRead(id: UUID) async throws -> Date
     nonisolated func observeNotifications(
     ) async -> AsyncThrowingStream<PocoNotification, any Error>
+}
+
+protocol RightsHolderRequestRepository: Sendable {
+    nonisolated func submit(_ request: RightsHolderRequest) async throws -> UUID
 }
 
 actor MockProjectRepository: ProjectRepository {
@@ -215,7 +221,9 @@ actor MockFeedbackRepository: FeedbackRepository {
         return receivedAt
     }
 
-    func observeCreatorReceipts() async -> AsyncThrowingStream<CreatorReceipt, any Error> {
+    func observeCreatorReceipts(
+        projectID: UUID
+    ) async -> AsyncThrowingStream<CreatorReceipt, any Error> {
         let observerID = UUID()
         return AsyncThrowingStream { continuation in
             receiptObservers[observerID] = continuation
@@ -443,6 +451,17 @@ actor MockModerationRepository: ModerationRepository {
 
     func blockProfile(id: UUID) async throws {
         blockedProfileIDs.insert(id)
+    }
+}
+
+actor MockRightsHolderRequestRepository: RightsHolderRequestRepository {
+    private var submittedProjectIDs: Set<UUID> = []
+
+    func submit(_ request: RightsHolderRequest) async throws -> UUID {
+        guard submittedProjectIDs.insert(request.projectID).inserted else {
+            throw AppError.requestAlreadySubmitted
+        }
+        return UUID()
     }
 }
 
