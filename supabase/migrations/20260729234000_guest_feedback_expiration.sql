@@ -178,6 +178,7 @@ set search_path = ''
 as $$
 declare
   target_project_id uuid;
+  owner_is_anonymous boolean;
 begin
   select feedback.project_id
   into target_project_id
@@ -187,6 +188,11 @@ begin
   if target_project_id is null then
     raise exception 'Feedback is unavailable' using errcode = 'P0002';
   end if;
+
+  select coalesce(account.is_anonymous, false)
+  into owner_is_anonymous
+  from auth.users as account
+  where account.id = new.user_id;
 
   perform pg_advisory_xact_lock(
     hashtextextended(new.user_id::text || ':' || target_project_id::text, 0)
@@ -198,7 +204,10 @@ begin
     join public.feedbacks as feedback on feedback.id = ownership.feedback_id
     where ownership.user_id = new.user_id
       and feedback.project_id = target_project_id
-      and feedback.moderation_status <> 'deleted_by_author'
+      and (
+        feedback.moderation_status <> 'deleted_by_author'
+        or owner_is_anonymous
+      )
   ) >= 3 then
     raise exception 'Feedback submission limit reached' using errcode = 'P0003';
   end if;
@@ -219,7 +228,14 @@ as $$
   join public.feedbacks as feedback on feedback.id = ownership.feedback_id
   where ownership.user_id = auth.uid()
     and feedback.project_id = p_project_id
-    and feedback.moderation_status <> 'deleted_by_author';
+    and (
+      feedback.moderation_status <> 'deleted_by_author'
+      or coalesce((
+        select account.is_anonymous
+        from auth.users as account
+        where account.id = auth.uid()
+      ), false)
+    );
 $$;
 
 drop policy if exists "Visible feedback is readable" on public.feedbacks;

@@ -842,10 +842,10 @@ final class PocoStore {
         guard owns(feedback) else { return .failure(.unauthorized) }
         do {
             try await moderationRepository.deleteOwnFeedback(id: feedback.id)
-            ownFeedbackCountsByProject[feedback.projectID] = max(
-                0,
-                ownFeedbackCount(for: feedback.projectID) - 1
-            )
+            let currentCount = ownFeedbackCount(for: feedback.projectID)
+            ownFeedbackCountsByProject[feedback.projectID] = accountStatus == .guest
+                ? currentCount
+                : max(0, currentCount - 1)
             removeFeedbackFromLocalState(feedback)
             return .success(())
         } catch {

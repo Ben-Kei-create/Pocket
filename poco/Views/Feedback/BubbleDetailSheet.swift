@@ -140,7 +140,11 @@ struct BubbleDetailSheet: View {
                 }
                 Button("キャンセル", role: .cancel) {}
             } message: {
-                Text("削除した感想は元に戻せません。")
+                Text(
+                    store.accountStatus == .guest
+                        ? "削除した感想は元に戻せません。ゲストは削除しても、この作品へ送れる残り件数が戻りません。"
+                        : "削除した感想は元に戻せません。"
+                )
             }
             .confirmationDialog(
                 "この感想を作品から非表示にしますか？",
