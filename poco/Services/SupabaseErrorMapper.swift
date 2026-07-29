@@ -32,6 +32,10 @@ enum SupabaseErrorMapper {
                 return .requestAlreadySubmitted
             case "P0007":
                 return .rateLimited
+            case "P0008":
+                return .insufficientStarCoins
+            case "P0009":
+                return .itemAlreadyEquipped
             case "22023":
                 return .invalidInput
             default:

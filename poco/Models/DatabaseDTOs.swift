@@ -443,11 +443,13 @@ nonisolated struct MemberRewardProgressDTO: Decodable, Sendable {
     let loginStreak: Int
     let lastLoginBonusDay: String?
     let starCoinBalance: Int
+    let walletRevision: Int64
 
     enum CodingKeys: String, CodingKey {
         case loginStreak = "login_streak"
         case lastLoginBonusDay = "last_login_bonus_day"
         case starCoinBalance = "star_coin_balance"
+        case walletRevision = "wallet_revision"
     }
 }
 
@@ -465,6 +467,7 @@ nonisolated struct DailyLoginBonusClaimDTO: Decodable, Sendable {
     let loginStreak: Int
     let claimed: Bool
     let claimedDay: String
+    let walletRevision: Int64
 
     enum CodingKeys: String, CodingKey {
         case awardedCoins = "awarded_coins"
@@ -472,6 +475,7 @@ nonisolated struct DailyLoginBonusClaimDTO: Decodable, Sendable {
         case loginStreak = "login_streak"
         case claimed
         case claimedDay = "claimed_day"
+        case walletRevision = "wallet_revision"
     }
 
     var domainModel: DailyLoginBonusClaim {
@@ -480,7 +484,8 @@ nonisolated struct DailyLoginBonusClaimDTO: Decodable, Sendable {
             starCoinBalance: starCoinBalance,
             loginStreak: loginStreak,
             claimed: claimed,
-            claimedDay: claimedDay
+            claimedDay: claimedDay,
+            walletRevision: walletRevision
         )
     }
 }
@@ -489,18 +494,21 @@ nonisolated struct StarCoinAwardDTO: Decodable, Sendable {
     let starCoinBalance: Int
     let awardedCoins: Int
     let claimed: Bool
+    let walletRevision: Int64
 
     enum CodingKeys: String, CodingKey {
         case starCoinBalance = "star_coin_balance"
         case awardedCoins = "awarded_coins"
         case claimed
+        case walletRevision = "wallet_revision"
     }
 
     var domainModel: StarCoinAward {
         StarCoinAward(
             balance: starCoinBalance,
             awardedCoins: awardedCoins,
-            claimed: claimed
+            claimed: claimed,
+            walletRevision: walletRevision
         )
     }
 }

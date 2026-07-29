@@ -88,6 +88,8 @@ Migrationは次の順で再構築できます。
 - `022_storage_and_access_hardening.sql`: 成人向け閲覧判定の共通化、Storage一覧防止、作品／プロフィール画像を1枚の決定的パスへ制限、TLS URL制約
 - `023_profile_privacy_and_query_guards.sql`: 匿名プロフィール非公開、Home／作者／活動Queryの上限、単一作品取得の定数時間化
 - `024_retention_and_realtime_scope.sql`: 作者❤️Realtimeの作品単位購読、未解決通報だけを保持する30日パージ判定
+- `20260729100018_star_store_and_project_badges.sql`: ⭐︎カタログ、所有権、支出台帳、作品背景、3枠バッジケース、購入／装備RPC
+- `20260729100400_star_wallet_revision_and_pro_multiplier.sql`: 複数端末向けWallet Revisionと、活動報酬だけに適用するPro 2倍報酬
 
 `feedback_count`は重複カラムにせず`projects_with_feedback_count` Viewで計算します。`likes_count`は`feedback_likes`のINSERT/DELETEトリガーだけで更新し、整合性を維持します。
 
@@ -96,6 +98,10 @@ Migrationは次の順で再構築できます。
 作者も他のユーザーと同じ通常の「いいね」を使います。作者のLikeは通常の件数に含まれ、DBトリガーが`feedback_creator_receipts`へ1感想1件の❤️表示情報を同一トランザクションで保存します。クライアントからReceiptだけを直接追加することはできません。
 
 `016`以降、自作品へ届いた新着感想と、登録ユーザー自身の感想へ付いた通常Like／作者❤️は、DB Triggerだけが`notifications`へ追加します。`recipient_id + event_key`のUNIQUE制約で同じ出来事の二重通知を防ぎ、クライアントは通知本文を追加・変更できません。既読は本人確認付き`mark_notification_read` RPCで通知を開いた1件だけ更新します。Anonymous Authゲストは通知レコードとPush配信の対象外で、表示中のFeedback Realtimeだけを利用します。
+
+スターショップはカタログ価格をClientに決めさせず、`purchase_star_item`が残高確認、ユーザー単位Lock、支出台帳、所有権付与を1Transactionで処理します。背景やバッジは確定購入のみでランダム抽選はありません。作品バッジケースは最大3枠で、同じバッジを重複装備できません。
+
+Poco Proの2倍は感想送信・キャラ操作など本人の活動報酬だけに適用します。ログインボーナス、達成報酬、将来のギフト・返金・運営補正には適用しません。Proは広告なしを維持するためリワード広告を表示しません。Wallet Revisionにより、古い通信結果が購入後の新しい残高を上書きすることを防ぎます。
 
 作品登録時は`creator`（制作者本人）、`authorized`（許可を得ている）、`fan`（非公式なファンの感想箱）、`event`（イベント・頒布用）のいずれかを選びます。本人・許諾確認が済むまでは`verification_status = unverified`として表示し、一般クライアントから`verified`へ変更できないDBトリガーを設定しています。公開ルールへの同意はバージョンと日時を保存し、同意情報のない新規作品をDBでも拒否します。
 

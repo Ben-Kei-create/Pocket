@@ -72,6 +72,23 @@ protocol MemberRewardRepository: Sendable {
     nonisolated func claimDailyLoginBonus() async throws -> DailyLoginBonusClaim
 }
 
+protocol StarStoreRepository: Sendable {
+    nonisolated func fetchCatalog() async throws -> [StarStoreItem]
+    nonisolated func fetchOwnedItemIDs() async throws -> Set<String>
+    nonisolated func fetchProjectDecoration(projectID: UUID) async throws -> ProjectDecoration
+    nonisolated func purchaseItem(id: String, requestID: UUID) async throws
+        -> StarStorePurchaseResult
+    nonisolated func equipProjectBackground(
+        projectID: UUID,
+        itemID: String?
+    ) async throws
+    nonisolated func equipProjectBadge(
+        projectID: UUID,
+        slot: Int,
+        itemID: String?
+    ) async throws
+}
+
 protocol ModerationRepository: Sendable {
     nonisolated func fetchOwnedFeedbackIDs() async throws -> Set<UUID>
     nonisolated func fetchOwnedFeedbacks() async throws -> [Feedback]
@@ -347,6 +364,9 @@ actor MockMemberRewardRepository: MemberRewardRepository {
             loginStreak: UserDefaults.standard.integer(forKey: Self.streakKey),
             lastClaimedDay: UserDefaults.standard.string(forKey: Self.lastClaimedDayKey),
             starCoinBalance: UserDefaults.standard.integer(forKey: "poco.starCoinBalance"),
+            walletRevision: Int64(
+                UserDefaults.standard.integer(forKey: "poco.mockStarWalletRevision")
+            ),
             unlockedStamps: stamps
         )
     }
@@ -366,12 +386,16 @@ actor MockMemberRewardRepository: MemberRewardRepository {
 
         let awardedCoins = claimed ? Self.reward(for: streak) : 0
         let currentBalance = defaults.integer(forKey: "poco.starCoinBalance")
+        let currentRevision = Int64(defaults.integer(forKey: "poco.mockStarWalletRevision"))
+        let nextRevision = claimed ? currentRevision + 1 : currentRevision
+        defaults.set(nextRevision, forKey: "poco.mockStarWalletRevision")
         return DailyLoginBonusClaim(
             awardedCoins: awardedCoins,
             starCoinBalance: currentBalance + awardedCoins,
             loginStreak: streak,
             claimed: claimed,
-            claimedDay: today
+            claimedDay: today,
+            walletRevision: nextRevision
         )
     }
 
@@ -400,6 +424,144 @@ actor MockMemberRewardRepository: MemberRewardRepository {
     nonisolated private static func reward(for streak: Int) -> Int {
         let cycle = [3, 3, 5, 3, 5, 7, 15]
         return cycle[max(0, streak - 1) % cycle.count]
+    }
+}
+
+actor MockStarStoreRepository: StarStoreRepository {
+    nonisolated static let catalog: [StarStoreItem] = [
+        .init(
+            id: "background_sakura", kind: .projectBackground,
+            title: "さくらミルク", summary: "やさしい桜色で、ことばをふんわり包む背景です。",
+            priceCoins: 80, assetName: nil, appearanceValue: "#FFF2F4",
+            requiresPro: false, sortOrder: 10
+        ),
+        .init(
+            id: "background_lemon", kind: .projectBackground,
+            title: "レモンクリーム", summary: "あたたかな光を感じる、淡い黄色の背景です。",
+            priceCoins: 80, assetName: nil, appearanceValue: "#FFF9E8",
+            requiresPro: false, sortOrder: 20
+        ),
+        .init(
+            id: "background_sky", kind: .projectBackground,
+            title: "ソーダスカイ", summary: "晴れた空のように、ことばが軽やかに見える背景です。",
+            priceCoins: 80, assetName: nil, appearanceValue: "#EEF8FF",
+            requiresPro: false, sortOrder: 30
+        ),
+        .init(
+            id: "background_mint", kind: .projectBackground,
+            title: "ミスティミント", summary: "静かで落ち着いた、淡いミント色の背景です。",
+            priceCoins: 80, assetName: nil, appearanceValue: "#EFFAF5",
+            requiresPro: false, sortOrder: 40
+        ),
+        .init(
+            id: "background_lavender", kind: .projectBackground,
+            title: "ライラックミスト", summary: "少し特別な余韻を添える、淡い紫色の背景です。",
+            priceCoins: 80, assetName: nil, appearanceValue: "#F5F0FF",
+            requiresPro: false, sortOrder: 50
+        ),
+        .init(
+            id: "badge_first_light", kind: .profileBadge,
+            title: "はじめの灯り", summary: "最初の一歩をそっと照らすバッジです。",
+            priceCoins: 120, assetName: "sf:sparkles", appearanceValue: nil,
+            requiresPro: false, sortOrder: 110
+        ),
+        .init(
+            id: "badge_word_bouquet", kind: .profileBadge,
+            title: "ことばの花束", summary: "届けたことばを花束のように飾るバッジです。",
+            priceCoins: 180, assetName: "sf:camera.macro", appearanceValue: nil,
+            requiresPro: false, sortOrder: 120
+        ),
+        .init(
+            id: "badge_poco_heart", kind: .profileBadge,
+            title: "Pocoハート", summary: "作品とことばを大切にする気持ちのバッジです。",
+            priceCoins: 250, assetName: "sf:heart.fill", appearanceValue: nil,
+            requiresPro: false, sortOrder: 130
+        )
+    ]
+
+    nonisolated private static let ownedKey = "poco.mockStarStore.owned"
+    nonisolated private static let revisionKey = "poco.mockStarWalletRevision"
+    nonisolated private static let decorationPrefix = "poco.mockStarStore.decoration."
+
+    func fetchCatalog() async throws -> [StarStoreItem] {
+        Self.catalog.sorted { $0.sortOrder < $1.sortOrder }
+    }
+
+    func fetchOwnedItemIDs() async throws -> Set<String> {
+        Set(UserDefaults.standard.stringArray(forKey: Self.ownedKey) ?? [])
+    }
+
+    func fetchProjectDecoration(projectID: UUID) async throws -> ProjectDecoration {
+        let defaults = UserDefaults.standard
+        let prefix = Self.decorationPrefix + projectID.uuidString
+        let background = defaults.string(forKey: prefix + ".background")
+        var badges: [Int: String] = [:]
+        for slot in 0..<3 {
+            badges[slot] = defaults.string(forKey: prefix + ".badge.\(slot)")
+        }
+        return ProjectDecoration(
+            backgroundItemID: background,
+            badgeItemIDsBySlot: badges.compactMapValues { $0 }
+        )
+    }
+
+    func purchaseItem(id: String, requestID: UUID) async throws -> StarStorePurchaseResult {
+        guard let item = Self.catalog.first(where: { $0.id == id }) else {
+            throw AppError.notFound
+        }
+        let defaults = UserDefaults.standard
+        var owned = Set(defaults.stringArray(forKey: Self.ownedKey) ?? [])
+        let currentBalance = max(0, defaults.integer(forKey: "poco.starCoinBalance"))
+        let currentRevision = Int64(defaults.integer(forKey: Self.revisionKey))
+        guard !owned.contains(id) else {
+            return .init(
+                itemID: id, balance: currentBalance, chargedCoins: 0,
+                walletRevision: currentRevision, purchased: false
+            )
+        }
+        guard currentBalance >= item.priceCoins else { throw AppError.insufficientStarCoins }
+
+        let nextBalance = currentBalance - item.priceCoins
+        let nextRevision = currentRevision + 1
+        owned.insert(id)
+        defaults.set(Array(owned), forKey: Self.ownedKey)
+        defaults.set(nextBalance, forKey: "poco.starCoinBalance")
+        defaults.set(nextRevision, forKey: Self.revisionKey)
+        return .init(
+            itemID: id, balance: nextBalance, chargedCoins: item.priceCoins,
+            walletRevision: nextRevision, purchased: true
+        )
+    }
+
+    func equipProjectBackground(projectID: UUID, itemID: String?) async throws {
+        try ensureOwned(itemID, kind: .projectBackground)
+        let key = Self.decorationPrefix + projectID.uuidString + ".background"
+        UserDefaults.standard.set(itemID, forKey: key)
+    }
+
+    func equipProjectBadge(projectID: UUID, slot: Int, itemID: String?) async throws {
+        guard (0..<3).contains(slot) else { throw AppError.invalidInput }
+        try ensureOwned(itemID, kind: .profileBadge)
+        var decoration = try await fetchProjectDecoration(projectID: projectID)
+        if let itemID,
+           decoration.badgeItemIDsBySlot.contains(where: {
+               $0.key != slot && $0.value == itemID
+           }) {
+            throw AppError.itemAlreadyEquipped
+        }
+        let key = Self.decorationPrefix + projectID.uuidString + ".badge.\(slot)"
+        UserDefaults.standard.set(itemID, forKey: key)
+        decoration = try await fetchProjectDecoration(projectID: projectID)
+        _ = decoration
+    }
+
+    private func ensureOwned(_ itemID: String?, kind: StarStoreItemKind) throws {
+        guard let itemID else { return }
+        guard Self.catalog.contains(where: { $0.id == itemID && $0.kind == kind }) else {
+            throw AppError.invalidInput
+        }
+        let owned = Set(UserDefaults.standard.stringArray(forKey: Self.ownedKey) ?? [])
+        guard owned.contains(itemID) else { throw AppError.unauthorized }
     }
 }
 

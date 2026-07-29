@@ -66,6 +66,7 @@ nonisolated struct MemberRewardSnapshot: Equatable, Sendable {
     let loginStreak: Int
     let lastClaimedDay: String?
     let starCoinBalance: Int
+    let walletRevision: Int64
     let unlockedStamps: Set<AchievementStamp>
 
     var canClaimToday: Bool {
@@ -76,6 +77,7 @@ nonisolated struct MemberRewardSnapshot: Equatable, Sendable {
         loginStreak: 0,
         lastClaimedDay: nil,
         starCoinBalance: 0,
+        walletRevision: 0,
         unlockedStamps: []
     )
 }
@@ -86,6 +88,7 @@ nonisolated struct DailyLoginBonusClaim: Equatable, Sendable {
     let loginStreak: Int
     let claimed: Bool
     let claimedDay: String
+    let walletRevision: Int64
 }
 
 nonisolated enum StarCoinEvent: Equatable, Sendable {
@@ -154,6 +157,7 @@ nonisolated struct StarCoinAward: Equatable, Sendable {
     let balance: Int
     let awardedCoins: Int
     let claimed: Bool
+    let walletRevision: Int64
 }
 
 nonisolated enum PocoCalendar {

@@ -15,6 +15,8 @@ nonisolated enum AppError: Error, Equatable, Sendable {
     case requestAlreadySubmitted
     case rateLimited
     case purchase
+    case insufficientStarCoins
+    case itemAlreadyEquipped
     case unknown(String?)
 
     var userMessage: String {
@@ -47,6 +49,10 @@ nonisolated enum AppError: Error, Equatable, Sendable {
             "短時間に多くの操作が行われました。時間をおいてお試しください。"
         case .purchase:
             "購入を完了できませんでした。もう一度お試しください。"
+        case .insufficientStarCoins:
+            "スターが足りません。もう少し集めてからお試しください。"
+        case .itemAlreadyEquipped:
+            "このバッジは、すでに別の枠へ飾っています。"
         case .unknown:
             "問題が発生しました。もう一度お試しください。"
         }

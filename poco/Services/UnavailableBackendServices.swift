@@ -5,6 +5,7 @@ nonisolated struct UnavailableBackendServices: ProjectRepository,
     ProfileRepository,
     MembershipRepository,
     MemberRewardRepository,
+    StarStoreRepository,
     ModerationRepository,
     NotificationRepository,
     RightsHolderRequestRepository,
@@ -47,6 +48,16 @@ nonisolated struct UnavailableBackendServices: ProjectRepository,
         throw error
     }
     func claimDailyLoginBonus() async throws -> DailyLoginBonusClaim { throw error }
+    func fetchCatalog() async throws -> [StarStoreItem] { throw error }
+    func fetchOwnedItemIDs() async throws -> Set<String> { throw error }
+    func fetchProjectDecoration(projectID: UUID) async throws -> ProjectDecoration { throw error }
+    func purchaseItem(id: String, requestID: UUID) async throws -> StarStorePurchaseResult {
+        throw error
+    }
+    func equipProjectBackground(projectID: UUID, itemID: String?) async throws { throw error }
+    func equipProjectBadge(projectID: UUID, slot: Int, itemID: String?) async throws {
+        throw error
+    }
 
     func fetchOwnedFeedbackIDs() async throws -> Set<UUID> { throw error }
     func fetchOwnedFeedbacks() async throws -> [Feedback] { throw error }

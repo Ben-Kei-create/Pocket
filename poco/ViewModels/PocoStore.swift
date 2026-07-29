@@ -28,9 +28,13 @@ final class PocoStore {
     private(set) var activityLoadState: LoadState = .idle
     private(set) var memberRewardLoadState: LoadState = .idle
     private(set) var notificationLoadState: LoadState = .idle
+    private(set) var starStoreLoadState: LoadState = .idle
     private(set) var memberRewardSnapshot = MemberRewardSnapshot.empty
     private(set) var lastDailyLoginClaim: DailyLoginBonusClaim?
     private(set) var starCoinBalance = 0
+    private(set) var starStoreItems: [StarStoreItem] = []
+    private(set) var ownedStarItemIDs: Set<String> = []
+    private(set) var projectDecorations: [UUID: ProjectDecoration] = [:]
     var onboardingGuideRequest: PocoOnboardingGuide?
     let backendMode: BackendMode
 
@@ -39,6 +43,7 @@ final class PocoStore {
     private let profileRepository: any ProfileRepository
     private let membershipRepository: any MembershipRepository
     private let memberRewardRepository: any MemberRewardRepository
+    private let starStoreRepository: any StarStoreRepository
     private let moderationRepository: any ModerationRepository
     private let notificationRepository: any NotificationRepository
     private let rightsHolderRequestRepository: any RightsHolderRequestRepository
@@ -56,8 +61,10 @@ final class PocoStore {
     private var optimisticFeedbackIDs: Set<UUID> = []
     private var pendingDeepLinkProjectID: UUID?
     private var rewardedCoinEventKeys: Set<String> = []
+    private var starCoinWalletRevision: Int64 = 0
 
     private static let starCoinBalanceKey = "poco.starCoinBalance"
+    private static let starCoinWalletRevisionKey = "poco.starCoinWalletRevision"
     private static let rewardedCoinEventsKey = "poco.rewardedCoinEvents"
 
     init(
@@ -66,6 +73,7 @@ final class PocoStore {
         profileRepository: (any ProfileRepository)? = nil,
         membershipRepository: (any MembershipRepository)? = nil,
         memberRewardRepository: (any MemberRewardRepository)? = nil,
+        starStoreRepository: (any StarStoreRepository)? = nil,
         moderationRepository: (any ModerationRepository)? = nil,
         notificationRepository: (any NotificationRepository)? = nil,
         rightsHolderRequestRepository: (any RightsHolderRequestRepository)? = nil,
@@ -84,6 +92,7 @@ final class PocoStore {
         self.profileRepository = profileRepository ?? MockProfileRepository()
         self.membershipRepository = membershipRepository ?? MockMembershipRepository()
         self.memberRewardRepository = memberRewardRepository ?? MockMemberRewardRepository()
+        self.starStoreRepository = starStoreRepository ?? MockStarStoreRepository()
         self.moderationRepository = moderationRepository ?? MockModerationRepository()
         self.notificationRepository = notificationRepository ?? MockNotificationRepository()
         self.rightsHolderRequestRepository = rightsHolderRequestRepository
@@ -100,6 +109,9 @@ final class PocoStore {
         starCoinBalance = max(
             0,
             UserDefaults.standard.integer(forKey: Self.starCoinBalanceKey)
+        )
+        starCoinWalletRevision = Int64(
+            UserDefaults.standard.integer(forKey: Self.starCoinWalletRevisionKey)
         )
         rewardedCoinEventKeys = Set(
             UserDefaults.standard.stringArray(forKey: Self.rewardedCoinEventsKey) ?? []
@@ -350,10 +362,10 @@ final class PocoStore {
                 signals: achievementSignals
             )
             memberRewardSnapshot = snapshot
-            if backendMode == .supabase {
-                starCoinBalance = snapshot.starCoinBalance
-                persistStarCoinBalance()
-            }
+            applyWallet(
+                balance: snapshot.starCoinBalance,
+                revision: snapshot.walletRevision
+            )
             memberRewardLoadState = .loaded
         } catch {
             let appError = map(error)
@@ -367,12 +379,12 @@ final class PocoStore {
         do {
             let claim = try await memberRewardRepository.claimDailyLoginBonus()
             lastDailyLoginClaim = claim
-            starCoinBalance = claim.starCoinBalance
-            persistStarCoinBalance()
+            applyWallet(balance: claim.starCoinBalance, revision: claim.walletRevision)
             memberRewardSnapshot = MemberRewardSnapshot(
                 loginStreak: claim.loginStreak,
                 lastClaimedDay: claim.claimedDay,
                 starCoinBalance: claim.starCoinBalance,
+                walletRevision: claim.walletRevision,
                 unlockedStamps: memberRewardSnapshot.unlockedStamps
             )
             await loadMemberRewards()
@@ -386,6 +398,95 @@ final class PocoStore {
 
     func project(id: UUID) -> Project? {
         projects.first { $0.id == id }
+    }
+
+    func starStoreItem(id: String?) -> StarStoreItem? {
+        guard let id else { return nil }
+        return starStoreItems.first { $0.id == id }
+    }
+
+    func projectDecoration(for projectID: UUID) -> ProjectDecoration {
+        projectDecorations[projectID] ?? .empty
+    }
+
+    func loadStarStore() async {
+        guard canCreateProjects, starStoreLoadState != .loading else { return }
+        starStoreLoadState = .loading
+        do {
+            async let catalog = starStoreRepository.fetchCatalog()
+            async let owned = starStoreRepository.fetchOwnedItemIDs()
+            starStoreItems = try await catalog
+            ownedStarItemIDs = try await owned
+            starStoreLoadState = .loaded
+        } catch {
+            let appError = map(error)
+            starStoreLoadState = .error(appError)
+            errorMessage = appError.userMessage
+        }
+    }
+
+    func loadProjectDecoration(projectID: UUID) async {
+        do {
+            projectDecorations[projectID] = try await starStoreRepository
+                .fetchProjectDecoration(projectID: projectID)
+        } catch {
+            // Decoration loading must never hide the project or interrupt a drop.
+        }
+    }
+
+    func purchaseStarStoreItem(_ item: StarStoreItem) async -> Result<Bool, AppError> {
+        guard canCreateProjects else { return .failure(.unauthorized) }
+        do {
+            let result = try await starStoreRepository.purchaseItem(
+                id: item.id,
+                requestID: UUID()
+            )
+            applyWallet(balance: result.balance, revision: result.walletRevision)
+            ownedStarItemIDs.insert(result.itemID)
+            return .success(result.purchased)
+        } catch {
+            let appError = map(error)
+            errorMessage = appError.userMessage
+            return .failure(appError)
+        }
+    }
+
+    func equipProjectBackground(
+        projectID: UUID,
+        itemID: String?
+    ) async -> Result<Void, AppError> {
+        do {
+            try await starStoreRepository.equipProjectBackground(
+                projectID: projectID,
+                itemID: itemID
+            )
+            await loadProjectDecoration(projectID: projectID)
+            return .success(())
+        } catch {
+            let appError = map(error)
+            errorMessage = appError.userMessage
+            return .failure(appError)
+        }
+    }
+
+    func equipProjectBadge(
+        projectID: UUID,
+        slot: Int,
+        itemID: String?
+    ) async -> Result<Void, AppError> {
+        do {
+            try await starStoreRepository.equipProjectBadge(
+                projectID: projectID,
+                slot: slot,
+                itemID: itemID
+            )
+            await loadProjectDecoration(projectID: projectID)
+            return .success(())
+        } catch {
+            let appError = map(error)
+            errorMessage = appError.userMessage
+            return .failure(appError)
+        }
     }
 
     func ownFeedbackCount(for projectID: UUID) -> Int {
@@ -530,11 +631,7 @@ final class PocoStore {
         Task {
             do {
                 let award = try await serverAuthorityService.claimStarCoinReward(event)
-                // Coin claims can finish out of order. The wallet is
-                // increment-only in this phase, so an older response must not
-                // move the displayed server balance backwards.
-                starCoinBalance = max(starCoinBalance, award.balance)
-                persistStarCoinBalance()
+                applyWallet(balance: award.balance, revision: award.walletRevision)
             } catch {
                 // A failed request can be retried by the next matching user
                 // interaction. Coin errors never interrupt the bubble UX.
@@ -555,6 +652,17 @@ final class PocoStore {
 
     private func persistStarCoinBalance() {
         UserDefaults.standard.set(starCoinBalance, forKey: Self.starCoinBalanceKey)
+        UserDefaults.standard.set(
+            starCoinWalletRevision,
+            forKey: Self.starCoinWalletRevisionKey
+        )
+    }
+
+    private func applyWallet(balance: Int, revision: Int64) {
+        guard revision >= starCoinWalletRevision else { return }
+        starCoinBalance = max(0, balance)
+        starCoinWalletRevision = revision
+        persistStarCoinBalance()
     }
 
     private func persistRewardedCoinEventKeys() {
@@ -566,8 +674,14 @@ final class PocoStore {
 
     private func resetCachedStarCoins() {
         starCoinBalance = 0
+        starCoinWalletRevision = 0
+        starStoreItems = []
+        ownedStarItemIDs = []
+        projectDecorations = [:]
+        starStoreLoadState = .idle
         rewardedCoinEventKeys.removeAll()
         UserDefaults.standard.removeObject(forKey: Self.starCoinBalanceKey)
+        UserDefaults.standard.removeObject(forKey: Self.starCoinWalletRevisionKey)
         UserDefaults.standard.removeObject(forKey: Self.rewardedCoinEventsKey)
     }
 

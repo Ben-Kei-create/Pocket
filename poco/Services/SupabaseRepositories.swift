@@ -760,7 +760,9 @@ final class SupabaseMemberRewardRepository: MemberRewardRepository, Sendable {
 
             let progressRows: [MemberRewardProgressDTO] = try await client
                 .from("member_reward_progress")
-                .select("login_streak,last_login_bonus_day,star_coin_balance")
+                .select(
+                    "login_streak,last_login_bonus_day,star_coin_balance,wallet_revision"
+                )
                 .eq("user_id", value: userID)
                 .limit(1)
                 .execute()
@@ -776,6 +778,7 @@ final class SupabaseMemberRewardRepository: MemberRewardRepository, Sendable {
                 loginStreak: progress?.loginStreak ?? 0,
                 lastClaimedDay: progress?.lastLoginBonusDay,
                 starCoinBalance: progress?.starCoinBalance ?? 0,
+                walletRevision: progress?.walletRevision ?? 0,
                 unlockedStamps: Set(
                     stampRows.compactMap { AchievementStamp(rawValue: $0.stampKey) }
                 )

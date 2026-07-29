@@ -60,14 +60,20 @@ actor MockServerAuthorityService: ServerAuthorityService {
         let defaults = UserDefaults.standard
         var claimedEvents = Set(defaults.stringArray(forKey: claimedEventsKey) ?? [])
         let inserted = claimedEvents.insert(event.eventKey).inserted
-        let awardedCoins = inserted ? event.mockAward : 0
+        let multiplier = defaults.bool(forKey: "poco.previewMembership") ? 2 : 1
+        let awardedCoins = inserted ? event.mockAward * multiplier : 0
         let balance = max(0, defaults.integer(forKey: balanceKey)) + awardedCoins
+        let revisionKey = "poco.mockStarWalletRevision"
+        let currentRevision = Int64(defaults.integer(forKey: revisionKey))
+        let nextRevision = inserted ? currentRevision + 1 : currentRevision
         defaults.set(balance, forKey: balanceKey)
+        defaults.set(nextRevision, forKey: revisionKey)
         defaults.set(Array(claimedEvents), forKey: claimedEventsKey)
         return StarCoinAward(
             balance: balance,
             awardedCoins: awardedCoins,
-            claimed: inserted
+            claimed: inserted,
+            walletRevision: nextRevision
         )
     }
 }
