@@ -9,6 +9,7 @@ struct ProjectDetailView: View {
     @State private var pendingFeedback: Feedback?
     @State private var dropFeedback: Feedback?
     @State private var showsRightsHolderRequest = false
+    @State private var selectedBadge: StarStoreItem?
 
     private var project: Project? {
         store.project(id: projectID)
@@ -29,6 +30,19 @@ struct ProjectDetailView: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 24) {
                             projectHeader(project)
+
+                            if !equippedBadges.isEmpty {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("この作品のバッジ")
+                                        .pocoFont(.caption, weight: .medium)
+                                        .foregroundStyle(PocoTheme.secondaryText)
+                                    ProjectBadgeCaseView(
+                                        items: equippedBadges,
+                                        onSelect: { selectedBadge = $0 }
+                                    )
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
 
                             VStack(alignment: .leading, spacing: 12) {
                                 Text("この作品について")
@@ -82,7 +96,7 @@ struct ProjectDetailView: View {
                         .padding(PocoTheme.pagePadding)
                         .padding(.bottom, 24)
                     }
-                    .background(PocoTheme.background)
+                    .background(ProjectDecorationBackground(projectID: project.id))
                     .safeAreaInset(edge: .bottom, spacing: 0) {
                         PocoAdPlacementView(placement: .project)
                     }
@@ -132,8 +146,15 @@ struct ProjectDetailView: View {
                     .sheet(isPresented: $showsRightsHolderRequest) {
                         ProjectRightsHolderRequestView(project: project)
                     }
+                    .sheet(item: $selectedBadge) { item in
+                        BadgeDetailSheet(item: item)
+                    }
                     .task(id: project.id) {
+                        async let decoration: Void = store.loadProjectDecoration(
+                            projectID: project.id
+                        )
                         await store.refreshOwnFeedbackCount(for: project.id)
+                        _ = await decoration
                     }
                     .alert("感想は3件までです", isPresented: $showsFeedbackLimitAlert) {
                         Button("OK", role: .cancel) {}
@@ -144,6 +165,13 @@ struct ProjectDetailView: View {
             } else {
                 ContentUnavailableView("作品が見つかりません", systemImage: "questionmark.folder")
             }
+        }
+    }
+
+    private var equippedBadges: [StarStoreItem] {
+        let decoration = store.projectDecoration(for: projectID)
+        return (0..<3).compactMap { slot in
+            store.starStoreItem(id: decoration.badgeItemID(slot: slot))
         }
     }
 

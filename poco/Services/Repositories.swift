@@ -365,7 +365,7 @@ actor MockMemberRewardRepository: MemberRewardRepository {
             lastClaimedDay: UserDefaults.standard.string(forKey: Self.lastClaimedDayKey),
             starCoinBalance: UserDefaults.standard.integer(forKey: "poco.starCoinBalance"),
             walletRevision: Int64(
-                UserDefaults.standard.integer(forKey: "poco.mockStarWalletRevision")
+                UserDefaults.standard.integer(forKey: "poco.starCoinWalletRevision")
             ),
             unlockedStamps: stamps
         )
@@ -386,9 +386,9 @@ actor MockMemberRewardRepository: MemberRewardRepository {
 
         let awardedCoins = claimed ? Self.reward(for: streak) : 0
         let currentBalance = defaults.integer(forKey: "poco.starCoinBalance")
-        let currentRevision = Int64(defaults.integer(forKey: "poco.mockStarWalletRevision"))
+        let currentRevision = Int64(defaults.integer(forKey: "poco.starCoinWalletRevision"))
         let nextRevision = claimed ? currentRevision + 1 : currentRevision
-        defaults.set(nextRevision, forKey: "poco.mockStarWalletRevision")
+        defaults.set(nextRevision, forKey: "poco.starCoinWalletRevision")
         return DailyLoginBonusClaim(
             awardedCoins: awardedCoins,
             starCoinBalance: currentBalance + awardedCoins,
@@ -480,7 +480,7 @@ actor MockStarStoreRepository: StarStoreRepository {
     ]
 
     nonisolated private static let ownedKey = "poco.mockStarStore.owned"
-    nonisolated private static let revisionKey = "poco.mockStarWalletRevision"
+    nonisolated private static let revisionKey = "poco.starCoinWalletRevision"
     nonisolated private static let decorationPrefix = "poco.mockStarStore.decoration."
 
     func fetchCatalog() async throws -> [StarStoreItem] {
@@ -542,7 +542,7 @@ actor MockStarStoreRepository: StarStoreRepository {
     func equipProjectBadge(projectID: UUID, slot: Int, itemID: String?) async throws {
         guard (0..<3).contains(slot) else { throw AppError.invalidInput }
         try ensureOwned(itemID, kind: .profileBadge)
-        var decoration = try await fetchProjectDecoration(projectID: projectID)
+        let decoration = try await fetchProjectDecoration(projectID: projectID)
         if let itemID,
            decoration.badgeItemIDsBySlot.contains(where: {
                $0.key != slot && $0.value == itemID
@@ -551,8 +551,6 @@ actor MockStarStoreRepository: StarStoreRepository {
         }
         let key = Self.decorationPrefix + projectID.uuidString + ".badge.\(slot)"
         UserDefaults.standard.set(itemID, forKey: key)
-        decoration = try await fetchProjectDecoration(projectID: projectID)
-        _ = decoration
     }
 
     private func ensureOwned(_ itemID: String?, kind: StarStoreItemKind) throws {

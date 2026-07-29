@@ -46,7 +46,7 @@ nonisolated struct OwnedStarItemDTO: Decodable, Sendable {
 }
 
 nonisolated struct ProjectCustomizationDTO: Decodable, Sendable {
-    let backgroundItemID: String
+    let backgroundItemID: String?
 
     enum CodingKeys: String, CodingKey {
         case backgroundItemID = "background_item_id"

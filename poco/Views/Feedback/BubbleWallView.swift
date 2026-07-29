@@ -10,6 +10,7 @@ struct BubbleWallView: View {
     @State private var showsMembership = false
     @State private var focusFeedbackID: UUID?
     @State private var previousVisitDate: Date?
+    @State private var selectedBadge: StarStoreItem?
 
     private var project: Project? {
         store.project(id: projectID)
@@ -42,6 +43,13 @@ struct BubbleWallView: View {
                     Text("件の感想")
                         .pocoFont(.caption)
                         .foregroundStyle(PocoTheme.secondaryText)
+                }
+
+                if !equippedBadges.isEmpty {
+                    ProjectBadgeCaseView(
+                        items: equippedBadges,
+                        onSelect: { selectedBadge = $0 }
+                    )
                 }
 
                 Picker("表示するフキダシ", selection: modeSelection) {
@@ -114,7 +122,7 @@ struct BubbleWallView: View {
         }
         .padding(.horizontal, 8)
         .padding(.bottom, 8)
-        .background(PocoTheme.background)
+        .background(ProjectDecorationBackground(projectID: projectID))
         .safeAreaInset(edge: .bottom, spacing: 0) {
             PocoAdPlacementView(placement: .bubbleWall)
         }
@@ -129,6 +137,9 @@ struct BubbleWallView: View {
             BubbleDetailSheet(feedbackID: feedback.id)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
+        }
+        .sheet(item: $selectedBadge) { item in
+            BadgeDetailSheet(item: item)
         }
         .sheet(item: $selectedCreator) { creator in
             NavigationStack {
@@ -154,6 +165,7 @@ struct BubbleWallView: View {
                     ? Date(timeIntervalSince1970: timestamp)
                     : .now
             }
+            await store.loadProjectDecoration(projectID: projectID)
             await store.loadFeedbacks(for: projectID)
             guard !Task.isCancelled else { return }
             store.startObservingFeedbacks(for: projectID)
@@ -169,6 +181,13 @@ struct BubbleWallView: View {
             if !canSeePopular {
                 mode = .everyone
             }
+        }
+    }
+
+    private var equippedBadges: [StarStoreItem] {
+        let decoration = store.projectDecoration(for: projectID)
+        return (0..<3).compactMap { slot in
+            store.starStoreItem(id: decoration.badgeItemID(slot: slot))
         }
     }
 

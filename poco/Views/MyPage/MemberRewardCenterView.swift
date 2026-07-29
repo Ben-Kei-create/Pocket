@@ -77,6 +77,33 @@ struct MemberRewardCenterView: View {
                     .pocoCard()
                 }
                 .buttonStyle(.plain)
+
+                NavigationLink {
+                    StarStoreView()
+                } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: "bag.fill")
+                            .pocoFont(.title2)
+                            .foregroundStyle(PocoTheme.primary)
+                            .frame(width: 44, height: 44)
+                            .background(PocoTheme.bubble(.yellow).opacity(0.7), in: Circle())
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("スターショップ")
+                                .pocoFont(.headline, weight: .medium)
+                            Text("背景やバッジをスターで選ぼう")
+                                .pocoFont(.caption)
+                                .foregroundStyle(PocoTheme.secondaryText)
+                        }
+                        Spacer()
+                        StarCoinBadge(balance: store.starCoinBalance)
+                        Image(systemName: "chevron.right")
+                            .pocoFont(.caption, weight: .bold)
+                            .foregroundStyle(PocoTheme.tertiaryText)
+                    }
+                    .padding(16)
+                    .pocoCard()
+                }
+                .buttonStyle(.plain)
             }
             .padding(PocoTheme.pagePadding)
         }

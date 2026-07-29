@@ -23,7 +23,7 @@ struct BubbleDropView: View {
         NavigationStack {
             GeometryReader { proxy in
                 ZStack(alignment: .bottom) {
-                    PocoTheme.background.ignoresSafeArea()
+                    ProjectDecorationBackground(projectID: project.id)
 
                     VStack(spacing: 5) {
                         Text(isDropped ? "あなたのことばが届きました" : "フキダシをおとそう")
@@ -115,6 +115,9 @@ struct BubbleDropView: View {
             }
         }
         .interactiveDismissDisabled(!isDropped)
+        .task(id: project.id) {
+            await store.loadProjectDecoration(projectID: project.id)
+        }
     }
 
     private var instructionText: String {

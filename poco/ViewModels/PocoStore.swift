@@ -409,23 +409,28 @@ final class PocoStore {
         projectDecorations[projectID] ?? .empty
     }
 
-    func loadStarStore() async {
-        guard canCreateProjects, starStoreLoadState != .loading else { return }
+    func loadStarStore(reportsErrors: Bool = true) async {
+        guard starStoreLoadState != .loading else { return }
         starStoreLoadState = .loading
         do {
-            async let catalog = starStoreRepository.fetchCatalog()
-            async let owned = starStoreRepository.fetchOwnedItemIDs()
-            starStoreItems = try await catalog
-            ownedStarItemIDs = try await owned
+            starStoreItems = try await starStoreRepository.fetchCatalog()
+            ownedStarItemIDs = canCreateProjects
+                ? try await starStoreRepository.fetchOwnedItemIDs()
+                : []
             starStoreLoadState = .loaded
         } catch {
             let appError = map(error)
             starStoreLoadState = .error(appError)
-            errorMessage = appError.userMessage
+            if reportsErrors {
+                errorMessage = appError.userMessage
+            }
         }
     }
 
     func loadProjectDecoration(projectID: UUID) async {
+        if starStoreItems.isEmpty {
+            await loadStarStore(reportsErrors: false)
+        }
         do {
             projectDecorations[projectID] = try await starStoreRepository
                 .fetchProjectDecoration(projectID: projectID)
@@ -455,6 +460,10 @@ final class PocoStore {
         projectID: UUID,
         itemID: String?
     ) async -> Result<Void, AppError> {
+        guard canCreateProjects,
+              currentUserProjects.contains(where: { $0.id == projectID }) else {
+            return .failure(.unauthorized)
+        }
         do {
             try await starStoreRepository.equipProjectBackground(
                 projectID: projectID,
@@ -474,6 +483,10 @@ final class PocoStore {
         slot: Int,
         itemID: String?
     ) async -> Result<Void, AppError> {
+        guard canCreateProjects,
+              currentUserProjects.contains(where: { $0.id == projectID }) else {
+            return .failure(.unauthorized)
+        }
         do {
             try await starStoreRepository.equipProjectBadge(
                 projectID: projectID,

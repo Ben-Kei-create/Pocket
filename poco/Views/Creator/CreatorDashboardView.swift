@@ -214,25 +214,34 @@ private struct CreatorProjectCard: View {
                 }
             }
 
-            HStack(spacing: 8) {
-                NavigationLink {
-                    BubbleWallView(projectID: project.id)
-                } label: {
-                    Label("感想を見る", systemImage: "bubble.left.and.bubble.right")
-                }
-                .buttonStyle(.bordered)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    NavigationLink {
+                        BubbleWallView(projectID: project.id)
+                    } label: {
+                        Label("感想を見る", systemImage: "bubble.left.and.bubble.right")
+                    }
+                    .buttonStyle(.bordered)
 
-                NavigationLink {
-                    QRCodeView(project: project)
-                } label: {
-                    Label("QR", systemImage: "qrcode")
-                }
-                .buttonStyle(.bordered)
+                    NavigationLink {
+                        QRCodeView(project: project)
+                    } label: {
+                        Label("QR", systemImage: "qrcode")
+                    }
+                    .buttonStyle(.bordered)
 
-                ShareLink(item: project.deepLinkURL) {
-                    Label("共有", systemImage: "link")
+                    NavigationLink {
+                        ProjectCustomizationView(project: project)
+                    } label: {
+                        Label("飾る", systemImage: "paintpalette")
+                    }
+                    .buttonStyle(.bordered)
+
+                    ShareLink(item: project.deepLinkURL) {
+                        Label("共有", systemImage: "link")
+                    }
+                    .buttonStyle(.bordered)
                 }
-                .buttonStyle(.bordered)
             }
             .pocoFont(.caption, weight: .medium)
 

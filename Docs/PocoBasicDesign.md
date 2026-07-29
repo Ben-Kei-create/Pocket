@@ -398,7 +398,7 @@ flowchart LR
 | 通常キャラ表示・タップ | ○ | ○ | ○ |
 | 同種キャラ合体・レア誕生 | × | × | ○ |
 | コード付き非公開作品 | × | × | 基盤のみ |
-| 背景カスタマイズ | × | × | 基盤のみ |
+| 背景・作品バッジカスタマイズ | × | ○ | ○ |
 | 広告 | 表示枠あり | 表示枠あり | 非表示 |
 
 ## 17. 実装済み機能
@@ -420,6 +420,7 @@ flowchart LR
 - StoreKit購入／復元のiOS側、サーバー同期契約
 - 「届いたことば」受信箱、新着感想／通常Like／作者❤️の冪等DB通知、Realtime、個別既読、詳細遷移
 - ログインボーナス、達成スタンプ、スターコイン台帳
+- スターショップ、背景の購入・プレビュー・装備、3枠バッジケース、バッジ説明Sheet
 - 広告Placement境界、Pro課金Sheet、作品上限Sheet
 - Dynamic Type、VoiceOverラベル、Reduce Motion
 - ゲストはチュートリアルなしで直接投稿、登録ユーザー／Proはバージョン付き初回ガイドと設定からの再表示
@@ -434,7 +435,6 @@ flowchart LR
 | Push通知 | アプリ内受信箱・通知DB・RLS・Realtime・個別既読・詳細遷移は実装済み | APNs、Device Token、配信Edge Function、Pushからの詳細Deep Link |
 | Proスタンプ | Capabilityのみ | Reaction Model／DB／UI／集計 |
 | コード付き作品 | Capabilityのみ | DB列、Hash化、解錠RPC、検索除外 |
-| 背景カスタマイズ | Capabilityのみ | Theme Model、Storage、選択UI、描画 |
 | フォロー | 未実装 | Follow Model、RLS、作品更新通知 |
 | Q&Aタブ | 未実装（旧称「質問タブ」は使用しない） | Question Model、日次／保留上限、回答、期限、通報・ブロック |
 | Poco Letter | 未実装 | Pro相互資格、7日TTL、通報・ブロック、配信安全設計 |

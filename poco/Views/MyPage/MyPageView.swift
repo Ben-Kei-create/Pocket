@@ -132,6 +132,16 @@ struct MyPageView: View {
                                 .foregroundStyle(PocoTheme.secondaryText)
                             }
                         }
+
+                        NavigationLink {
+                            StarStoreView()
+                        } label: {
+                            HStack {
+                                Label("スターショップ", systemImage: "bag.fill")
+                                Spacer()
+                                StarCoinBadge(balance: store.starCoinBalance)
+                            }
+                        }
                     }
                 }
 
