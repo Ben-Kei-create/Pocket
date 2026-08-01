@@ -6,6 +6,108 @@ nonisolated struct Creator: Identifiable, Hashable, Codable, Sendable {
     var avatarName: String?
     var avatarURL: URL? = nil
     var handle: String? = nil
+    var profileLinks: [ProfileSocialLink] = []
+}
+
+nonisolated enum PocoExternalURL {
+    static let maximumLength = 2_048
+
+    static func normalized(from value: String) -> URL? {
+        var candidate = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !candidate.isEmpty, candidate.count <= maximumLength else { return nil }
+        guard !candidate.unicodeScalars.contains(where: CharacterSet.whitespacesAndNewlines.contains)
+        else { return nil }
+
+        if !candidate.contains("://") {
+            candidate = "https://" + candidate
+        }
+
+        guard var components = URLComponents(string: candidate),
+              components.scheme?.lowercased() == "https",
+              let host = components.host?.lowercased(),
+              !host.isEmpty,
+              components.port == nil,
+              components.user == nil,
+              components.password == nil else { return nil }
+        components.scheme = "https"
+        components.host = host
+        return components.url
+    }
+}
+
+nonisolated enum ProfileLinkService: String, CaseIterable, Identifiable, Codable, Sendable {
+    case x
+    case instagram
+    case youtube
+    case tiktok
+    case website
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .x: "X"
+        case .instagram: "Instagram"
+        case .youtube: "YouTube"
+        case .tiktok: "TikTok"
+        case .website: "Webサイト"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .x: "xmark"
+        case .instagram: "camera.fill"
+        case .youtube: "play.rectangle.fill"
+        case .tiktok: "music.note"
+        case .website: "globe"
+        }
+    }
+
+    var placeholder: String {
+        switch self {
+        case .x: "x.com/ユーザー名"
+        case .instagram: "instagram.com/ユーザー名"
+        case .youtube: "youtube.com/@チャンネル"
+        case .tiktok: "tiktok.com/@ユーザー名"
+        case .website: "あなたのWebサイト"
+        }
+    }
+
+    func allows(_ url: URL) -> Bool {
+        guard let host = url.host?.lowercased() else { return false }
+        let allowedHosts: [String]
+        switch self {
+        case .x: allowedHosts = ["x.com", "twitter.com"]
+        case .instagram: allowedHosts = ["instagram.com"]
+        case .youtube: allowedHosts = ["youtube.com", "youtu.be"]
+        case .tiktok: allowedHosts = ["tiktok.com"]
+        case .website: return true
+        }
+        return allowedHosts.contains { host == $0 || host.hasSuffix("." + $0) }
+    }
+}
+
+nonisolated struct ProfileSocialLink: Identifiable, Hashable, Codable, Sendable {
+    let service: ProfileLinkService
+    let url: URL
+
+    var id: ProfileLinkService { service }
+
+    init?(service: ProfileLinkService, value: String) {
+        guard let url = PocoExternalURL.normalized(from: value), service.allows(url) else {
+            return nil
+        }
+        self.service = service
+        self.url = url
+    }
+
+    init?(service: ProfileLinkService, url: URL) {
+        guard let normalizedURL = PocoExternalURL.normalized(from: url.absoluteString),
+              service.allows(normalizedURL) else { return nil }
+        self.service = service
+        self.url = normalizedURL
+    }
 }
 
 nonisolated enum CreatorHandle {
@@ -44,27 +146,23 @@ nonisolated enum BuiltInAvatar: String, CaseIterable, Identifiable, Codable, Sen
     case bear = "PocoAvatarBear"
     case dog = "PocoAvatarDog"
     case lion = "PocoAvatarLion"
+    case greenBear = "PocoAvatarGreenBear"
+    case greenSpirit = "PocoAvatarGreenSpirit"
+    case starSpirit = "PocoAvatarStarSpirit"
+    case blueSpirit = "PocoAvatarBlueSpirit"
+    case pinkCat = "PocoAvatarPinkCat"
+
+    static let characterAssetName = "PocoCharacterDefault"
+    static let selectableCases: [Self] = [.cat]
 
     var id: Self { self }
 
     var title: String {
-        switch self {
-        case .cat: "くろねこ"
-        case .pig: "こぶた"
-        case .bear: "くま"
-        case .dog: "こいぬ"
-        case .lion: "ライオン"
-        }
+        "Poco"
     }
 
     var companionAssetName: String {
-        switch self {
-        case .cat: "PocoCompanionCat"
-        case .pig: "PocoCompanionPig"
-        case .bear: "PocoCompanionBear"
-        case .dog: "PocoCompanionDog"
-        case .lion: "PocoCompanionLion"
-        }
+        Self.characterAssetName
     }
 }
 
@@ -78,6 +176,10 @@ nonisolated enum RareCompanionKind: String, CaseIterable, Sendable {
     case rabbit = "PocoRareRabbit"
     case goat = "PocoRareGoat"
 
+    var assetName: String {
+        "PocoCharacterRare"
+    }
+
     static func born(from avatar: BuiltInAvatar, eventKey: String) -> Self {
         let secretKinds: [Self] = [.mouse, .rabbit, .goat]
         let seed = pocoStableSeed(eventKey)
@@ -85,11 +187,11 @@ nonisolated enum RareCompanionKind: String, CaseIterable, Sendable {
             return secretKinds[seed % secretKinds.count]
         }
         return switch avatar {
-        case .cat: Self.cat
-        case .pig: Self.pig
-        case .bear: Self.bear
-        case .dog: Self.dog
-        case .lion: Self.lion
+        case .cat, .greenBear: Self.cat
+        case .pig, .greenSpirit: Self.pig
+        case .bear, .starSpirit: Self.bear
+        case .dog, .blueSpirit: Self.dog
+        case .lion, .pinkCat: Self.lion
         }
     }
 }
@@ -108,9 +210,11 @@ nonisolated struct Project: Identifiable, Hashable, Codable, Sendable {
     var description: String
     var imageName: String?
     var imageURL: URL? = nil
+    var externalURL: URL? = nil
     var feedbackCount: Int
     let createdAt: Date
     var relationship: ProjectRelationship = .creator
+    var purpose: ProjectPurpose = .standard
     var verificationStatus: ProjectVerificationStatus = .unverified
     var contentRating: ProjectContentRating = .general
     var isContentLocked: Bool = false
@@ -148,7 +252,6 @@ nonisolated enum ProjectRelationship: String, CaseIterable, Identifiable, Codabl
     case creator
     case authorized
     case fan
-    case event
 
     var id: Self { self }
 
@@ -157,7 +260,6 @@ nonisolated enum ProjectRelationship: String, CaseIterable, Identifiable, Codabl
         case .creator: "制作者本人"
         case .authorized: "許可を得ている"
         case .fan: "ファンの感想箱"
-        case .event: "イベント・頒布用"
         }
     }
 
@@ -166,7 +268,6 @@ nonisolated enum ProjectRelationship: String, CaseIterable, Identifiable, Codabl
         case .creator: "私または所属チームが制作した作品です"
         case .authorized: "権利者・制作関係者から登録の許可を得ています"
         case .fan: "作品を応援するための非公式な感想箱です"
-        case .event: "イベントや頒布の場で感想を集めるページです"
         }
     }
 
@@ -175,7 +276,6 @@ nonisolated enum ProjectRelationship: String, CaseIterable, Identifiable, Codabl
         case .creator: "person.crop.circle.badge.checkmark"
         case .authorized: "checkmark.seal"
         case .fan: "heart.circle"
-        case .event: "ticket"
         }
     }
 
@@ -184,14 +284,40 @@ nonisolated enum ProjectRelationship: String, CaseIterable, Identifiable, Codabl
             return switch self {
             case .creator, .authorized: "公式クリエイター"
             case .fan: "ファンの感想箱・非公式"
-            case .event: "イベント感想箱・確認済み"
             }
         }
         return switch self {
         case .creator: "制作者として登録・未確認"
         case .authorized: "許諾済みとして登録・未確認"
         case .fan: "ファンの感想箱・非公式"
-        case .event: "イベント感想箱・未確認"
+        }
+    }
+}
+
+nonisolated enum ProjectPurpose: String, CaseIterable, Identifiable, Codable, Sendable {
+    case standard
+    case event
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .standard: "通常公開"
+        case .event: "イベント・頒布用"
+        }
+    }
+
+    var explanation: String {
+        switch self {
+        case .standard: "いつでも見つけてもらえる通常の作品ページです"
+        case .event: "会場や頒布物のQRから感想を集めるページです"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .standard: "globe"
+        case .event: "ticket"
         }
     }
 }
@@ -210,6 +336,7 @@ nonisolated enum ProjectCategory: String, CaseIterable, Identifiable, Codable, S
     case book
     case game
     case manga
+    case anime
     case other
 
     var id: Self { self }
@@ -219,6 +346,7 @@ nonisolated enum ProjectCategory: String, CaseIterable, Identifiable, Codable, S
         case .book: "本"
         case .game: "ゲーム"
         case .manga: "マンガ"
+        case .anime: "アニメ"
         case .other: "その他"
         }
     }
@@ -232,6 +360,7 @@ nonisolated enum ProjectCategory: String, CaseIterable, Identifiable, Codable, S
         case .book: "book.closed.fill"
         case .game: "gamecontroller.fill"
         case .manga: "text.bubble.fill"
+        case .anime: "play.rectangle.fill"
         case .other: "sparkles"
         }
     }
@@ -459,6 +588,13 @@ nonisolated enum AuthenticationState: Equatable, Sendable {
     case idle
     case authenticating
     case authenticated
+    case error(String)
+}
+
+nonisolated enum AccountDeletionState: Equatable, Sendable {
+    case idle
+    case deleting
+    case deleted
     case error(String)
 }
 

@@ -36,6 +36,14 @@ enum SupabaseErrorMapper {
                 return .insufficientStarCoins
             case "P0009":
                 return .itemAlreadyEquipped
+            case "P0010":
+                return .projectSlotRedemptionUnavailable
+            case "P0011":
+                return .questionDailyLimitReached
+            case "P0012":
+                return .questionPendingLimitReached
+            case "P0013":
+                return .questionUnavailable
             case "22023":
                 return .invalidInput
             default:

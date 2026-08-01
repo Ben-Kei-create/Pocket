@@ -13,7 +13,9 @@ struct CreateProjectView: View {
     @State private var category: ProjectCategory
     @State private var contentRating: ProjectContentRating
     @State private var relationship: ProjectRelationship
+    @State private var purpose: ProjectPurpose
     @State private var projectDescription: String
+    @State private var externalURLText: String
     @State private var isPhotoPickerPresented = false
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var selectedImage: UIImage?
@@ -36,7 +38,9 @@ struct CreateProjectView: View {
         _category = State(initialValue: project?.category ?? .book)
         _contentRating = State(initialValue: project?.contentRating ?? .general)
         _relationship = State(initialValue: project?.relationship ?? .creator)
+        _purpose = State(initialValue: project?.purpose ?? .standard)
         _projectDescription = State(initialValue: project?.description ?? "")
+        _externalURLText = State(initialValue: project?.externalURL?.absoluteString ?? "")
         _hasAgreedToPublishingRules = State(initialValue: project != nil)
     }
 
@@ -48,6 +52,12 @@ struct CreateProjectView: View {
             && !projectDescription.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && (isEditing || hasAgreedToPublishingRules)
             && !isAnalyzingImage
+            && isExternalURLValid
+    }
+
+    private var isExternalURLValid: Bool {
+        externalURLText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || PocoExternalURL.normalized(from: externalURLText) != nil
     }
 
     var body: some View {
@@ -71,7 +81,26 @@ struct CreateProjectView: View {
                 } header: {
                     Text("この作品との関係")
                 } footer: {
-                    Text("選んだ区分は作品ページにも表示されます。本人確認が済むまでは「未確認」と表示されます。")
+                    Text("権利者との関係を選びます。本人確認が済むまでは「未確認」と表示されます。")
+                }
+
+                Section {
+                    ForEach(ProjectPurpose.allCases) { option in
+                        Button {
+                            purpose = option
+                        } label: {
+                            ProjectPurposeOptionRow(
+                                purpose: option,
+                                isSelected: purpose == option
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(purpose == option ? .isSelected : [])
+                    }
+                } header: {
+                    Text("このページの使い方")
+                } footer: {
+                    Text("「制作者本人＋イベント・頒布用」のように、作品との関係とは別に選べます。")
                 }
 
                 Section("作品画像") {
@@ -165,6 +194,26 @@ struct CreateProjectView: View {
                     }
                     TextField("作品の説明", text: $projectDescription, axis: .vertical)
                         .lineLimit(4...8)
+
+                    VStack(alignment: .leading, spacing: 5) {
+                        TextField("作品URL（公式サイト・販売ページなど）", text: $externalURLText)
+                            .keyboardType(.URL)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .textContentType(.URL)
+                            .onChange(of: externalURLText) { _, value in
+                                if value.count > PocoExternalURL.maximumLength {
+                                    externalURLText = String(value.prefix(PocoExternalURL.maximumLength))
+                                }
+                            }
+                        Text(
+                            isExternalURLValid
+                                ? "任意。https:// は省略できます。"
+                                : "HTTPSの正しいURLを入力してください。"
+                        )
+                        .pocoFont(.caption)
+                        .foregroundStyle(isExternalURLValid ? PocoTheme.tertiaryText : Color.red)
+                    }
                 }
 
                 Section(isEditing ? "登録ルール" : "公開前の確認") {
@@ -271,6 +320,7 @@ struct CreateProjectView: View {
             let cleanTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
             let cleanCreatorName = creatorName.trimmingCharacters(in: .whitespacesAndNewlines)
             let cleanDescription = projectDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+            let externalURL = PocoExternalURL.normalized(from: externalURLText)
             let result: Result<Project, AppError>
             if let project {
                 result = await store.updateProject(
@@ -279,8 +329,10 @@ struct CreateProjectView: View {
                     creatorName: cleanCreatorName,
                     category: category,
                     relationship: relationship,
+                    purpose: purpose,
                     contentRating: contentRating,
                     description: cleanDescription,
+                    externalURL: externalURL,
                     imageData: selectedImageData,
                     removesExistingImage: removesExistingImage
                 )
@@ -290,8 +342,10 @@ struct CreateProjectView: View {
                     creatorName: cleanCreatorName,
                     category: category,
                     relationship: relationship,
+                    purpose: purpose,
                     contentRating: contentRating,
                     description: cleanDescription,
+                    externalURL: externalURL,
                     imageData: selectedImageData
                 )
             }
@@ -326,6 +380,37 @@ private struct ProjectRelationshipOptionRow: View {
                     .pocoFont(.body, weight: .medium)
                     .foregroundStyle(.primary)
                 Text(relationship.explanation)
+                    .pocoFont(.caption)
+                    .foregroundStyle(PocoTheme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 8)
+
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(isSelected ? PocoTheme.primary : Color.secondary.opacity(0.45))
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+    }
+}
+
+private struct ProjectPurposeOptionRow: View {
+    let purpose: ProjectPurpose
+    let isSelected: Bool
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: purpose.symbolName)
+                .pocoFont(.title3)
+                .foregroundStyle(isSelected ? PocoTheme.primary : PocoTheme.secondaryText)
+                .frame(width: 30)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(purpose.title)
+                    .pocoFont(.body, weight: .medium)
+                    .foregroundStyle(.primary)
+                Text(purpose.explanation)
                     .pocoFont(.caption)
                     .foregroundStyle(PocoTheme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)

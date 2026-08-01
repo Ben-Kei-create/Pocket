@@ -48,7 +48,13 @@ Regular／Medium／Boldをアプリへ同梱し、`PocoTypography`からDynamic 
 
 6. `003_storage.sql`と`007_profile_avatars.sql`によって公開Bucket `project-images`、`profile-avatars`が作成されていることをStorage画面で確認します。
 7. Table Editorで全テーブルのRLSが有効であること、Realtime画面で`feedbacks`、`feedback_creator_receipts`、`notifications`がpublicationへ追加されていることを確認します。
-8. `poco.xcodeproj`を開き、DebugまたはReleaseで起動します。
+8. アカウント削除Functionをデプロイします。Secret Key／Service Role KeyはSupabase側の環境変数だけへ保存します。
+
+   ```sh
+   supabase functions deploy delete-account
+   ```
+
+9. `poco.xcodeproj`を開き、DebugまたはReleaseで起動します。
 
 `Config/Secrets.xcconfig`は`.gitignore`対象です。値はSwiftファイルへ埋め込まれません。CIでは同じファイルをSecret Storeからビルド前に生成してください。
 
@@ -83,15 +89,20 @@ Migrationは次の順で再構築できます。
 - `017_content_ratings_and_safe_browsing.sql`: 作品対象区分、非公開閲覧設定、成人向け情報を除去する検索RPC
 - `018_soft_delete_projects.sql`: 作品の即時非公開、30日保持、削除監査、通報証跡を守るパージRPC
 - `019_universal_link_project_lookup.sql`: URLから1作品だけを安全に解決する公開Project RPC
-- `020_rights_holder_requests.sql`: イベント／頒布用区分、権利者向け削除申請、非公開連絡先、進行中重複防止、日次レート制限
+- `020_rights_holder_requests.sql`: 旧イベント用途区分、権利者向け削除申請、非公開連絡先、進行中重複防止、日次レート制限（用途の二軸化は後続Migration）
 - `021_abuse_and_moderation_hardening.sql`: 通報原文の不変証拠、通報／投稿／Likeレート制限の同時実行対策、ブロック強制、Moderation冪等化
 - `022_storage_and_access_hardening.sql`: 成人向け閲覧判定の共通化、Storage一覧防止、作品／プロフィール画像を1枚の決定的パスへ制限、TLS URL制約
 - `023_profile_privacy_and_query_guards.sql`: 匿名プロフィール非公開、Home／作者／活動Queryの上限、単一作品取得の定数時間化
 - `024_retention_and_realtime_scope.sql`: 作者❤️Realtimeの作品単位購読、未解決通報だけを保持する30日パージ判定
+- `20260730120000_q_and_a.sql`: Q&A、24時間3件／未回答3件、1回回答、30日期限、通報Evidence、Block強制
 - `20260729100018_star_store_and_project_badges.sql`: ⭐︎カタログ、所有権、支出台帳、作品背景、3枠バッジケース、購入／装備RPC
 - `20260729100400_star_wallet_revision_and_pro_multiplier.sql`: 複数端末向けWallet Revisionと、活動報酬だけに適用するPro 2倍報酬
 - `20260729233000_public_announcements.sql`: 運営お知らせの公開読取専用テーブルとRLS
 - `20260729234000_guest_feedback_expiration.sql`: ゲスト名のサーバー強制、24時間公開期限、作者❤️による永続化、期限後も維持する投稿上限Query
+- `20260730085000_external_links.sql`: 作品の任意HTTPS URL、プロフィールのX／Instagram／YouTube／TikTok／WebリンクとDB検証
+- `20260730090000_project_relationship_and_purpose.sql`: 作品との権利関係とページ用途を二軸化し、旧`event`データと公開Project RPCを移行
+- `20260730100000_project_slot_redemptions.sql`: 無料会員の3→4→5作品枠、200⭐︎／400⭐︎の冪等消費、永続Entitlement、Pro中の誤消費防止
+- `20260731090000_account_deletion.sql`: 退会準備の匿名化、通報Evidence保持、最小削除監査、service-role専用RPC
 
 `feedback_count`は重複カラムにせず`projects_with_feedback_count` Viewで計算します。`likes_count`は`feedback_likes`のINSERT/DELETEトリガーだけで更新し、整合性を維持します。
 
@@ -105,7 +116,7 @@ Migrationは次の順で再構築できます。
 
 Poco Proの2倍は感想送信・キャラ操作など本人の活動報酬だけに適用します。ログインボーナス、達成報酬、将来のギフト・返金・運営補正には適用しません。Proは広告なしを維持するためリワード広告を表示しません。Wallet Revisionにより、古い通信結果が購入後の新しい残高を上書きすることを防ぎます。
 
-作品登録時は`creator`（制作者本人）、`authorized`（許可を得ている）、`fan`（非公式なファンの感想箱）、`event`（イベント・頒布用）のいずれかを選びます。本人・許諾確認が済むまでは`verification_status = unverified`として表示し、一般クライアントから`verified`へ変更できないDBトリガーを設定しています。公開ルールへの同意はバージョンと日時を保存し、同意情報のない新規作品をDBでも拒否します。
+作品登録では、作品との関係を`creator`（制作者本人）、`authorized`（許可を得ている）、`fan`（非公式なファンの感想箱）から選び、ページの用途を`standard`（通常公開）、`event`（イベント・頒布用）から独立して選びます。これにより「制作者本人＋イベント・頒布用」のような組み合わせを正確に表現できます。本人・許諾確認が済むまでは`verification_status = unverified`として表示し、一般クライアントから`verified`へ変更できないDBトリガーを設定しています。公開ルールへの同意はバージョンと日時を保存し、同意情報のない新規作品をDBでも拒否します。
 
 登録ユーザーはCreator Dashboardから自分の作品だけを編集・削除できます。編集時も作品UUID、共有URL、QRコードは維持されます。作品画像は作品ごとの`cover.jpg`へ上書きし、孤立画像の無制限増加を防ぎます。作品削除は作者本人だけがRPCで要求でき、作品・感想・画像を即時非公開にしたまま30日間保持します。クライアントの物理DELETE権限はなく、未解決の通報または権利者申請がある作品は自動パージ対象から除外されます。解決後も不変の通報証拠は保持し、パージWorkerはStorage画像を先に削除してからservice-role専用RPCでDBを物理削除します。
 
@@ -114,6 +125,8 @@ Poco Proの2倍は感想送信・キャラ操作など本人の活動報酬だ�
 `010`以降、同じAuthユーザーが1作品へ保持できる感想は3件までです。アプリで残数を案内し、DB TriggerとTransaction Advisory Lockでも同時投稿を含めて上限を強制します。登録ユーザーは自己削除で枠が戻りますが、ゲストは自己削除・24時間の公開期限後も生涯3件に算入し、投稿→削除→再投稿による通知スパムを防ぎます。
 
 `020`以降、登録ユーザーは作品詳細から権利者向け削除申請を送信できます。氏名・メールアドレス・申請理由はRLSで一般クライアントから完全に隠し、`service_role`だけが確認できます。同一ユーザー・同一作品の進行中申請は1件、送信は1日5件までとし、作品削除後も審査に必要なタイトル・登録者・登録区分のSnapshotを保持します。
+
+`20260730120000`以降、登録ユーザーは作品作者へQ&Aを送れます。同じ送信者から同じ作者へはローリング24時間で3件、未回答は同時3件までです。作者の回答は1回だけで、送信者の取り下げは保留枠だけを解放し、24時間の累計には残ります。未回答は30日で期限切れになり、通報時は本文と回答のSnapshotを一般クライアントから読めないEvidenceへ保存します。質問作成RPCは双方のBlock関係を確認します。
 
 ## QR・Universal Link
 
@@ -127,7 +140,7 @@ AASAテンプレート、Associated Domains、実機確認手順は[`Docs/Univer
 
 - ゲスト投稿者にはSupabase Anonymous Authを使用し、登録画面なしで端末固有のユーザーIDを付与します。これにより、ゲストもRLSを保ったまま1つのフキダシへ1回いいねできます。Supabase DashboardでAnonymous Sign-Insを有効にしてください。
 - ゲストの表示名はクライアント入力を信用せず、`submit_feedback` RPCが一律「名無しさん」へ固定します。ゲスト感想は作成から24時間後に公開Query・件数から外れますが、投稿上限の生涯3件には引き続き算入します。作者が通常のいいねを付けた感想は`expires_at = NULL`へ昇格し、作者❤️とともに永続化します。行自体は即時物理削除せず、通報・監査用の保持方針に従います。登録済みユーザーの感想に期限はありません。
-- 閲覧・感想投稿・いいねはゲストでも利用できます。作品作成はPocoユーザー以上、共感順・自分の作品/感想に届いたいいね集計・広告非表示はPoco Proだけが利用できます。無料ユーザーは基本3作品、200⭐︎で4作品、追加400⭐︎で最大5作品まで永続拡張できる仕様です。Proは30作品が上限です。現在のMigration `013`は無料3／Pro 30の上限を強制しており、⭐︎拡張はServer Authorityフェーズで冪等消費RPCと永続Entitlementを追加します。Pro中は拡張UIを表示せず、RPCも⭐︎を減らさず拒否します。`013`以降はユーザー単位のTransaction Advisory Lockを使い、複数端末からの同時作成でもDB側で上限を強制します。`006_registered_creators.sql`はAnonymous Authユーザーによる作品作成と画像更新をDB側でも拒否します。
+- 閲覧・感想投稿・いいねはゲストでも利用できます。作品作成はPocoユーザー以上、共感順・自分の作品/感想に届いたいいね集計・広告非表示はPoco Proだけが利用できます。無料ユーザーは基本3作品、200⭐︎で4作品、追加400⭐︎で最大5作品まで永続拡張できます。Proは30作品が上限です。Migration `20260730100000`の冪等RPCがWallet・支出台帳・永続Entitlementを1Transactionで更新し、Pro中は⭐︎を減らす前に拒否します。作品作成Triggerも購入済み枠を参照し、複数端末からの同時作成をDB側で制限します。`006_registered_creators.sql`はAnonymous Authユーザーによる作品作成と画像更新をDB側でも拒否します。
 - PocoユーザーとPoco Proには、その日最初のHome表示時にログインボーナスを自動表示・受取します。QR／Universal Linkの作品着地、感想入力、Bubble Dropをシートで覆わず、Homeへ戻ってから遅延表示します。`014`のボーナスは日本時間で1日1回、DBのTransaction Advisory Lockで多重受取を防ぎます。達成スタンプはマイページから確認でき、条件はDBの所有権・いいね・作者❤️から評価されます。
 - `015`以降、感想送信・キャラタップ・レアキャラ誕生を含む⭐︎付与は`claim_star_coin_event`だけが更新します。アプリは金額を送らず、DBが感想所有権、15%／5%の決定的出現条件、Pro資格、重複、日次上限を再検証して`star_coin_transactions`へ記録します。通常のキャラ操作は1日30⭐︎、感想送信報酬は1日20件を上限とします。
 - いいね済み状態は`feedback_likes`から復元します。画面内の連打防止だけに依存せず、DBの`unique(feedback_id, user_id)`を最終的な保証にしています。
@@ -162,7 +175,7 @@ project-images/projects/{creatorID}/{projectID}/cover.jpg
 
 DBにはBase64ではなく公開URLだけを保存します。アップロード上限は6MB、MIME typeは`image/jpeg`です。
 
-登録時のプロフィール画像は、アプリ同梱の5種類または写真ライブラリから選択できます。同梱画像は`profiles.avatar_name`、ユーザー画像は長辺512px・JPEG品質0.82へ変換して次のパスへ保存し、`profiles.avatar_url`へ公開URLだけを保持します。
+登録時のプロフィール画像は、アプリ共通キャラクター「Poco」または写真ライブラリから選択できます。過去の`profiles.avatar_name`値はDB互換のため読み取りますが、アプリ内ではすべてPocoへ統一表示します。ユーザー画像は長辺512px・JPEG品質0.82へ変換して次のパスへ保存し、`profiles.avatar_url`へ公開URLだけを保持します。
 
 ```text
 profile-avatars/profiles/{userID}/avatar.jpg
@@ -172,13 +185,13 @@ profile-avatars/profiles/{userID}/avatar.jpg
 
 登録ユーザーはマイページから表示名・標準アバター・自分の写真を変更できます。新しいプロフィールのDB保存が成功した後だけ、不要になった旧Storage画像を削除します。公開投稿者のフキダシは`author_profile_id`からプロフィールを補完してアバターを表示し、匿名投稿の所有者IDは非公開のままニックネームの頭文字を表示します。
 
-Feedbackには15%の安定した確率で、フキダシとは独立した物理オブジェクト「顔ぷよ」を表示します。同じFeedbackは再描画後も出現有無が変わりません。標準アバター利用者は同じ動物、写真利用者・匿名投稿はFeedback UUIDから安定して選ばれる動物を使用します。新規投稿で顔ぷよが選ばれた場合は、フキダシ着地後に横から飛び出し、フキダシや他の顔ぷよと衝突します。顔ぷよをタップすると顔ぷよだけが「ぷよっ」と反応します。フキダシのタップは必ず感想詳細を開き、登録ユーザーだけが詳細内の投稿者表示から公開プロフィールへ進めます。感想フィールドの最下部はスクロール範囲のクランプで示し、説明ラベルは表示しません。
+Feedbackには15%の安定した確率で、フキダシとは独立したPocoキャラクターを表示します。同じFeedbackは再描画後も出現有無が変わりません。新規投稿でPocoが選ばれた場合は、フキダシ着地後に横から飛び出し、フキダシや他のPocoと衝突します。Pocoをタップするとキャラクターだけが「ぷよっ」と反応します。フキダシのタップは必ず感想詳細を開き、登録ユーザーだけが詳細内の投稿者表示から公開プロフィールへ進めます。感想フィールドの最下部はスクロール範囲のクランプで示し、説明ラベルは表示しません。
 
 ## 運営からのお知らせ
 
 Homeのメガホンから、公開済みの`app_announcements`を新しい順に表示します。Anon Keyを持つアプリは有効な行のSELECTだけが可能で、INSERT／UPDATE／DELETEはできません。運営はSupabase DashboardまたはService Roleを保管した管理環境から`kind`（`news`／`update`／`maintenance`）、タイトル、本文、公開日時を登録してください。Service Role KeyはiOSアプリやGitへ含めません。
 
-Poco Proでは、同じ種類の顔ぷよ同士が衝突すると2体を消費して合体します。合体ごとに5%の安定した判定で全身キャラクターが誕生し、ねこ・ぶた・くま・いぬ・ライオンに加えて、ねずみ・うさぎ・やぎをシークレット枠として収録しています。Reduce Motion有効時は誕生・消滅結果を保ちながら、拡縮や跳ねの演出を省略します。
+Poco Proでは、Poco同士が衝突すると2体を消費して合体します。合体ごとに5%の安定した判定でレアPocoが誕生します。表示素材は共通の`PocoCharacter`へ統一し、以前の10種類は`Archive/PuyoAssets-2026-07-30`へ退避しています。Reduce Motion有効時は誕生・消滅結果を保ちながら、拡縮や跳ねの演出を省略します。
 
 スターコインは黄色い星で統一し、感想の送信成功で3、キャラクターの初回タップで1、全身キャラクター誕生で5を加算します。同じイベントキーは端末内で再加算しません。現在の残高と付与済みイベントはMVP確認用の`UserDefaults`保存であり、課金価値を持つ本番通貨としては使用できません。本番化する際はSupabaseの非公開台帳、冪等な付与RPC、Authユーザー単位の残高、サーバー側確率判定、監査ログ、レート制限へ移し、アプリから残高を直接更新できない設計にしてください。
 
@@ -205,7 +218,9 @@ Appleがメールアドレスと氏名を返すのは最初の認証時だけで
 
 iOS 17のSensitive Content Analysisは画像選択時の一次判定に利用しますが、端末設定またはEntitlementが無効なら判定できません。本番ではApple DeveloperでSensitive Content Analysis Capabilityを有効化し、Provisioning Profileを更新してください。それでも最終検閲にはならないため、公開前にサーバー判定または目視レビューを追加する必要があります。
 
-Apple Identityが既存Pocoユーザーに紐づいている復帰ユーザーは既存アカウントへログインします。この場合、ログイン直前に新しい匿名IDで作ったデータを統合するには、次フェーズで所有権移行用Edge Functionが必要です。本番公開前には、アプリ内アカウント削除、Apple認証状態の失効確認、退会時の作品・感想データ保持方針も実装してください。
+Apple Identityが既存Pocoユーザーに紐づいている復帰ユーザーは既存アカウントへログインします。この場合、ログイン直前に新しい匿名IDで作ったデータを統合するには、次フェーズで所有権移行用Edge Functionが必要です。
+
+設定画面のアカウント削除は、本人JWTをEdge Functionで再検証し、公開データの非表示・匿名化、Storage画像削除、Auth soft deleteを順に実行します。通報済みの原文は一般クライアントから読めないEvidenceだけを保持します。Auth削除後もJWTは有効期限まで暗号学的には有効なため、アプリは成功直後にローカルSessionを破棄します。
 
 ## 会員資格同期の残作業
 

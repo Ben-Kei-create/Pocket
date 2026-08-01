@@ -48,10 +48,21 @@ struct BubbleDetailSheet: View {
                                 await store.like(feedback)
                             }
                         } label: {
-                            Label(
-                                hasLiked ? "いいねを送りました" : "いいねを送る",
-                                systemImage: hasLiked ? "heart.fill" : "heart"
-                            )
+                            if store.canMarkReceived(feedback) {
+                                HStack(spacing: 8) {
+                                    Image(PocoArtwork.creatorHeart)
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 25, height: 25)
+                                        .accessibilityHidden(true)
+                                    Text(hasLiked ? "いいねを送りました" : "いいねを送る")
+                                }
+                            } else {
+                                Label(
+                                    hasLiked ? "いいねを送りました" : "いいねを送る",
+                                    systemImage: hasLiked ? "heart.fill" : "heart"
+                                )
+                            }
                         }
                         .buttonStyle(PocoPrimaryButtonStyle())
                         .disabled(hasLiked)
@@ -64,9 +75,16 @@ struct BubbleDetailSheet: View {
                         )
 
                         if feedback.creatorReceivedAt != nil {
-                            Label("作者もいいねしました", systemImage: "heart.fill")
-                                .pocoFont(.subheadline, weight: .medium)
-                                .foregroundStyle(PocoTheme.primary)
+                            HStack(spacing: 10) {
+                                Image(PocoArtwork.creatorHeartReceived)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 44, height: 44)
+                                    .accessibilityHidden(true)
+                                Text("作者もいいねしました")
+                                    .pocoFont(.subheadline, weight: .medium)
+                                    .foregroundStyle(PocoTheme.primary)
+                            }
                                 .accessibilityLabel("作者がこの感想にいいねしました")
                         }
 

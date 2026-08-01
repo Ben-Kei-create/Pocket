@@ -54,6 +54,14 @@ Pocoは会話を継続するSNSではなく、作品にことばを届け、作�
 - `PocoTypography`でDynamic Typeに追従し、フォント読込失敗時はiOSシステムフォントへフォールバックする。
 - SF Symbols、QR内の技術文字列など、機能上システムフォントが適切な箇所は例外とする。
 
+### 1.4 UIコピー
+
+- 見れば分かる内容を、見出し直下の説明文やボタン下の注釈で言い直さない。
+- ボタン名、アイコン、選択状態、件数表示で伝わる内容はUIそのものに任せる。
+- 同じ方針を新規画面と既存画面の双方へ横断適用する。
+- 説明を残すのは、入力制約、失敗理由、権限制限、投稿期限、課金・削除など不可逆な操作、法務・安全上の注意に限る。
+- VoiceOver向けの`accessibilityLabel`と`accessibilityHint`は視覚上の説明文とは分離し、必要な操作情報を維持する。
+
 ## 2. ユーザー区分
 
 | 区分 | 認証状態 | 主目的 | 広告 | 作品上限 |
@@ -222,13 +230,13 @@ flowchart LR
 ### 7.2 顔ぷよ
 
 - フキダシとは別オブジェクト。
-- 通常キャラは感想IDから決定する15%で出現する。
+- 共通キャラクター「Poco」は感想IDから決定する15%で出現する。
 - 画面を占有しすぎないよう、見た目より小さい円形Physics Bodyを使う。
 - フキダシの近くへ少し重ねて配置し、余白を広げすぎない。
 - フキダシ、通常キャラ、レアキャラへ接触しても大きく横へ弾かず、その場で約0.15秒の「縮む→膨らむ→静止」により視覚的に「ぷよん」と変形する。
 - キャラ同士は余白を押し広げず、見た目が重なれる小さいPhysics Bodyを維持する。
 - タップでも「ぷよん」と反応する。
-- Proでは同じアバター由来の通常キャラ同士が接触すると2体を消費する。
+- ProではPoco同士が接触すると2体を消費する。
 - 合体時は95%で消滅、5%でレアキャラが誕生する。
 - Reduce Motion有効時は拡縮・反動を省略し、接触、合体、誕生という結果だけを即時反映する。既存の`SET-004`判定を共用し、新しい設定項目は増やさない。
 
@@ -278,6 +286,7 @@ flowchart LR
 | AUTH-006 | Public Profile Open | フキダシ作者をタップ | 登録投稿者だけプロフィールへ遷移 | 実装済み |
 | AUTH-007 | Anonymous Author Tap | 匿名フキダシ作者部分をタップ | `senderID`がないため何もしない | 実装済み |
 | AUTH-008 | Sign Out | 設定からログアウト | セッションと端末内ユーザー状態・コインキャッシュをクリア | 実装済み |
+| AUTH-009 | Delete Account | 設定で「削除」と入力後に再確認 | 本人JWT再検証、公開データ匿名化、Storage削除、Auth soft delete | 実装済み（本番適用待ち） |
 
 ## 11. 作品イベント
 
@@ -294,7 +303,7 @@ flowchart LR
 | PRJ-009 | Copy Link | コピーボタン | Deep LinkをPasteboardへコピー | 実装済み |
 | PRJ-010 | Share Project | ShareLink | iOS共有Sheetを表示 | 実装済み |
 | PRJ-011 | Edit Project | Dashboardの管理メニュー | 作成フォームを再利用。URL／QRを維持して本文・区分・画像を更新 | 実装済み |
-| PRJ-011B | Delete Project | Dashboardの管理メニュー | 破壊的確認後に作品・感想をDB削除し、Storage画像を掃除 | 実装済み |
+| PRJ-011B | Delete Project | Dashboardの管理メニュー | 即時非公開にして30日後のパージ対象へ移し、監査・通報中は証拠を保持 | 実装済み |
 | PRJ-012 | Content Rating Select | 作品登録 | `general`／`mature`を自己申告。露骨な性的表現は禁止 | 実装済み |
 | PRJ-013 | Safe Project Browse | 一覧・検索 | DB RPCが成人向け画像・本文をサーバー側で除去しロック表示 | 実装済み |
 | PRJ-014 | On-device Image Check | 画像選択 | iOS 17 Sensitive Content Analysisが利用可能な端末だけ一次判定 | 実装済み |
@@ -333,6 +342,19 @@ flowchart LR
 | MOD-005 | Admin Moderation Review | 運営が通報処理 | 管理画面なし | 未実装 |
 | MOD-006 | Rights Holder Request | 権利者が作品箱の削除を申請 | 作品Snapshot、立場、非公開連絡先、理由を保存。進行中重複と日次上限をDBで保証 | 実装済み |
 
+## 13.1 Q&Aイベント
+
+| ID | イベント | トリガー | 現在の処理 | 状態 |
+|---|---|---|---|---|
+| QA-001 | Open Q&A | Home／マイページのQ&A | 届いた質問／送った質問を表示 | 実装済み |
+| QA-002 | Send Question | 作品詳細の「Q&Aで質問する」 | 登録ユーザーだけが作品作者へ質問 | 実装済み |
+| QA-003 | Question Rate Guard | 質問送信 | 同一送信者／作者で24時間3件、未回答3件をDB Lock付きRPCで強制 | 実装済み |
+| QA-004 | Answer Once | 作者が回答 | 未回答かつ30日以内の質問へ1回だけ回答 | 実装済み |
+| QA-005 | Withdraw Question | 送信者が取り下げ | 保留枠を解放。24時間の累計には残す | 実装済み |
+| QA-006 | Expire Question | 未回答で30日経過 | `expired`へ移行し保留枠を解放 | 実装済み |
+| QA-007 | Report Question | 当事者が通報 | 不変Snapshotを非公開Evidenceへ保存 | 実装済み |
+| QA-008 | Block Participant | 質問詳細からブロック | 既存User Blockを使い、以後の質問作成RPCも拒否 | 実装済み |
+
 ## 14. 顔ぷよ・スターコインイベント
 
 | ID | イベント | 条件 | 報酬／処理 | 状態 |
@@ -362,8 +384,7 @@ flowchart LR
 | REWARD-002 | Achievement Refresh | ごほうび画面表示 | DB条件から6種スタンプを解放 | 実装済み |
 | SET-001 | Reaction Notification Toggle | 設定変更 | UserDefaults保存 | UIのみ |
 | SET-002 | Creator Heart Toggle | 設定変更 | UserDefaults保存 | UIのみ |
-| SET-003 | Playful Motion Toggle | 設定変更 | ぷよん／物理演出を抑制 | 実装済み |
-| SET-004 | System Reduce Motion | iOS設定 | アプリ独自設定より優先 | 実装済み |
+| SET-003 | System Reduce Motion | iOS設定 | ぷよん／物理演出を抑え、操作と情報は維持 | 実装済み |
 | NOTIFY-001 | Notification Inbox | ベルを開く | 「届いたことば」、リアクション、Pocoからの順で本人の通知を表示 | 実装済み |
 | NOTIFY-002 | New Feedback Received | 自作品へ新しい感想が着地・送信成功 | 作品名、投稿者、抜粋を受信箱へ追加し、タップで該当フキダシ詳細へ遷移 | 実装済み |
 | NOTIFY-003 | Feedback Liked | 自分の感想へ通常いいね | 共感通知を追加し、タップで該当フキダシ詳細へ遷移 | 実装済み |
@@ -411,6 +432,7 @@ flowchart LR
 - 必須ニックネームだけの最小登録、`@handle`自動発行、Apple初回情報の非公開保存
 - Project作成、所有関係分類、登録同意、画像圧縮／Storage
 - Project編集／削除、画像差し替え／削除、破壊的操作の確認UI
+- 作品の公式／販売ページURL、プロフィールのX／Instagram／YouTube／TikTok／Webリンク
 - 作品の一般／成人向け区分、サーバー側ロック、端末内画像一次判定
 - QR生成、保存、コピー、ShareLink
 - Feedback永続化、Optimistic UI、Retry、Realtime
@@ -425,6 +447,7 @@ flowchart LR
 - 広告Placement境界、Pro課金Sheet、作品上限Sheet
 - Dynamic Type、VoiceOverラベル、Reduce Motion
 - ゲストはチュートリアルなしで直接投稿、登録ユーザー／Proはバージョン付き初回ガイドと設定からの再表示
+- Q&Aの送受信、1回回答、取り下げ、30日期限、通報・ブロック、DB日次／保留上限
 
 ## 18. 基盤のみ／未実装の機能
 
@@ -432,15 +455,15 @@ flowchart LR
 |---|---|---|
 | 本番課金確定 | Edge Function契約READMEのみ | Apple JWS検証Function、通知V2、App Store商品設定 |
 | 本番広告 | `PocoAdPlacementView`のみ | 広告SDK、Consent、テスト広告、頻度設計 |
-| 無料作品枠の⭐︎拡張 | 獲得台帳と残高表示まで実装済み | 200⭐︎／400⭐︎の消費RPC、永続枠Entitlement、上限UI |
+| 無料作品枠の⭐︎拡張 | 実装済み | 本番Migration適用と複数端末テスト |
 | Push通知 | アプリ内受信箱・通知DB・RLS・Realtime・個別既読・詳細遷移は実装済み | APNs、Device Token、配信Edge Function、Pushからの詳細Deep Link |
 | Proスタンプ | Capabilityのみ | Reaction Model／DB／UI／集計 |
 | コード付き作品 | Capabilityのみ | DB列、Hash化、解錠RPC、検索除外 |
 | フォロー | 未実装 | Follow Model、RLS、作品更新通知 |
-| Q&Aタブ | 未実装（旧称「質問タブ」は使用しない） | Question Model、日次／保留上限、回答、期限、通報・ブロック |
+| Q&A | Model、Repository、作品からの送信、送受信一覧、1回回答、取り下げ、期限、通報・ブロック、Server Authority Migrationまで実装済み | 本番Migration適用、複数端末試験、Push連携 |
 | Poco Letter | 未実装 | Pro相互資格、7日TTL、通報・ブロック、配信安全設計 |
 | 運営Moderation | DB監査情報、権利者削除申請の受付まで実装済み | 管理画面、Status更新、異議申立て |
-| アカウント削除 | 未実装 | Auth削除Function、Storage／個人情報削除導線 |
+| アカウント削除 | iOS導線、Repository、匿名化Migration、Edge Functionまで実装済み | 本番Migration／Function適用、実機で再ログイン不可とStorage削除を確認 |
 | 利用規約／Privacy | 作品登録ルールのみ | 法務文面、アプリ内リンク、同意Version管理 |
 | Universal Links | アプリ解析・AASA・Associated Domains実装済み。暫定ホストは`ben-kei-create.github.io` | `Ben-Kei-create.github.io`リポジトリのPages公開、AASA配信、実機検証。独自ドメインは反響後に追加 |
 | 成人向け閲覧許可 | DB設定と安全なロックRPCのみ | Web設定画面、本人確認、Edge Function、運営レビュー |
@@ -463,7 +486,7 @@ flowchart LR
    作品枠の購入はサーバー側の冪等RPCだけで行い、残高確認、ユーザー単位のAdvisory Lock、⭐︎消費台帳、枠Entitlement作成を1Transactionにする。Pro中は無料枠の購入UIを表示せず、Redeem RPCも会員資格を再確認して⭐︎消費前に拒否する。これにより別端末、古いアプリ、改造クライアントからの誤消費も防ぐ。Pro中も購入済みの無料枠は保持し、解約後の無料上限に再適用する。Pro失効時に既存作品を自動削除せず、現在数が無料上限以上の間は新規作成だけを停止する。
 
 5. **ファンの感想箱の扱い**
-   公式／許諾／ファン作成／イベントを明示する。ファン作成は公式と誤認させず、権利者向け削除申請を提供する。
+   作品との関係（制作者本人／許諾済み／ファン作成）と、ページの用途（通常公開／イベント・頒布用）を別軸で明示する。「制作者本人＋イベント・頒布用」のように組み合わせられ、イベント用途だけで公式・非公式を判断しない。ファン作成は公式と誤認させず、権利者向け削除申請を提供する。
 
 6. **匿名履歴の寿命と登録誘導**
    ゲストの名前はサーバー側でも一律「名無しさん」にし、感想は24時間後に公開一覧と件数から外す。ただし、期限後も同一Auth Identity・同一作品の生涯3件上限には算入し、通知目的の再投稿を防ぐ。作者が通常のいいねを付けた場合は作者❤️として`expires_at`を解除し、感想と反応を永続化する。行は通報・監査方針に従って保持する。着地直後に「名前と一緒に残す」価値として登録を案内する。
@@ -482,8 +505,8 @@ flowchart LR
 10. **ロール別チュートリアル**
     ゲストには連続チュートリアルを表示せず、WelcomeのQR／検索と作品詳細の「感想を送る」から即投稿できる。登録ユーザーは登録後に1回、Proは新機能バージョンごとに1回だけガイドする。完了状態はユーザーIDとガイドVersionの組み合わせで保存し、設定から任意に再表示できる。
 
-11. **Q&Aタブ（将来機能）**
-    表示名は常に「Q&A」とし、「質問タブ」は使用しない。1ユーザーが同じ作者へ送れる質問は1日3件、未回答の同時保留は3件まで。作者は1質問へ1回だけ回答できる。`answered`と30日後の`expired`は保留枠を解放し、`withdrawn`は枠を解放するが当日の累計数に残す。
+11. **Q&A**
+    表示名は常に「Q&A」とし、「質問タブ」は使用しない。下部タブには置かず、マイページから開く。1ユーザーが同じ作者へ送れる質問は1日3件、未回答の同時保留は3件まで。作者は1質問へ1回だけ回答できる。`answered`と30日後の`expired`は保留枠を解放し、`withdrawn`は枠を解放するが当日の累計数に残す。
 
 12. **Poco Letter（将来のPro機能）**
     汎用DMは作らない。Pro同士かつ、読者の感想へ作者が❤️を付けた時だけLetter招待を1つ作れる。同一読者／作者ペアの`pending_reply`、`active`、`reported_hold`は同時に1本まで。最初は読者の1通だけで、作者が返信した時点から7日間開放し通常は自動削除する。未返信は30日で`expired`、通報中は証拠保全のため削除を保留する。ブロック中は新規招待をRPCで拒否する。画像・ファイル・既読・オンライン表示・入力中表示は作らず、URL制限＋即時通報＋ブロックで被害を最小化する。
@@ -499,12 +522,12 @@ flowchart LR
 1. GitHub Pages用URL変更をcommit・pushする。
 2. GitHub PagesとAASAを公開し、インストール済み／未インストールの両方で検証する。
 3. Supabase本番接続とMigration適用を行い、Feedback等のカーソルページング用Index設計もこの時点で確定する。
-4. App Attest、CAPTCHA、Edge Function Gatewayを完成する。同じServer Authority層で、フキダシ装飾と無料作品枠の⭐︎Redeemも実装する。
+4. App Attest、CAPTCHA、Edge Function Gatewayを完成する。無料作品枠の⭐︎Redeemと装飾購入はDBのServer Authority RPCへ実装済みのため、ここではAttestation Gatewayとの統合を行う。
 5. 利用規約、Privacy、アカウント削除を完成する。法務文面のDraftは1〜4と並行する。
 6. 運営Moderation画面と画像検疫を完成する。
 7. Feedbackカーソルページング、画面外の物理停止、ノード再利用による大量Bubble対策を行う。
 8. Server Authority、冪等性、RLS、Deep Link、ロール状態遷移を優先して自動テストを追加する。作品枠は「Pro解約直後、既存数が⭐︎購入分を含む無料上限を超えている場合に新規作成を拒否する」「Pro解約後も200⭐︎／400⭐︎で取得済みの永続枠が正しく引き継がれる」「Pro中のRedeemは残高を減らさず拒否する」を必須ケースとする。
 9. StoreKit本番検証とPro価格を確定する。Pro購入画面にレア誕生5%の確率開示を必ず含める。
 10. APNs Push通知と本番広告を実装し、Consent・Privacy Manifest・審査情報を確認する。
-11. Q&Aタブを確定済みの日次／保留上限とModeration付きで実装する。
+11. Q&AのMigrationを本番へ適用し、複数端末・競合・Push連携を検証する。
 12. Poco Letterを作者❤️を起点とするPro限定の期限付き導線として実装する。

@@ -10,6 +10,7 @@ nonisolated struct UnavailableBackendServices: ProjectRepository,
     NotificationRepository,
     AnnouncementRepository,
     RightsHolderRequestRepository,
+    QAndARepository,
     AuthRepository,
     CurrentUserProvider,
     ServerAuthorityService {
@@ -59,6 +60,10 @@ nonisolated struct UnavailableBackendServices: ProjectRepository,
     func equipProjectBadge(projectID: UUID, slot: Int, itemID: String?) async throws {
         throw error
     }
+    func fetchProjectSlotStatus() async throws -> ProjectSlotStatus { throw error }
+    func redeemProjectSlot(requestID: UUID) async throws -> ProjectSlotRedemptionResult {
+        throw error
+    }
 
     func fetchOwnedFeedbackIDs() async throws -> Set<UUID> { throw error }
     func fetchOwnedFeedbacks() async throws -> [Feedback] { throw error }
@@ -82,10 +87,24 @@ nonisolated struct UnavailableBackendServices: ProjectRepository,
     func fetchPublishedAnnouncements() async throws -> [AppAnnouncement] { throw error }
 
     func submit(_ request: RightsHolderRequest) async throws -> UUID { throw error }
+    func fetchQuestions() async throws -> [PocoQuestion] { throw error }
+    func sendQuestion(
+        creatorID: UUID,
+        projectID: UUID?,
+        message: String
+    ) async throws -> PocoQuestion { throw error }
+    func answerQuestion(id: UUID, answer: String) async throws -> PocoQuestion { throw error }
+    func withdrawQuestion(id: UUID) async throws -> PocoQuestion { throw error }
+    func reportQuestion(
+        id: UUID,
+        reason: FeedbackReportReason,
+        details: String?
+    ) async throws { throw error }
     func signInWithApple(
         credential: AppleIdentityCredential
     ) async throws -> AuthenticatedAccount { throw error }
     func signOut() async throws { throw error }
+    func deleteAccount() async throws { throw error }
     func currentUserID() async -> UUID? { nil }
     func accountStatus() async -> AccountStatus { .guest }
 

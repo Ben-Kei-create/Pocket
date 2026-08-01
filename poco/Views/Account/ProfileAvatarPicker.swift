@@ -16,20 +16,20 @@ struct ProfileAvatarPicker: View {
                 Text("プロフィール画像")
                     .pocoFont(.subheadline, weight: .medium)
                 Spacer()
-                Text("5種＋自分の写真")
+                Text("Poco＋自分の写真")
                     .pocoFont(.caption)
                     .foregroundStyle(PocoTheme.tertiaryText)
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
-                    ForEach(BuiltInAvatar.allCases) { avatar in
+                    ForEach(BuiltInAvatar.selectableCases) { avatar in
                         Button {
                             avatarName = avatar.rawValue
                             avatarImageData = nil
                             selectedPhoto = nil
                         } label: {
-                            avatarImage(avatar.rawValue)
+                            avatarImage(avatar.companionAssetName)
                                 .overlay {
                                     selectionRing(isSelected: avatarName == avatar.rawValue)
                                 }

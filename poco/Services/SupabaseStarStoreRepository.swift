@@ -95,6 +95,43 @@ final class SupabaseStarStoreRepository: StarStoreRepository, Sendable {
         }
     }
 
+    nonisolated func fetchProjectSlotStatus() async throws -> ProjectSlotStatus {
+        guard await currentUserProvider.accountStatus() == .registered else {
+            throw AppError.unauthorized
+        }
+        do {
+            let rows: [ProjectSlotStatusDTO] = try await client
+                .rpc("get_project_slot_status")
+                .execute()
+                .value
+            guard let status = rows.first else { throw AppError.decoding }
+            return status.domainModel
+        } catch {
+            throw SupabaseErrorMapper.map(error)
+        }
+    }
+
+    nonisolated func redeemProjectSlot(
+        requestID: UUID
+    ) async throws -> ProjectSlotRedemptionResult {
+        guard await currentUserProvider.accountStatus() == .registered else {
+            throw AppError.unauthorized
+        }
+        do {
+            let rows: [ProjectSlotRedemptionDTO] = try await client
+                .rpc(
+                    "redeem_project_slot",
+                    params: RedeemProjectSlotParameters(requestID: requestID)
+                )
+                .execute()
+                .value
+            guard let result = rows.first else { throw AppError.decoding }
+            return result.domainModel
+        } catch {
+            throw SupabaseErrorMapper.map(error)
+        }
+    }
+
     nonisolated func equipProjectBackground(
         projectID: UUID,
         itemID: String?

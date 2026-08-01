@@ -227,9 +227,6 @@ private struct ProjectInsightSummaryView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                Text("この作品に届いたことば")
-                    .pocoFont(.headline, weight: .medium)
-
                 LazyVGrid(
                     columns: [GridItem(.flexible()), GridItem(.flexible())],
                     spacing: 12
@@ -263,7 +260,7 @@ private struct ProjectInsightSummaryView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     Label("ことばの傾向", systemImage: "text.quote")
                         .pocoFont(.headline, weight: .medium)
-                    Text("感想は平均\(averageLength)文字。ランキングではなく、作品へ届いたことば全体の記録です。")
+                    Text("平均\(averageLength)文字")
                         .pocoFont(.subheadline)
                         .foregroundStyle(PocoTheme.secondaryText)
                         .lineSpacing(4)

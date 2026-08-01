@@ -174,8 +174,8 @@ final class PhysicsBubbleNode: SKNode {
 
         let avatarDiameter = avatarRadius * 2
         if let avatarName = feedback.senderAvatarName,
-           BuiltInAvatar(rawValue: avatarName) != nil,
-           let image = UIImage(named: avatarName) {
+           let builtInAvatar = BuiltInAvatar(rawValue: avatarName),
+           let image = UIImage(named: builtInAvatar.companionAssetName) {
             addAvatarImage(image, to: avatar, diameter: avatarDiameter)
         } else if let avatarURL = feedback.senderAvatarURL {
             loadRemoteAvatar(avatarURL, into: avatar, diameter: avatarDiameter)

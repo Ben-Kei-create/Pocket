@@ -45,14 +45,12 @@ struct FeedbackComposeView: View {
                     .opacity(trimmedMessage.isEmpty || trimmedNickname.isEmpty ? 0.48 : 1)
                     .accessibilityHint("次の画面でフキダシを落とします")
 
-                    Text(
-                        store.canCreateProjects
-                            ? "送信するとフキダシをPocoに追加できます"
-                            : "ゲストの感想は24時間表示されます。無料登録すると、名前と一緒に残せます"
-                    )
+                    if !store.canCreateProjects {
+                        Text("ゲストの感想は24時間後に消えます")
                         .pocoFont(.caption)
                         .foregroundStyle(PocoTheme.secondaryText)
                         .frame(maxWidth: .infinity)
+                    }
                 }
                 .padding(PocoTheme.pagePadding)
             }
@@ -141,9 +139,6 @@ struct FeedbackComposeView: View {
                 .padding(16)
                 .pocoCard(cornerRadius: PocoTheme.cornerSmall)
 
-                Text("ゲスト投稿は一律「名無しさん」となり、24時間後に公開一覧から消えます。")
-                    .pocoFont(.caption)
-                    .foregroundStyle(PocoTheme.secondaryText)
             }
         }
     }

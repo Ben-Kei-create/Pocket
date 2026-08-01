@@ -10,14 +10,9 @@ struct QRCodeView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 26) {
-                VStack(spacing: 8) {
-                    Text(project.title)
-                        .pocoFont(.title2, weight: .bold)
-                        .multilineTextAlignment(.center)
-                    Text("このQRコードから感想を送れます")
-                        .pocoFont(.subheadline)
-                        .foregroundStyle(PocoTheme.secondaryText)
-                }
+                Text(project.title)
+                    .pocoFont(.title2, weight: .bold)
+                    .multilineTextAlignment(.center)
 
                 QRCodeImage(data: project.deepLinkURL.absoluteString)
                     .frame(width: 260, height: 260)

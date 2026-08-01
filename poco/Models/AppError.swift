@@ -17,6 +17,11 @@ nonisolated enum AppError: Error, Equatable, Sendable {
     case purchase
     case insufficientStarCoins
     case itemAlreadyEquipped
+    case projectSlotRedemptionUnavailable
+    case questionDailyLimitReached
+    case questionPendingLimitReached
+    case questionUnavailable
+    case accountDeletion
     case unknown(String?)
 
     var userMessage: String {
@@ -53,6 +58,16 @@ nonisolated enum AppError: Error, Equatable, Sendable {
             "スターが足りません。もう少し集めてからお試しください。"
         case .itemAlreadyEquipped:
             "このバッジは、すでに別の枠へ飾っています。"
+        case .projectSlotRedemptionUnavailable:
+            "Poco Proでは30作品まで利用できるため、無料枠の購入はできません。"
+        case .questionDailyLimitReached:
+            "同じクリエイターへ送れる質問は24時間で3件までです。"
+        case .questionPendingLimitReached:
+            "回答待ちの質問は、同じクリエイターにつき3件までです。"
+        case .questionUnavailable:
+            "この質問は回答または変更できません。"
+        case .accountDeletion:
+            "アカウントを削除できませんでした。時間をおいてもう一度お試しください。"
         case .unknown:
             "問題が発生しました。もう一度お試しください。"
         }

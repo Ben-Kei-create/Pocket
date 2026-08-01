@@ -5,9 +5,11 @@ struct StarCoinBadge: View {
 
     var body: some View {
         HStack(spacing: 5) {
-            Image(systemName: "star.fill")
-                .foregroundStyle(.yellow)
-                .symbolRenderingMode(.hierarchical)
+            Image(PocoArtwork.starCoin)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 20, height: 20)
+                .accessibilityHidden(true)
             Text(balance.formatted())
                 .pocoFont(.subheadline, weight: .bold).monospacedDigit()
                 .foregroundStyle(.primary)

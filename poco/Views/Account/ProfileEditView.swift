@@ -8,6 +8,7 @@ struct ProfileEditView: View {
     @State private var handle = ""
     @State private var avatarName: String?
     @State private var avatarImageData: Data?
+    @State private var profileLinkTexts: [ProfileLinkService: String] = [:]
     @State private var isSaving = false
     @State private var errorMessage: String?
     @State private var didLoadInitialValues = false
@@ -19,7 +20,9 @@ struct ProfileEditView: View {
     private var normalizedHandle: String { CreatorHandle.normalize(handle) }
 
     private var canSave: Bool {
-        !normalizedName.isEmpty && CreatorHandle.isValid(normalizedHandle)
+        !normalizedName.isEmpty
+            && CreatorHandle.isValid(normalizedHandle)
+            && normalizedProfileLinks != nil
     }
 
     var body: some View {
@@ -77,6 +80,37 @@ struct ProfileEditView: View {
                         avatarImageData: $avatarImageData
                     )
 
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("外部リンク")
+                            .pocoFont(.headline, weight: .medium)
+
+                        ForEach(ProfileLinkService.allCases) { service in
+                            HStack(spacing: 12) {
+                                ProfileLinkIcon(service: service)
+                                    .frame(width: 28)
+                                TextField(service.placeholder, text: linkBinding(for: service))
+                                    .keyboardType(.URL)
+                                    .textInputAutocapitalization(.never)
+                                    .autocorrectionDisabled()
+                                    .textContentType(.URL)
+                            }
+                            .padding(14)
+                            .background(PocoTheme.cardBackground)
+                            .clipShape(
+                                RoundedRectangle(
+                                    cornerRadius: PocoTheme.cornerSmall,
+                                    style: .continuous
+                                )
+                            )
+                        }
+
+                        if normalizedProfileLinks == nil {
+                            Text(linkValidationMessage)
+                                .pocoFont(.caption)
+                                .foregroundStyle(.red)
+                        }
+                    }
+
                     if let errorMessage {
                         Text(errorMessage)
                             .pocoFont(.caption)
@@ -116,6 +150,10 @@ struct ProfileEditView: View {
                 displayName = store.currentDisplayName
                 handle = store.currentProfile?.handle ?? ""
                 avatarName = store.currentProfile?.avatarName
+                profileLinkTexts = (store.currentProfile?.profileLinks ?? []).reduce(into: [:]) {
+                    values, link in
+                    values[link.service] = link.url.absoluteString
+                }
             }
         }
         .interactiveDismissDisabled(isSaving)
@@ -131,7 +169,7 @@ struct ProfileEditView: View {
     }
 
     private func save() {
-        guard !isSaving else { return }
+        guard !isSaving, let normalizedProfileLinks else { return }
         isSaving = true
         errorMessage = nil
         Task {
@@ -139,7 +177,8 @@ struct ProfileEditView: View {
                 displayName: normalizedName,
                 handle: normalizedHandle,
                 avatarName: avatarName,
-                avatarImageData: avatarImageData
+                avatarImageData: avatarImageData,
+                profileLinks: normalizedProfileLinks
             )
             isSaving = false
             switch result {
@@ -149,5 +188,32 @@ struct ProfileEditView: View {
                 errorMessage = error.userMessage
             }
         }
+    }
+
+    private var normalizedProfileLinks: [ProfileSocialLink]? {
+        var links: [ProfileSocialLink] = []
+        for service in ProfileLinkService.allCases {
+            let value = profileLinkTexts[service, default: ""]
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !value.isEmpty else { continue }
+            guard let link = ProfileSocialLink(service: service, value: value) else {
+                return nil
+            }
+            links.append(link)
+        }
+        return links
+    }
+
+    private var linkValidationMessage: String {
+        normalizedProfileLinks == nil
+            ? "サービスに対応する正しいHTTPS URLを入力してください。"
+            : "https:// は省略できます。最大5件まで表示されます。"
+    }
+
+    private func linkBinding(for service: ProfileLinkService) -> Binding<String> {
+        Binding(
+            get: { profileLinkTexts[service, default: ""] },
+            set: { profileLinkTexts[service] = String($0.prefix(PocoExternalURL.maximumLength)) }
+        )
     }
 }

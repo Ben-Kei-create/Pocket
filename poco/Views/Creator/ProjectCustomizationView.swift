@@ -40,13 +40,6 @@ struct ProjectCustomizationView: View {
                 preview
                 backgroundSection
                 badgeSection
-
-                NavigationLink {
-                    StarStoreView()
-                } label: {
-                    Label("スターショップでアイテムを見る", systemImage: "bag.fill")
-                }
-                .buttonStyle(PocoSecondaryButtonStyle())
             }
             .padding(PocoTheme.pagePadding)
             .padding(.bottom, 24)
@@ -156,9 +149,6 @@ struct ProjectCustomizationView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("背景")
                 .pocoFont(.headline, weight: .bold)
-            Text("購入済みの色から選べます。いつでも白へ戻せます。")
-                .pocoFont(.caption)
-                .foregroundStyle(PocoTheme.secondaryText)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
@@ -211,9 +201,6 @@ struct ProjectCustomizationView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text("バッジケース")
                 .pocoFont(.headline, weight: .bold)
-            Text("3枠まで。バッジは重複して飾れません。")
-                .pocoFont(.caption)
-                .foregroundStyle(PocoTheme.secondaryText)
 
             HStack(spacing: 12) {
                 ForEach(0..<3, id: \.self) { slot in

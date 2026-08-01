@@ -42,19 +42,6 @@ struct PhysicsBubbleFieldView: View {
             .background {
                 PocoTheme.cardBackground.opacity(0.28)
             }
-            .overlay(alignment: .topTrailing) {
-                Label(
-                    worldHeight > proxy.size.height ? "上下にスクロール" : "最新",
-                    systemImage: worldHeight > proxy.size.height ? "arrow.up.arrow.down" : "arrow.up"
-                )
-                    .pocoFont(.caption2, weight: .medium)
-                    .foregroundStyle(PocoTheme.secondaryText)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 6)
-                    .background(.thinMaterial, in: Capsule())
-                    .padding(12)
-                    .allowsHitTesting(false)
-            }
             .accessibilityRepresentation {
                 Button {
                     guard let latest = feedbacks.first else { return }
@@ -105,18 +92,6 @@ struct PhysicsBubbleDropFieldView: View {
             )
         }
         .background(PocoTheme.cardBackground.opacity(0.28))
-        .overlay(alignment: .topTrailing) {
-            if isScrollEnabled {
-                Label("上下にスクロール", systemImage: "arrow.up.arrow.down")
-                    .pocoFont(.caption2, weight: .medium)
-                    .foregroundStyle(PocoTheme.secondaryText)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 6)
-                    .background(.thinMaterial, in: Capsule())
-                    .padding(12)
-                    .allowsHitTesting(false)
-            }
-        }
         .accessibilityRepresentation {
             if isScrollEnabled {
                 Button("感想のフキダシ、\(existingFeedbacks.count + 1)件") {

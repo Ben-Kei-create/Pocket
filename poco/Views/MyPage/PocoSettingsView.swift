@@ -7,6 +7,7 @@ struct PocoSettingsView: View {
     @AppStorage("poco.hasCompletedWelcome") private var hasCompletedWelcome = true
     @State private var showsProfileEdit = false
     @State private var showsMembership = false
+    @State private var showsAccountDeletion = false
 
     var body: some View {
         List {
@@ -43,8 +44,6 @@ struct PocoSettingsView: View {
                 }
             } header: {
                 Text("通知")
-            } footer: {
-                Text("プッシュ通知を利用するには、今後の通知許可も必要です。")
             }
 
             Section("Pocoについて") {
@@ -87,6 +86,14 @@ struct PocoSettingsView: View {
                     Text("ログアウト後も、閲覧と感想投稿はゲストとして利用できます。")
                 }
             }
+
+            if store.accountStatus == .registered {
+                Section {
+                    Button("アカウントを削除", role: .destructive) {
+                        showsAccountDeletion = true
+                    }
+                }
+            }
         }
         .listStyle(.insetGrouped)
         .navigationTitle("設定")
@@ -96,6 +103,9 @@ struct PocoSettingsView: View {
         }
         .sheet(isPresented: $showsMembership) {
             PocoMembershipView()
+        }
+        .sheet(isPresented: $showsAccountDeletion) {
+            AccountDeletionView()
         }
     }
 

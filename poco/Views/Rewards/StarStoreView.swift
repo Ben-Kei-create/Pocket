@@ -21,24 +21,15 @@ struct StarStoreView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 26) {
-                header
-
                 storeSection(
                     title: "ハコの背景",
-                    subtitle: "作品ごとに、ことばが集まる場所の色を変えられます。",
                     items: backgrounds
                 )
 
                 storeSection(
                     title: "バッジ",
-                    subtitle: "作品のバッジケースに3個まで飾れます。押すと意味を確認できます。",
                     items: badges
                 )
-
-                Text("購入した背景やバッジは、いつでも作品ごとに付け替えられます。")
-                    .pocoFont(.caption)
-                    .foregroundStyle(PocoTheme.tertiaryText)
-                    .fixedSize(horizontal: false, vertical: true)
             }
             .padding(PocoTheme.pagePadding)
             .padding(.bottom, 24)
@@ -96,40 +87,14 @@ struct StarStoreView: View {
         }
     }
 
-    private var header: some View {
-        HStack(spacing: 14) {
-            Image(systemName: "star.circle.fill")
-                .font(.system(size: 38, weight: .semibold))
-                .symbolRenderingMode(.palette)
-                .foregroundStyle(.yellow, PocoTheme.bubble(.yellow))
-            VStack(alignment: .leading, spacing: 4) {
-                Text("集めたスターで、Pocoを飾ろう")
-                    .pocoFont(.title3, weight: .bold)
-                Text("見た目が変わるだけで、表示順位や反応数には影響しません。")
-                    .pocoFont(.caption)
-                    .foregroundStyle(PocoTheme.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .pocoCard()
-    }
-
     @ViewBuilder
     private func storeSection(
         title: String,
-        subtitle: String,
         items: [StarStoreItem]
     ) -> some View {
         VStack(alignment: .leading, spacing: 13) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .pocoFont(.headline, weight: .bold)
-                Text(subtitle)
-                    .pocoFont(.caption)
-                    .foregroundStyle(PocoTheme.secondaryText)
-            }
+            Text(title)
+                .pocoFont(.headline, weight: .bold)
 
             if store.starStoreLoadState == .loading && items.isEmpty {
                 HStack(spacing: 10) {
@@ -252,8 +217,11 @@ private struct StarStoreItemCard: View {
                             .frame(maxWidth: .infinity)
                     } else {
                         HStack(spacing: 4) {
-                            Image(systemName: "star.fill")
-                                .foregroundStyle(.yellow)
+                            Image(PocoArtwork.starCoin)
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 18, height: 18)
+                                .accessibilityHidden(true)
                             Text(item.priceCoins.formatted())
                                 .monospacedDigit()
                         }

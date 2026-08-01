@@ -14,8 +14,8 @@ struct ProfileAvatarView: View {
                     .resizable()
                     .scaledToFill()
             } else if let avatarName = creator?.avatarName,
-                      BuiltInAvatar(rawValue: avatarName) != nil {
-                Image(avatarName)
+                      let avatar = BuiltInAvatar(rawValue: avatarName) {
+                Image(avatar.companionAssetName)
                     .resizable()
                     .scaledToFill()
             } else if let avatarURL = creator?.avatarURL {

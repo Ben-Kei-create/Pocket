@@ -37,14 +37,9 @@ struct PocoAdBanner: View {
                         .foregroundStyle(PocoTheme.primary)
                 }
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text("スポンサー広告")
-                    .pocoFont(.caption2)
-                    .foregroundStyle(PocoTheme.secondaryText)
-                Text("ここに広告が表示されます")
-                    .pocoFont(.caption, weight: .medium)
-                    .foregroundStyle(.primary)
-            }
+            Text("スポンサー広告")
+                .pocoFont(.caption, weight: .medium)
+                .foregroundStyle(PocoTheme.secondaryText)
 
             Spacer(minLength: 8)
 

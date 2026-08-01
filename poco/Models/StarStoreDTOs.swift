@@ -120,3 +120,77 @@ nonisolated struct EquipProjectBadgeParameters: Encodable, Sendable {
         case itemID = "p_item_id"
     }
 }
+
+nonisolated struct ProjectSlotStatusDTO: Decodable, Sendable {
+    let freeProjectLimit: Int
+    let extraSlots: Int
+    let nextSlotNumber: Int?
+    let nextSlotCost: Int?
+    let starCoinBalance: Int
+    let walletRevision: Int64
+
+    enum CodingKeys: String, CodingKey {
+        case freeProjectLimit = "free_project_limit"
+        case extraSlots = "extra_slots"
+        case nextSlotNumber = "next_slot_number"
+        case nextSlotCost = "next_slot_cost"
+        case starCoinBalance = "star_coin_balance"
+        case walletRevision = "wallet_revision"
+    }
+
+    var domainModel: ProjectSlotStatus {
+        ProjectSlotStatus(
+            freeProjectLimit: freeProjectLimit,
+            extraSlots: extraSlots,
+            nextSlotNumber: nextSlotNumber,
+            nextSlotCost: nextSlotCost,
+            balance: starCoinBalance,
+            walletRevision: walletRevision
+        )
+    }
+}
+
+nonisolated struct ProjectSlotRedemptionDTO: Decodable, Sendable {
+    let freeProjectLimit: Int
+    let extraSlots: Int
+    let nextSlotNumber: Int?
+    let nextSlotCost: Int?
+    let starCoinBalance: Int
+    let chargedCoins: Int
+    let walletRevision: Int64
+    let redeemed: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case freeProjectLimit = "free_project_limit"
+        case extraSlots = "extra_slots"
+        case nextSlotNumber = "next_slot_number"
+        case nextSlotCost = "next_slot_cost"
+        case starCoinBalance = "star_coin_balance"
+        case chargedCoins = "charged_coins"
+        case walletRevision = "wallet_revision"
+        case redeemed
+    }
+
+    var domainModel: ProjectSlotRedemptionResult {
+        ProjectSlotRedemptionResult(
+            status: ProjectSlotStatus(
+                freeProjectLimit: freeProjectLimit,
+                extraSlots: extraSlots,
+                nextSlotNumber: nextSlotNumber,
+                nextSlotCost: nextSlotCost,
+                balance: starCoinBalance,
+                walletRevision: walletRevision
+            ),
+            chargedCoins: chargedCoins,
+            redeemed: redeemed
+        )
+    }
+}
+
+nonisolated struct RedeemProjectSlotParameters: Encodable, Sendable {
+    let requestID: UUID
+
+    enum CodingKeys: String, CodingKey {
+        case requestID = "p_request_id"
+    }
+}

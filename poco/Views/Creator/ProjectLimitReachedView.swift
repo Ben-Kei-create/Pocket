@@ -4,6 +4,10 @@ struct ProjectLimitReachedView: View {
     @Environment(PocoStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var showsMembership = false
+    @State private var showsRedemptionConfirmation = false
+    @State private var isRedeeming = false
+    @State private var redemptionMessage: String?
+    @State private var redemptionError: String?
 
     var body: some View {
         NavigationStack {
@@ -15,14 +19,9 @@ struct ProjectLimitReachedView: View {
                     .background(PocoTheme.bubble(.yellow).opacity(0.8), in: Circle())
                     .accessibilityHidden(true)
 
-                VStack(spacing: 8) {
-                    Text(title)
-                        .pocoFont(.title2, weight: .bold)
-                    Text(message)
-                        .pocoFont(.subheadline)
-                        .foregroundStyle(PocoTheme.secondaryText)
-                        .multilineTextAlignment(.center)
-                }
+                Text(title)
+                    .pocoFont(.title2, weight: .bold)
+                    .multilineTextAlignment(.center)
 
                 VStack(spacing: 9) {
                     HStack {
@@ -30,13 +29,13 @@ struct ProjectLimitReachedView: View {
                         Spacer()
                         Text(
                             "\(store.currentUserProjects.count) / "
-                                + "\(store.capabilities.maximumProjectCount)"
+                                + "\(store.maximumProjectCount)"
                         )
                         .pocoFont(.headline).monospacedDigit()
                     }
                     ProgressView(
                         value: Double(store.currentUserProjects.count),
-                        total: Double(max(1, store.capabilities.maximumProjectCount))
+                        total: Double(max(1, store.maximumProjectCount))
                     )
                     .tint(PocoTheme.primary)
                 }
@@ -46,6 +45,18 @@ struct ProjectLimitReachedView: View {
 
                 if store.role == .user {
                     VStack(spacing: 12) {
+                        if let nextSlot = store.projectSlotStatus.nextSlotNumber,
+                           let nextCost = store.projectSlotStatus.nextSlotCost {
+                            projectSlotRedemptionCard(nextSlot: nextSlot, cost: nextCost)
+                        } else {
+                            Label("無料枠は最大5作品まで解放済みです", systemImage: "checkmark.seal.fill")
+                                .pocoFont(.subheadline, weight: .medium)
+                                .foregroundStyle(PocoTheme.primary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(16)
+                                .pocoCard()
+                        }
+
                         Button {
                             showsMembership = true
                         } label: {
@@ -53,10 +64,6 @@ struct ProjectLimitReachedView: View {
                         }
                         .buttonStyle(PocoPrimaryButtonStyle())
 
-                        Text("Poco Proでは、作品の記録・限定背景・広告なしも利用できます。")
-                            .pocoFont(.caption)
-                            .foregroundStyle(PocoTheme.tertiaryText)
-                            .multilineTextAlignment(.center)
                     }
                 }
 
@@ -78,17 +85,102 @@ struct ProjectLimitReachedView: View {
             .sheet(isPresented: $showsMembership) {
                 PocoMembershipView()
             }
+            .confirmationDialog(
+                "作品枠を解放しますか？",
+                isPresented: $showsRedemptionConfirmation,
+                titleVisibility: .visible
+            ) {
+                if let nextSlot = store.projectSlotStatus.nextSlotNumber,
+                   let cost = store.projectSlotStatus.nextSlotCost {
+                    Button("\(cost)⭐︎で\(nextSlot)作品目を解放") {
+                        redeemProjectSlot(targetSlot: nextSlot)
+                    }
+                }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("解放した無料枠はPoco Proを解約した後も残ります。取り消しはできません。")
+            }
+            .alert(
+                "作品枠を解放できませんでした",
+                isPresented: Binding(
+                    get: { redemptionError != nil },
+                    set: { if !$0 { redemptionError = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(redemptionError ?? "")
+            }
+            .task {
+                await store.loadProjectSlotStatus(reportsErrors: false)
+            }
         }
     }
 
     private var title: String {
-        store.role == .pro ? "30作品まで登録済みです" : "無料プランの3作品まで登録済みです"
+        if store.role == .pro { return "30作品まで登録済みです" }
+        if store.currentUserProjects.count < store.maximumProjectCount {
+            return "新しい作品を作れます"
+        }
+        return "無料プランの\(store.maximumProjectCount)作品まで登録済みです"
     }
 
-    private var message: String {
-        if store.role == .pro {
-            return "新しい作品を追加する前に、現在の作品を確認してください。"
+    @ViewBuilder
+    private func projectSlotRedemptionCard(nextSlot: Int, cost: Int) -> some View {
+        let missingStars = max(0, cost - store.starCoinBalance)
+        VStack(alignment: .leading, spacing: 13) {
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("無料の作品枠を増やす")
+                        .pocoFont(.headline, weight: .medium)
+                }
+                Spacer()
+                StarCoinBadge(balance: store.starCoinBalance)
+            }
+
+            Button {
+                showsRedemptionConfirmation = true
+            } label: {
+                if isRedeeming {
+                    ProgressView()
+                        .tint(.white)
+                        .frame(maxWidth: .infinity)
+                } else {
+                    Label("\(cost)⭐︎で\(nextSlot)作品目を解放", systemImage: "lock.open.fill")
+                }
+            }
+            .buttonStyle(PocoPrimaryButtonStyle())
+            .disabled(isRedeeming || missingStars > 0)
+            .opacity(missingStars > 0 ? 0.48 : 1)
+
+            if let redemptionMessage {
+                Text(redemptionMessage)
+                    .pocoFont(.caption, weight: .medium)
+                    .foregroundStyle(PocoTheme.primary)
+            } else if missingStars > 0 {
+                Text("あと\(missingStars)⭐︎で解放できます。")
+                    .pocoFont(.caption)
+                    .foregroundStyle(PocoTheme.secondaryText)
+            }
         }
-        return "今の作品はそのままに、Poco Proへ進むと最大30作品まで登録できます。"
+        .padding(17)
+        .pocoCard()
+        .accessibilityElement(children: .contain)
+    }
+
+    private func redeemProjectSlot(targetSlot: Int) {
+        guard !isRedeeming else { return }
+        isRedeeming = true
+        redemptionMessage = nil
+        Task {
+            let result = await store.redeemNextProjectSlot()
+            isRedeeming = false
+            switch result {
+            case .success:
+                redemptionMessage = "\(targetSlot)作品目の枠を解放しました。"
+            case .failure(let error):
+                redemptionError = error.userMessage
+            }
+        }
     }
 }

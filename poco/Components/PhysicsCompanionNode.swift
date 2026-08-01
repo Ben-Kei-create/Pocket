@@ -2,6 +2,31 @@ import SpriteKit
 import UIKit
 
 @MainActor
+private enum PuyoArtworkTexture {
+    struct Artwork {
+        let texture: SKTexture
+        let aspectRatio: CGFloat
+    }
+
+    private static var cache: [String: Artwork] = [:]
+
+    static func make(named assetName: String) -> Artwork? {
+        if let cached = cache[assetName] {
+            return cached
+        }
+        guard let image = UIImage(named: assetName) else { return nil }
+        let texture = SKTexture(image: image)
+        texture.filteringMode = .linear
+        let artwork = Artwork(
+            texture: texture,
+            aspectRatio: max(0.72, min(1.65, image.size.width / max(image.size.height, 1)))
+        )
+        cache[assetName] = artwork
+        return artwork
+    }
+}
+
+@MainActor
 final class PhysicsCompanionNode: SKNode {
     let feedbackID: UUID
     let avatar: BuiltInAvatar
@@ -15,19 +40,16 @@ final class PhysicsCompanionNode: SKNode {
         feedbackID = feedback.id
         avatar = PocoCompanion.avatar(for: feedback)
 
-        let assetName = avatar.companionAssetName
-        let image = UIImage(named: assetName)
-        let ratio = image.map {
-            max(0.72, min(1.55, $0.size.width / max($0.size.height, 1)))
-        } ?? 1
+        let artwork = PuyoArtworkTexture.make(named: avatar.companionAssetName)
+        let ratio = artwork?.aspectRatio ?? 1
         visualSize = CGSize(width: height * ratio, height: height)
         super.init()
 
         name = "poco-companion-\(feedback.id.uuidString)"
         addChild(visualContainer)
 
-        if let image {
-            let sprite = SKSpriteNode(texture: SKTexture(image: image))
+        if let artwork {
+            let sprite = SKSpriteNode(texture: artwork.texture)
             sprite.name = "poco-companion"
             sprite.size = visualSize
             visualContainer.addChild(sprite)
@@ -142,22 +164,20 @@ final class PhysicsRareCompanionNode: SKNode {
     private let visualContainer = SKNode()
     private var didGrantTapReward = false
 
-    init(kind: RareCompanionKind, eventKey: String, height: CGFloat = 60) {
+    init(kind: RareCompanionKind, eventKey: String, height: CGFloat = 96) {
         self.kind = kind
         self.eventKey = eventKey
 
-        let image = UIImage(named: kind.rawValue)
-        let ratio = image.map {
-            max(0.70, min(1.35, $0.size.width / max($0.size.height, 1)))
-        } ?? 1
+        let artwork = PuyoArtworkTexture.make(named: kind.assetName)
+        let ratio = artwork?.aspectRatio ?? 1
         visualSize = CGSize(width: height * ratio, height: height)
         super.init()
 
         name = "poco-rare-companion-\(eventKey)"
         addChild(visualContainer)
 
-        if let image {
-            let sprite = SKSpriteNode(texture: SKTexture(image: image))
+        if let artwork {
+            let sprite = SKSpriteNode(texture: artwork.texture)
             sprite.name = "poco-rare-companion"
             sprite.size = visualSize
             visualContainer.addChild(sprite)
@@ -237,7 +257,10 @@ final class PhysicsRareCompanionNode: SKNode {
 
 enum CompanionPhysicsMetrics {
     static func height(for bubbleSize: CGSize) -> CGFloat {
-        min(44, max(32, bubbleSize.height * 0.54))
+        // The supplied artwork keeps transparent breathing room around Poco.
+        // 1.9x canvas height renders the visible character at roughly 1.5x
+        // the neighboring bubble while preserving the compact physics body.
+        bubbleSize.height * 1.9
     }
 }
 

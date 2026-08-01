@@ -4,8 +4,16 @@ struct PublicProfileView: View {
     @Environment(PocoStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     let creator: Creator
+    @State private var loadedCreator: Creator?
     @State private var showsBlockConfirmation = false
     @State private var isBlocking = false
+
+    init(creator: Creator) {
+        self.creator = creator
+        _loadedCreator = State(initialValue: nil)
+    }
+
+    private var displayedCreator: Creator { loadedCreator ?? creator }
 
     private var publishedProjects: [Project] {
         store.projects
@@ -67,17 +75,20 @@ struct PublicProfileView: View {
         } message: {
             Text("このユーザーの公開フキダシが表示されなくなります。相手には通知されません。")
         }
+        .task(id: creator.id) {
+            loadedCreator = await store.loadPublicProfile(id: creator.id)
+        }
     }
 
     private var profileContent: some View {
         ScrollView {
             VStack(spacing: 24) {
                 VStack(spacing: 12) {
-                    ProfileAvatarView(creator: creator, size: 104)
+                    ProfileAvatarView(creator: displayedCreator, size: 104)
 
                     VStack(spacing: 5) {
                         HStack(spacing: 6) {
-                            Text(creator.name)
+                            Text(displayedCreator.name)
                                 .pocoFont(.title2, weight: .bold)
                             if creator.id == store.currentUserID {
                                 Text("あなた")
@@ -89,16 +100,18 @@ struct PublicProfileView: View {
                             }
                         }
 
-                        if let handle = creator.handle {
+                        if let handle = displayedCreator.handle {
                             Text("@\(handle)")
                                 .pocoFont(.subheadline, weight: .medium)
                                 .foregroundStyle(PocoTheme.primary)
                                 .accessibilityLabel("クリエイターID、\(handle)")
                         }
 
-                        Text("Poco 公開プロフィール")
-                            .pocoFont(.subheadline)
-                            .foregroundStyle(PocoTheme.secondaryText)
+                    }
+
+                    if !displayedCreator.profileLinks.isEmpty {
+                        ProfileSocialLinksView(links: displayedCreator.profileLinks)
+                            .frame(maxWidth: .infinity)
                     }
 
                     HStack(spacing: 0) {

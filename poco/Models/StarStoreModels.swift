@@ -26,6 +26,15 @@ nonisolated struct StarStoreItem: Identifiable, Equatable, Codable, Sendable {
         guard let assetName, !assetName.hasPrefix("sf:") else { return nil }
         return assetName
     }
+
+    var artworkAssetName: String? {
+        switch id {
+        case "badge_first_light": "BadgeFirstLight"
+        case "badge_word_bouquet": "BadgeWordBouquet"
+        case "badge_poco_heart": "PocoCreatorHeartReceived"
+        default: imageAssetName
+        }
+    }
 }
 
 nonisolated struct ProjectDecoration: Equatable, Sendable {
@@ -45,4 +54,28 @@ nonisolated struct StarStorePurchaseResult: Equatable, Sendable {
     let chargedCoins: Int
     let walletRevision: Int64
     let purchased: Bool
+}
+
+nonisolated struct ProjectSlotStatus: Equatable, Sendable {
+    let freeProjectLimit: Int
+    let extraSlots: Int
+    let nextSlotNumber: Int?
+    let nextSlotCost: Int?
+    let balance: Int
+    let walletRevision: Int64
+
+    static let base = Self(
+        freeProjectLimit: 3,
+        extraSlots: 0,
+        nextSlotNumber: 4,
+        nextSlotCost: 200,
+        balance: 0,
+        walletRevision: 0
+    )
+}
+
+nonisolated struct ProjectSlotRedemptionResult: Equatable, Sendable {
+    let status: ProjectSlotStatus
+    let chargedCoins: Int
+    let redeemed: Bool
 }

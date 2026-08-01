@@ -50,6 +50,10 @@ enum AppEnvironment {
                     client: client,
                     currentUserProvider: authenticatedUserProvider
                 ),
+                qAndARepository: SupabaseQAndARepository(
+                    client: client,
+                    currentUserProvider: authenticatedUserProvider
+                ),
                 membershipPurchaseService: StoreKitMembershipService(
                     productID: configuration.membershipProductID
                 ),
@@ -69,6 +73,7 @@ enum AppEnvironment {
             membershipRepository: MockMembershipRepository(),
             memberRewardRepository: MockMemberRewardRepository(),
             starStoreRepository: MockStarStoreRepository(),
+            qAndARepository: MockQAndARepository(),
             membershipPurchaseService: DisabledMembershipPurchaseService(),
             serverAuthorityService: MockServerAuthorityService(),
             authRepository: MockAuthRepository(),
@@ -93,6 +98,7 @@ enum AppEnvironment {
             notificationRepository: unavailable,
             announcementRepository: unavailable,
             rightsHolderRequestRepository: unavailable,
+            qAndARepository: unavailable,
             membershipPurchaseService: DisabledMembershipPurchaseService(),
             serverAuthorityService: unavailable,
             authRepository: unavailable,

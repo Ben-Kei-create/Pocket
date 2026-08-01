@@ -6,6 +6,7 @@ nonisolated struct ProfileDTO: Codable, Sendable {
     let avatarName: String?
     let avatarURL: String?
     let handle: String?
+    let socialLinks: [String: String]?
     let createdAt: Date?
 
     enum CodingKeys: String, CodingKey {
@@ -14,6 +15,7 @@ nonisolated struct ProfileDTO: Codable, Sendable {
         case avatarName = "avatar_name"
         case avatarURL = "avatar_url"
         case handle
+        case socialLinks = "social_links"
         case createdAt = "created_at"
     }
 
@@ -23,6 +25,9 @@ nonisolated struct ProfileDTO: Codable, Sendable {
         avatarName = creator.avatarName
         avatarURL = creator.avatarURL?.absoluteString
         handle = creator.handle
+        socialLinks = creator.profileLinks.reduce(into: [:]) { values, link in
+            values[link.service.rawValue] = link.url.absoluteString
+        }
         createdAt = nil
     }
 
@@ -47,6 +52,8 @@ nonisolated struct ProfileDTO: Codable, Sendable {
             try container.encode(handle, forKey: .handle)
         }
 
+        try container.encode(socialLinks ?? [:], forKey: .socialLinks)
+
         if let createdAt {
             try container.encode(createdAt, forKey: .createdAt)
         }
@@ -58,7 +65,11 @@ nonisolated struct ProfileDTO: Codable, Sendable {
             name: displayName,
             avatarName: avatarName,
             avatarURL: avatarURL.flatMap(URL.init(string:)),
-            handle: handle
+            handle: handle,
+            profileLinks: ProfileLinkService.allCases.compactMap { service in
+                guard let value = socialLinks?[service.rawValue] else { return nil }
+                return ProfileSocialLink(service: service, value: value)
+            }
         )
     }
 }
@@ -71,9 +82,11 @@ nonisolated struct ProjectDTO: Codable, Sendable {
     let category: String
     let description: String
     let imageURL: String?
+    let externalURL: String?
     let createdAt: Date
     let isPublished: Bool
     let relationship: String
+    let purpose: String
     let verificationStatus: String
     let contentRating: String
     let publishingRulesVersion: Int
@@ -87,9 +100,11 @@ nonisolated struct ProjectDTO: Codable, Sendable {
         case category
         case description
         case imageURL = "image_url"
+        case externalURL = "external_url"
         case createdAt = "created_at"
         case isPublished = "is_published"
         case relationship
+        case purpose
         case verificationStatus = "verification_status"
         case contentRating = "content_rating"
         case publishingRulesVersion = "publishing_rules_version"
@@ -104,9 +119,11 @@ nonisolated struct ProjectDTO: Codable, Sendable {
         category = project.category.rawValue
         description = project.description
         imageURL = project.imageURL?.absoluteString
+        externalURL = project.externalURL?.absoluteString
         createdAt = project.createdAt
         self.isPublished = isPublished
         relationship = project.relationship.rawValue
+        purpose = project.purpose.rawValue
         verificationStatus = project.verificationStatus.rawValue
         contentRating = project.contentRating.rawValue
         publishingRulesVersion = PocoPublishingRules.currentVersion
@@ -122,6 +139,7 @@ nonisolated struct ProjectQueryDTO: Codable, Sendable {
     let category: String
     let description: String
     let imageURL: String?
+    let externalURL: String?
     let createdAt: Date
     let isPublished: Bool
     let feedbackCount: Int?
@@ -129,6 +147,7 @@ nonisolated struct ProjectQueryDTO: Codable, Sendable {
     let creatorAvatarURL: String?
     let creatorHandle: String?
     let relationship: String?
+    let purpose: String?
     let verificationStatus: String?
     let contentRating: String?
     let isContentLocked: Bool?
@@ -141,6 +160,7 @@ nonisolated struct ProjectQueryDTO: Codable, Sendable {
         case category
         case description
         case imageURL = "image_url"
+        case externalURL = "external_url"
         case createdAt = "created_at"
         case isPublished = "is_published"
         case feedbackCount = "feedback_count"
@@ -148,13 +168,15 @@ nonisolated struct ProjectQueryDTO: Codable, Sendable {
         case creatorAvatarURL = "creator_avatar_url"
         case creatorHandle = "creator_handle"
         case relationship
+        case purpose
         case verificationStatus = "verification_status"
         case contentRating = "content_rating"
         case isContentLocked = "is_content_locked"
     }
 
     var domainModel: Project {
-        Project(
+        let isLegacyEvent = relationship == "event"
+        return Project(
             id: id,
             title: title,
             creator: Creator(
@@ -168,9 +190,15 @@ nonisolated struct ProjectQueryDTO: Codable, Sendable {
             description: description,
             imageName: nil,
             imageURL: imageURL.flatMap(URL.init(string:)),
+            externalURL: externalURL.flatMap { PocoExternalURL.normalized(from: $0) },
             feedbackCount: feedbackCount ?? 0,
             createdAt: createdAt,
-            relationship: relationship.flatMap(ProjectRelationship.init(rawValue:)) ?? .creator,
+            relationship: isLegacyEvent
+                ? .fan
+                : relationship.flatMap(ProjectRelationship.init(rawValue:)) ?? .creator,
+            purpose: isLegacyEvent
+                ? .event
+                : purpose.flatMap(ProjectPurpose.init(rawValue:)) ?? .standard,
             verificationStatus: verificationStatus.flatMap(ProjectVerificationStatus.init(rawValue:)) ?? .unverified,
             contentRating: contentRating.flatMap(ProjectContentRating.init(rawValue:)) ?? .general,
             isContentLocked: isContentLocked ?? false
@@ -184,7 +212,9 @@ nonisolated struct ProjectUpdateDTO: Encodable, Sendable {
     let category: String
     let description: String
     let imageURL: String?
+    let externalURL: String?
     let relationship: String
+    let purpose: String
     let contentRating: String
 
     enum CodingKeys: String, CodingKey {
@@ -193,7 +223,9 @@ nonisolated struct ProjectUpdateDTO: Encodable, Sendable {
         case category
         case description
         case imageURL = "image_url"
+        case externalURL = "external_url"
         case relationship
+        case purpose
         case contentRating = "content_rating"
     }
 
@@ -203,7 +235,9 @@ nonisolated struct ProjectUpdateDTO: Encodable, Sendable {
         category = project.category.rawValue
         description = project.description
         imageURL = project.imageURL?.absoluteString
+        externalURL = project.externalURL?.absoluteString
         relationship = project.relationship.rawValue
+        purpose = project.purpose.rawValue
         contentRating = project.contentRating.rawValue
     }
 
@@ -218,7 +252,13 @@ nonisolated struct ProjectUpdateDTO: Encodable, Sendable {
         } else {
             try container.encodeNil(forKey: .imageURL)
         }
+        if let externalURL {
+            try container.encode(externalURL, forKey: .externalURL)
+        } else {
+            try container.encodeNil(forKey: .externalURL)
+        }
         try container.encode(relationship, forKey: .relationship)
+        try container.encode(purpose, forKey: .purpose)
         try container.encode(contentRating, forKey: .contentRating)
     }
 }
@@ -399,6 +439,120 @@ nonisolated struct UserBlockInsertDTO: Encodable, Sendable {
     enum CodingKeys: String, CodingKey {
         case blockerID = "blocker_id"
         case blockedProfileID = "blocked_profile_id"
+    }
+}
+
+nonisolated struct PocoQuestionDTO: Decodable, Sendable {
+    let id: UUID
+    let projectID: UUID?
+    let projectTitle: String?
+    let senderID: UUID
+    let senderName: String
+    let senderAvatarName: String?
+    let senderAvatarURL: String?
+    let senderHandle: String?
+    let creatorID: UUID
+    let creatorName: String
+    let creatorAvatarName: String?
+    let creatorAvatarURL: String?
+    let creatorHandle: String?
+    let message: String
+    let answer: String?
+    let status: String
+    let createdAt: Date
+    let answeredAt: Date?
+    let withdrawnAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case projectID = "project_id"
+        case projectTitle = "project_title"
+        case senderID = "sender_id"
+        case senderName = "sender_name"
+        case senderAvatarName = "sender_avatar_name"
+        case senderAvatarURL = "sender_avatar_url"
+        case senderHandle = "sender_handle"
+        case creatorID = "creator_id"
+        case creatorName = "creator_name"
+        case creatorAvatarName = "creator_avatar_name"
+        case creatorAvatarURL = "creator_avatar_url"
+        case creatorHandle = "creator_handle"
+        case message
+        case answer
+        case status
+        case createdAt = "created_at"
+        case answeredAt = "answered_at"
+        case withdrawnAt = "withdrawn_at"
+    }
+
+    var domainModel: PocoQuestion {
+        PocoQuestion(
+            id: id,
+            projectID: projectID,
+            projectTitle: projectTitle,
+            sender: Creator(
+                id: senderID,
+                name: senderName,
+                avatarName: senderAvatarName,
+                avatarURL: senderAvatarURL.flatMap(URL.init(string:)),
+                handle: senderHandle
+            ),
+            creator: Creator(
+                id: creatorID,
+                name: creatorName,
+                avatarName: creatorAvatarName,
+                avatarURL: creatorAvatarURL.flatMap(URL.init(string:)),
+                handle: creatorHandle
+            ),
+            message: message,
+            answer: answer,
+            status: PocoQuestionStatus(rawValue: status) ?? .expired,
+            createdAt: createdAt,
+            answeredAt: answeredAt,
+            withdrawnAt: withdrawnAt
+        )
+    }
+}
+
+nonisolated struct SendQuestionParameters: Encodable, Sendable {
+    let creatorID: UUID
+    let projectID: UUID?
+    let message: String
+
+    enum CodingKeys: String, CodingKey {
+        case creatorID = "p_creator_id"
+        case projectID = "p_project_id"
+        case message = "p_message"
+    }
+}
+
+nonisolated struct AnswerQuestionParameters: Encodable, Sendable {
+    let questionID: UUID
+    let answer: String
+
+    enum CodingKeys: String, CodingKey {
+        case questionID = "p_question_id"
+        case answer = "p_answer"
+    }
+}
+
+nonisolated struct QuestionIDParameters: Encodable, Sendable {
+    let questionID: UUID
+
+    enum CodingKeys: String, CodingKey {
+        case questionID = "p_question_id"
+    }
+}
+
+nonisolated struct ReportQuestionParameters: Encodable, Sendable {
+    let questionID: UUID
+    let reason: String
+    let details: String?
+
+    enum CodingKeys: String, CodingKey {
+        case questionID = "p_question_id"
+        case reason = "p_reason"
+        case details = "p_details"
     }
 }
 

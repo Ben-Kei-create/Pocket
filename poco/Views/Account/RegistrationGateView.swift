@@ -16,16 +16,6 @@ enum RegistrationGateContext {
         }
     }
 
-    var message: String {
-        switch self {
-        case .createProject:
-            "登録すると、作品ページ・QRコード・届いた感想を管理できます。感想を送るだけなら登録は必要ありません。"
-        case .account:
-            "登録すると、プロフィールと検索できる@IDを持ち、作品の感想箱を作れます。"
-        case .afterFeedback:
-            "無料登録すると、次から名前とアバター付きで感想を送り、自分の作品の感想箱も作れます。"
-        }
-    }
 }
 
 struct RegistrationGateView: View {
@@ -41,14 +31,9 @@ struct RegistrationGateView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 22) {
-                    VStack(spacing: 9) {
-                        Text(context.title)
-                            .pocoFont(.title2, weight: .bold)
-                        Text(context.message)
-                            .pocoFont(.subheadline)
-                            .foregroundStyle(PocoTheme.secondaryText)
-                            .multilineTextAlignment(.center)
-                    }
+                    Text(context.title)
+                        .pocoFont(.title2, weight: .bold)
+                        .multilineTextAlignment(.center)
 
                     VStack(alignment: .leading, spacing: 8) {
                         Text("ニックネーム")
@@ -92,9 +77,6 @@ struct RegistrationGateView: View {
 
                     registrationControl
 
-                    Text("閲覧・感想投稿・いいねはゲストのまま利用できます。")
-                        .pocoFont(.caption)
-                        .foregroundStyle(PocoTheme.tertiaryText)
                 }
                 .padding(PocoTheme.pagePadding)
             }

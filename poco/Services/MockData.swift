@@ -1,11 +1,15 @@
 import Foundation
 
-enum MockData {
+nonisolated enum MockData {
     static let forestCreator = Creator(
         id: UUID(uuidString: "10000000-0000-0000-0000-000000000001")!,
         name: "もりのなかまたち",
         avatarName: nil,
-        handle: "morinonakama"
+        handle: "morinonakama",
+        profileLinks: [
+            ProfileSocialLink(service: .x, value: "https://x.com/morinonakama")!,
+            ProfileSocialLink(service: .website, value: "https://example.com")!
+        ]
     )
     static let tetraCreator = Creator(
         id: UUID(uuidString: "10000000-0000-0000-0000-000000000002")!,
@@ -66,6 +70,7 @@ enum MockData {
         category: .book,
         description: "やさしい気持ちになれる、森の小さな仲間たちの物語。絵本を届けたい。",
         imageName: nil,
+        externalURL: URL(string: "https://example.com/forest-voice"),
         feedbackCount: 100,
         createdAt: Date(timeIntervalSince1970: 1_750_000_000),
         relationship: .creator,
@@ -81,6 +86,7 @@ enum MockData {
         feedbackCount: 6,
         createdAt: Date(timeIntervalSince1970: 1_749_000_000),
         relationship: .authorized,
+        purpose: .event,
         verificationStatus: .unverified
     )
     static let starProject = Project(

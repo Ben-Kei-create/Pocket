@@ -23,16 +23,18 @@ struct BubbleDropView: View {
                 ZStack(alignment: .bottom) {
                     ProjectDecorationBackground(projectID: project.id)
 
-                    VStack(spacing: 5) {
-                        Text(isDropped ? "あなたのことばが届きました" : "フキダシをおとそう")
+                    if !isDropped {
+                        VStack(spacing: 5) {
+                            Text("フキダシをおとそう")
                             .pocoFont(.title2, weight: .bold)
-                        Text(instructionText)
-                            .pocoFont(.subheadline)
-                            .foregroundStyle(PocoTheme.secondaryText)
-                            .multilineTextAlignment(.center)
+                            Text("左右に動かして、空いている場所へおとしてみよう")
+                                .pocoFont(.subheadline)
+                                .foregroundStyle(PocoTheme.secondaryText)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxHeight: .infinity, alignment: .top)
+                        .padding(.top, 20)
                     }
-                    .frame(maxHeight: .infinity, alignment: .top)
-                    .padding(.top, 20)
 
                     PhysicsBubbleDropFieldView(
                         feedback: feedback,
@@ -96,13 +98,6 @@ struct BubbleDropView: View {
         }
     }
 
-    private var instructionText: String {
-        if isDropped {
-            return "上が最新です。下へスクロールすると最初の感想まで見られます"
-        }
-        return "左右に動かして、空いている場所へおとしてみよう"
-    }
-
     private var successCard: some View {
         VStack(spacing: 12) {
             HStack(spacing: 8) {
@@ -128,10 +123,6 @@ struct BubbleDropView: View {
                     .controlSize(.small)
                     .accessibilityLabel("感想を送信中")
             } else {
-                Label("このまま上下にスクロールできます", systemImage: "arrow.up.arrow.down")
-                    .pocoFont(.caption, weight: .medium)
-                    .foregroundStyle(PocoTheme.secondaryText)
-
                 if !store.canCreateProjects {
                     Divider()
 

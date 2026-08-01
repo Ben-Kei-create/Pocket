@@ -16,13 +16,8 @@ struct CreatorDashboardView: View {
                 if store.canCreateProjects {
                     ScrollView {
                         LazyVStack(alignment: .leading, spacing: 16) {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("ことばが集まる場所をつくろう")
-                                    .pocoFont(.title2, weight: .bold)
-                                Text("作品ごとのQRコードと感想を管理できます。")
-                                    .pocoFont(.subheadline)
-                                    .foregroundStyle(PocoTheme.secondaryText)
-                            }
+                            Text("ことばが集まる場所をつくろう")
+                                .pocoFont(.title2, weight: .bold)
                             .padding(.top, 8)
 
                             Button {
@@ -42,7 +37,7 @@ struct CreatorDashboardView: View {
                                     : "現在のプランの作品数上限を確認します"
                             )
 
-                            Text("\(store.currentUserProjects.count) / \(store.capabilities.maximumProjectCount)作品")
+                            Text("\(store.currentUserProjects.count) / \(store.maximumProjectCount)作品")
                                 .pocoFont(.caption)
                                 .foregroundStyle(PocoTheme.secondaryText)
 
@@ -70,8 +65,6 @@ struct CreatorDashboardView: View {
                 } else {
                     ContentUnavailableView {
                         Label("作品を作るには登録が必要です", systemImage: "person.crop.circle.badge.plus")
-                    } description: {
-                        Text("閲覧・感想投稿・いいねはゲストのまま利用できます。")
                     } actions: {
                         Button("ユーザー登録する") {
                             showsRegistration = true
@@ -80,7 +73,6 @@ struct CreatorDashboardView: View {
                     }
                 }
             }
-            .navigationTitle("Create")
             .sheet(isPresented: $showsCreateProject) {
                 CreateProjectView {
                     showsCreateProject = false
@@ -156,10 +148,6 @@ private struct CreatorDashboardEmptyState: View {
                 .background(PocoTheme.bubble(.yellow).opacity(0.55), in: Circle())
             Text("最初の作品を登録してみよう")
                 .pocoFont(.headline, weight: .medium)
-            Text("作品専用のQRコードと、ことばが集まる場所ができます。")
-                .pocoFont(.caption)
-                .foregroundStyle(PocoTheme.secondaryText)
-                .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 28)
@@ -184,6 +172,9 @@ private struct CreatorProjectCard: View {
 
                 VStack(alignment: .leading, spacing: 5) {
                     ProjectRelationshipBadge(project: project, compact: true)
+                    if project.purpose == .event {
+                        ProjectPurposeBadge(purpose: project.purpose, compact: true)
+                    }
                     Text(project.title)
                         .pocoFont(.headline, weight: .medium)
                         .lineLimit(2)

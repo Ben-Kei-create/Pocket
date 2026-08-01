@@ -588,6 +588,104 @@ final class SupabaseRightsHolderRequestRepository: RightsHolderRequestRepository
     }
 }
 
+final class SupabaseQAndARepository: QAndARepository, Sendable {
+    private let client: SupabaseClient
+    private let currentUserProvider: any CurrentUserProvider
+
+    init(client: SupabaseClient, currentUserProvider: any CurrentUserProvider) {
+        self.client = client
+        self.currentUserProvider = currentUserProvider
+    }
+
+    nonisolated func fetchQuestions() async throws -> [PocoQuestion] {
+        guard await currentUserProvider.accountStatus() == .registered else {
+            return []
+        }
+        do {
+            let rows: [PocoQuestionDTO] = try await client
+                .rpc("my_questions")
+                .execute()
+                .value
+            return rows.map(\.domainModel).sorted { $0.createdAt > $1.createdAt }
+        } catch {
+            throw SupabaseErrorMapper.map(error)
+        }
+    }
+
+    nonisolated func sendQuestion(
+        creatorID: UUID,
+        projectID: UUID?,
+        message: String
+    ) async throws -> PocoQuestion {
+        try await mutate(
+            function: "send_question",
+            parameters: SendQuestionParameters(
+                creatorID: creatorID,
+                projectID: projectID,
+                message: message
+            )
+        )
+    }
+
+    nonisolated func answerQuestion(id: UUID, answer: String) async throws -> PocoQuestion {
+        try await mutate(
+            function: "answer_question",
+            parameters: AnswerQuestionParameters(questionID: id, answer: answer)
+        )
+    }
+
+    nonisolated func withdrawQuestion(id: UUID) async throws -> PocoQuestion {
+        try await mutate(
+            function: "withdraw_question",
+            parameters: QuestionIDParameters(questionID: id)
+        )
+    }
+
+    nonisolated func reportQuestion(
+        id: UUID,
+        reason: FeedbackReportReason,
+        details: String?
+    ) async throws {
+        do {
+            try await client
+                .rpc(
+                    "report_question",
+                    params: ReportQuestionParameters(
+                        questionID: id,
+                        reason: reason.rawValue,
+                        details: details
+                    )
+                )
+                .execute()
+        } catch {
+            throw SupabaseErrorMapper.map(error)
+        }
+    }
+
+    private nonisolated func mutate<Parameters: Encodable & Sendable>(
+        function: String,
+        parameters: Parameters
+    ) async throws -> PocoQuestion {
+        guard await currentUserProvider.accountStatus() == .registered else {
+            throw AppError.unauthorized
+        }
+        do {
+            let rows: [PocoQuestionDTO] = try await client
+                .rpc(function, params: parameters)
+                .execute()
+                .value
+            guard let question = rows.first?.domainModel else {
+                throw AppError.decoding
+            }
+            return question
+        } catch let error as AppError {
+            throw error
+        } catch {
+            throw SupabaseErrorMapper.map(error)
+        }
+    }
+}
+
 actor SupabaseCurrentUserProvider: CurrentUserProvider {
     let client: SupabaseClient
 
@@ -616,6 +714,7 @@ actor SupabaseCurrentUserProvider: CurrentUserProvider {
 
 final class SupabaseAuthRepository: AuthRepository, Sendable {
     private let client: SupabaseClient
+    private let accountDeletionFunctionName = "delete-account"
 
     init(client: SupabaseClient) {
         self.client = client
@@ -687,6 +786,30 @@ final class SupabaseAuthRepository: AuthRepository, Sendable {
             throw SupabaseErrorMapper.map(error)
         }
     }
+
+    func deleteAccount() async throws {
+        do {
+            let response: AccountDeletionResponse = try await client.functions.invoke(
+                accountDeletionFunctionName,
+                options: FunctionInvokeOptions(method: .post)
+            )
+            guard response.deleted else {
+                throw AppError.accountDeletion
+            }
+
+            // Auth user deletion does not invalidate the JWT immediately.
+            // Remove the cached session before returning to guest mode.
+            try? await client.auth.signOut(scope: .local)
+        } catch let error as AppError {
+            throw error
+        } catch {
+            throw SupabaseErrorMapper.map(error)
+        }
+    }
+}
+
+nonisolated private struct AccountDeletionResponse: Decodable, Sendable {
+    let deleted: Bool
 }
 
 struct DevelopmentCurrentUserProvider: CurrentUserProvider {

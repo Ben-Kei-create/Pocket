@@ -21,7 +21,7 @@ struct StarStoreArtworkView: View {
                         RoundedRectangle(cornerRadius: size * 0.23, style: .continuous)
                             .stroke(.white.opacity(0.75), lineWidth: 1)
                     }
-            } else if let imageName = item.imageAssetName,
+            } else if let imageName = item.artworkAssetName,
                       UIImage(named: imageName) != nil {
                 Image(imageName)
                     .resizable()

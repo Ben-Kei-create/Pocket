@@ -9,6 +9,9 @@ struct ProjectDetailView: View {
     @State private var pendingFeedback: Feedback?
     @State private var dropFeedback: Feedback?
     @State private var showsRightsHolderRequest = false
+    @State private var showsQuestionCompose = false
+    @State private var showsQuestionRegistration = false
+    @State private var opensQuestionAfterRegistration = false
     @State private var selectedBadge: StarStoreItem?
 
     private var project: Project? {
@@ -51,6 +54,33 @@ struct ProjectDetailView: View {
                                     .pocoFont(.body)
                                     .foregroundStyle(PocoTheme.secondaryText)
                                     .lineSpacing(5)
+
+                                if let externalURL = project.externalURL {
+                                    Divider()
+                                    Link(destination: externalURL) {
+                                        HStack(spacing: 12) {
+                                            Image(systemName: "link")
+                                                .foregroundStyle(PocoTheme.primary)
+                                                .frame(width: 24)
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text("作品ページを開く")
+                                                    .pocoFont(.subheadline, weight: .medium)
+                                                    .foregroundStyle(.primary)
+                                                Text(externalURL.host ?? externalURL.absoluteString)
+                                                    .pocoFont(.caption)
+                                                    .foregroundStyle(PocoTheme.secondaryText)
+                                                    .lineLimit(1)
+                                            }
+                                            Spacer()
+                                            Image(systemName: "arrow.up.right")
+                                                .pocoFont(.caption, weight: .bold)
+                                                .foregroundStyle(PocoTheme.primary)
+                                        }
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel("作品の外部ページを開く")
+                                    .accessibilityHint("Safariで\(externalURL.host ?? "外部サイト")を開きます")
+                                }
                             }
                             .padding(20)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -72,13 +102,6 @@ struct ProjectDetailView: View {
                                 }
                                 .buttonStyle(PocoPrimaryButtonStyle())
 
-                                if store.role == .guest {
-                                    Label("登録なしで、すぐに感想を書けます", systemImage: "bolt.fill")
-                                        .pocoFont(.caption, weight: .medium)
-                                        .foregroundStyle(PocoTheme.primary)
-                                        .accessibilityLabel("ユーザー登録なしで感想を送れます")
-                                }
-
                                 Text(
                                     "この作品には1人\(PocoLimits.feedbacksPerProject)件まで送れます（現在\(store.ownFeedbackCount(for: project.id))件）"
                                 )
@@ -91,6 +114,23 @@ struct ProjectDetailView: View {
                                     Label("みんなのフキダシを見る", systemImage: "shippingbox")
                                 }
                                 .buttonStyle(PocoSecondaryButtonStyle())
+
+                                if project.creator.id != store.currentUserID {
+                                    Button {
+                                        if store.accountStatus == .registered {
+                                            showsQuestionCompose = true
+                                        } else {
+                                            opensQuestionAfterRegistration = true
+                                            showsQuestionRegistration = true
+                                        }
+                                    } label: {
+                                        Label("Q&Aで質問する", systemImage: "questionmark.bubble")
+                                    }
+                                    .buttonStyle(.plain)
+                                    .pocoFont(.subheadline, weight: .medium)
+                                    .foregroundStyle(PocoTheme.primary)
+                                    .padding(.top, 4)
+                                }
                             }
                         }
                         .padding(PocoTheme.pagePadding)
@@ -146,6 +186,21 @@ struct ProjectDetailView: View {
                     .sheet(isPresented: $showsRightsHolderRequest) {
                         ProjectRightsHolderRequestView(project: project)
                     }
+                    .sheet(isPresented: $showsQuestionCompose) {
+                        QAndAComposeView(project: project)
+                    }
+                    .sheet(
+                        isPresented: $showsQuestionRegistration,
+                        onDismiss: {
+                            guard opensQuestionAfterRegistration else { return }
+                            opensQuestionAfterRegistration = false
+                            if store.accountStatus == .registered {
+                                showsQuestionCompose = true
+                            }
+                        }
+                    ) {
+                        RegistrationGateView(context: .account)
+                    }
                     .sheet(item: $selectedBadge) { item in
                         BadgeDetailSheet(item: item)
                     }
@@ -183,6 +238,9 @@ struct ProjectDetailView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 ProjectRelationshipBadge(project: project)
+                if project.purpose == .event {
+                    ProjectPurposeBadge(purpose: project.purpose)
+                }
 
                 Text(project.title)
                     .pocoFont(.title3, weight: .bold)
@@ -226,16 +284,14 @@ struct ProjectDetailView: View {
     private func creatorCardTitle(_ project: Project) -> String {
         switch project.relationship {
         case .creator: "クリエイター"
-        case .authorized, .event: "感想箱の登録者"
+        case .authorized: "感想箱の登録者"
         case .fan: "この感想箱を作った人"
         }
     }
 
     @ViewBuilder
     private func relationshipNotice(_ project: Project) -> some View {
-        if project.relationship == .fan
-            || project.relationship == .event
-            || project.verificationStatus != .verified {
+        if project.relationship == .fan || project.verificationStatus != .verified {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: project.relationship.symbolName)
                     .foregroundStyle(PocoTheme.primary)
@@ -250,6 +306,22 @@ struct ProjectDetailView: View {
             .background(PocoTheme.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
             .accessibilityElement(children: .combine)
         }
+
+        if project.purpose == .event {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: project.purpose.symbolName)
+                    .foregroundStyle(.orange)
+                    .frame(width: 24)
+                Text("このページはイベントや頒布の場で感想を集めるために使われています。権利関係は上の区分で確認できます。")
+                    .pocoFont(.subheadline)
+                    .foregroundStyle(PocoTheme.secondaryText)
+                    .lineSpacing(3)
+                Spacer(minLength: 0)
+            }
+            .padding(16)
+            .background(Color.orange.opacity(0.07), in: RoundedRectangle(cornerRadius: 16))
+            .accessibilityElement(children: .combine)
+        }
     }
 
     private func relationshipNoticeText(_ project: Project) -> String {
@@ -258,9 +330,6 @@ struct ProjectDetailView: View {
         }
         if project.relationship == .authorized {
             return "許可を得ているとして登録されたページです。Pocoによる確認はまだ完了していません。"
-        }
-        if project.relationship == .event {
-            return "イベントや頒布の場で感想を集めるページです。公式・許諾済みかどうかは登録区分の表示をご確認ください。"
         }
         return "制作者本人として登録されたページです。Pocoによる本人確認はまだ完了していません。"
     }

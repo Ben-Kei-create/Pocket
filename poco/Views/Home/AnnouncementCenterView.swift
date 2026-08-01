@@ -4,14 +4,49 @@ struct AnnouncementCenterView: View {
     @Environment(PocoStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @AppStorage("poco.announcements.lastSeenAt") private var lastSeenTimestamp = 0.0
+    let showsNavigationChrome: Bool
+
+    init(showsNavigationChrome: Bool = true) {
+        self.showsNavigationChrome = showsNavigationChrome
+    }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if store.announcementLoadState == .loading && store.announcements.isEmpty {
-                    ProgressView("お知らせを読み込んでいます")
-                } else if case .error = store.announcementLoadState,
-                          store.announcements.isEmpty {
+        Group {
+            if showsNavigationChrome {
+                NavigationStack {
+                    content
+                        .navigationTitle("お知らせ")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("閉じる", action: dismiss.callAsFunction)
+                            }
+                        }
+                }
+            } else {
+                content
+            }
+        }
+        .task {
+            await store.loadAnnouncements()
+            markAllAsSeen()
+        }
+        .onDisappear(perform: markAllAsSeen)
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        Group {
+            if store.announcementLoadState == .loading && store.announcements.isEmpty {
+                ProgressView("お知らせを読み込んでいます")
+            } else if case .error = store.announcementLoadState,
+                      store.announcements.isEmpty {
+                VStack(spacing: 0) {
+                    PocoCharacterView(
+                        size: 120,
+                        expression: .worried,
+                        isInteractive: false
+                    )
                     ContentUnavailableView {
                         Label("読み込めませんでした", systemImage: "wifi.exclamationmark")
                     } description: {
@@ -26,41 +61,36 @@ struct AnnouncementCenterView: View {
                         .buttonStyle(.borderedProminent)
                         .tint(PocoTheme.primary)
                     }
-                } else if store.announcements.isEmpty {
+                }
+            } else if store.announcements.isEmpty {
+                VStack(spacing: 0) {
+                    PocoCharacterView(
+                        size: 124,
+                        expression: .sleep,
+                        isInteractive: false
+                    )
                     ContentUnavailableView {
                         Label("新しいお知らせはありません", systemImage: "megaphone")
                     } description: {
                         Text("アップデートやPoco運営からのメッセージをここでお届けします。")
                     }
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 14) {
-                            ForEach(store.announcements) { announcement in
-                                AnnouncementCard(announcement: announcement)
-                            }
+                }
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 14) {
+                        ForEach(store.announcements) { announcement in
+                            AnnouncementCard(announcement: announcement)
                         }
-                        .padding(PocoTheme.pagePadding)
                     }
-                    .refreshable {
-                        await store.loadAnnouncements()
-                        markAllAsSeen()
-                    }
+                    .padding(PocoTheme.pagePadding)
                 }
-            }
-            .background(PocoTheme.groupedBackground)
-            .navigationTitle("お知らせ")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("閉じる", action: dismiss.callAsFunction)
+                .refreshable {
+                    await store.loadAnnouncements()
+                    markAllAsSeen()
                 }
             }
         }
-        .task {
-            await store.loadAnnouncements()
-            markAllAsSeen()
-        }
-        .onDisappear(perform: markAllAsSeen)
+        .background(PocoTheme.groupedBackground)
     }
 
     private func markAllAsSeen() {

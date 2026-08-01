@@ -1,8 +1,8 @@
-import SpriteKit
+@preconcurrency import SpriteKit
 import UIKit
 
 @MainActor
-final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
+final class BubbleWallPhysicsScene: SKScene, @preconcurrency SKPhysicsContactDelegate {
     private var configurationKey: ConfigurationKey?
     private var feedbackByID: [UUID: Feedback] = [:]
     private var oldestFeedbacks: [Feedback] = []
@@ -323,7 +323,12 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
         run(.sequence([
             .wait(forDuration: delay),
             .run { [weak self] in
-                self?.spawnRareCompanion(from: first.avatar, eventKey: mergeKey, at: point)
+                self?.spawnRareCompanion(
+                    from: first.avatar,
+                    eventKey: mergeKey,
+                    height: max(first.visualSize.height, second.visualSize.height),
+                    at: point
+                )
             }
         ]))
     }
@@ -331,13 +336,15 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
     private func spawnRareCompanion(
         from avatar: BuiltInAvatar,
         eventKey: String,
+        height: CGFloat,
         at point: CGPoint
     ) {
         let kind = RareCompanionKind.born(from: avatar, eventKey: eventKey)
-        let node = PhysicsRareCompanionNode(kind: kind, eventKey: eventKey)
+        let node = PhysicsRareCompanionNode(kind: kind, eventKey: eventKey, height: height)
+        let verticalInset = node.visualSize.height * 0.44
         node.position = CGPoint(
             x: min(max(point.x, node.visualSize.width * 0.4), size.width - node.visualSize.width * 0.4),
-            y: min(max(point.y, 42), worldHeight - 42)
+            y: min(max(point.y, verticalInset), worldHeight - verticalInset)
         )
         node.zPosition = 12
         node.physicsBody?.isDynamic = !reduceMotion
@@ -349,7 +356,7 @@ final class BubbleWallPhysicsScene: SKScene, SKPhysicsContactDelegate {
 }
 
 @MainActor
-final class BubbleDropPhysicsScene: SKScene, SKPhysicsContactDelegate {
+final class BubbleDropPhysicsScene: SKScene, @preconcurrency SKPhysicsContactDelegate {
     private var configurationKey: ConfigurationKey?
     private var feedbackByID: [UUID: Feedback] = [:]
     private var pendingNode: PhysicsBubbleNode?
@@ -720,7 +727,12 @@ final class BubbleDropPhysicsScene: SKScene, SKPhysicsContactDelegate {
         run(.sequence([
             .wait(forDuration: delay),
             .run { [weak self] in
-                self?.spawnRareCompanion(from: first.avatar, eventKey: mergeKey, at: point)
+                self?.spawnRareCompanion(
+                    from: first.avatar,
+                    eventKey: mergeKey,
+                    height: max(first.visualSize.height, second.visualSize.height),
+                    at: point
+                )
             }
         ]))
     }
@@ -728,13 +740,15 @@ final class BubbleDropPhysicsScene: SKScene, SKPhysicsContactDelegate {
     private func spawnRareCompanion(
         from avatar: BuiltInAvatar,
         eventKey: String,
+        height: CGFloat,
         at point: CGPoint
     ) {
         let kind = RareCompanionKind.born(from: avatar, eventKey: eventKey)
-        let node = PhysicsRareCompanionNode(kind: kind, eventKey: eventKey)
+        let node = PhysicsRareCompanionNode(kind: kind, eventKey: eventKey, height: height)
+        let verticalInset = node.visualSize.height * 0.44
         node.position = CGPoint(
             x: min(max(point.x, node.visualSize.width * 0.4), size.width - node.visualSize.width * 0.4),
-            y: min(max(point.y, 42), worldHeight - 42)
+            y: min(max(point.y, verticalInset), worldHeight - verticalInset)
         )
         node.zPosition = 230
         node.physicsBody?.isDynamic = !reduceMotion

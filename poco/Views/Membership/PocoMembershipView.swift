@@ -31,9 +31,6 @@ struct PocoMembershipView: View {
                     VStack(spacing: 5) {
                         Text(priceText)
                             .pocoFont(.title3, weight: .bold)
-                        Text("いつでも解約できます")
-                            .pocoFont(.caption)
-                            .foregroundStyle(PocoTheme.secondaryText)
                     }
 
                     if store.backendMode == .mock {
@@ -111,14 +108,12 @@ struct PocoMembershipView: View {
     }
 
     private var memberMark: some View {
-        Circle()
-            .fill(PocoTheme.bubble(.pink))
-            .frame(width: 92, height: 92)
-            .overlay {
-                Image(systemName: "heart.fill")
-                    .font(.system(size: 34, weight: .semibold))
-                    .foregroundStyle(.white)
-            }
+        PocoCharacterView(
+            size: 138,
+            expression: .pro,
+            playsIdleAnimation: true,
+            isInteractive: false
+        )
             .shadow(color: PocoTheme.primary.opacity(0.16), radius: 20, y: 8)
             .accessibilityHidden(true)
     }

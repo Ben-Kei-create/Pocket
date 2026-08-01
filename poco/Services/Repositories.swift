@@ -59,6 +59,7 @@ protocol AuthRepository: Sendable {
         credential: AppleIdentityCredential
     ) async throws -> AuthenticatedAccount
     nonisolated func signOut() async throws
+    nonisolated func deleteAccount() async throws
 }
 
 protocol MembershipRepository: Sendable {
@@ -87,6 +88,10 @@ protocol StarStoreRepository: Sendable {
         slot: Int,
         itemID: String?
     ) async throws
+    nonisolated func fetchProjectSlotStatus() async throws -> ProjectSlotStatus
+    nonisolated func redeemProjectSlot(
+        requestID: UUID
+    ) async throws -> ProjectSlotRedemptionResult
 }
 
 protocol ModerationRepository: Sendable {
@@ -117,6 +122,22 @@ protocol AnnouncementRepository: Sendable {
 
 protocol RightsHolderRequestRepository: Sendable {
     nonisolated func submit(_ request: RightsHolderRequest) async throws -> UUID
+}
+
+protocol QAndARepository: Sendable {
+    nonisolated func fetchQuestions() async throws -> [PocoQuestion]
+    nonisolated func sendQuestion(
+        creatorID: UUID,
+        projectID: UUID?,
+        message: String
+    ) async throws -> PocoQuestion
+    nonisolated func answerQuestion(id: UUID, answer: String) async throws -> PocoQuestion
+    nonisolated func withdrawQuestion(id: UUID) async throws -> PocoQuestion
+    nonisolated func reportQuestion(
+        id: UUID,
+        reason: FeedbackReportReason,
+        details: String?
+    ) async throws
 }
 
 actor MockProjectRepository: ProjectRepository {
@@ -350,6 +371,16 @@ struct MockAuthRepository: AuthRepository {
         UserDefaults.standard.set(false, forKey: "poco.previewMembership")
         UserDefaults.standard.set(false, forKey: "poco.previewRegisteredAccount")
     }
+
+    nonisolated func deleteAccount() async throws {
+        let defaults = UserDefaults.standard
+        let pocoKeys = defaults.dictionaryRepresentation().keys.filter {
+            $0.hasPrefix("poco.")
+        }
+        for key in pocoKeys {
+            defaults.removeObject(forKey: key)
+        }
+    }
 }
 
 actor MockMembershipRepository: MembershipRepository {
@@ -469,19 +500,19 @@ actor MockStarStoreRepository: StarStoreRepository {
         .init(
             id: "badge_first_light", kind: .profileBadge,
             title: "はじめの灯り", summary: "最初の一歩をそっと照らすバッジです。",
-            priceCoins: 120, assetName: "sf:sparkles", appearanceValue: nil,
+            priceCoins: 120, assetName: "BadgeFirstLight", appearanceValue: nil,
             requiresPro: false, sortOrder: 110
         ),
         .init(
             id: "badge_word_bouquet", kind: .profileBadge,
             title: "ことばの花束", summary: "届けたことばを花束のように飾るバッジです。",
-            priceCoins: 180, assetName: "sf:camera.macro", appearanceValue: nil,
+            priceCoins: 180, assetName: "BadgeWordBouquet", appearanceValue: nil,
             requiresPro: false, sortOrder: 120
         ),
         .init(
             id: "badge_poco_heart", kind: .profileBadge,
             title: "Pocoハート", summary: "作品とことばを大切にする気持ちのバッジです。",
-            priceCoins: 250, assetName: "sf:heart.fill", appearanceValue: nil,
+            priceCoins: 250, assetName: "PocoCreatorHeartReceived", appearanceValue: nil,
             requiresPro: false, sortOrder: 130
         )
     ]
@@ -489,6 +520,8 @@ actor MockStarStoreRepository: StarStoreRepository {
     nonisolated private static let ownedKey = "poco.mockStarStore.owned"
     nonisolated private static let revisionKey = "poco.starCoinWalletRevision"
     nonisolated private static let decorationPrefix = "poco.mockStarStore.decoration."
+    nonisolated private static let extraProjectSlotsKey = "poco.mockProjectSlots.extra"
+    nonisolated private static let projectSlotRequestsKey = "poco.mockProjectSlots.requests"
 
     func fetchCatalog() async throws -> [StarStoreItem] {
         Self.catalog.sorted { $0.sortOrder < $1.sortOrder }
@@ -540,6 +573,53 @@ actor MockStarStoreRepository: StarStoreRepository {
         )
     }
 
+    func fetchProjectSlotStatus() async throws -> ProjectSlotStatus {
+        Self.projectSlotStatus(defaults: .standard)
+    }
+
+    func redeemProjectSlot(requestID: UUID) async throws -> ProjectSlotRedemptionResult {
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: "poco.previewMembership") else {
+            throw AppError.projectSlotRedemptionUnavailable
+        }
+
+        var requestIDs = Set(defaults.stringArray(forKey: Self.projectSlotRequestsKey) ?? [])
+        if requestIDs.contains(requestID.uuidString) {
+            return ProjectSlotRedemptionResult(
+                status: Self.projectSlotStatus(defaults: defaults),
+                chargedCoins: 0,
+                redeemed: false
+            )
+        }
+
+        let extraSlots = min(2, max(0, defaults.integer(forKey: Self.extraProjectSlotsKey)))
+        guard extraSlots < 2 else {
+            return ProjectSlotRedemptionResult(
+                status: Self.projectSlotStatus(defaults: defaults),
+                chargedCoins: 0,
+                redeemed: false
+            )
+        }
+
+        let cost = extraSlots == 0 ? 200 : 400
+        let currentBalance = max(0, defaults.integer(forKey: "poco.starCoinBalance"))
+        guard currentBalance >= cost else { throw AppError.insufficientStarCoins }
+
+        let nextBalance = currentBalance - cost
+        let nextRevision = Int64(defaults.integer(forKey: Self.revisionKey)) + 1
+        defaults.set(extraSlots + 1, forKey: Self.extraProjectSlotsKey)
+        defaults.set(nextBalance, forKey: "poco.starCoinBalance")
+        defaults.set(nextRevision, forKey: Self.revisionKey)
+        requestIDs.insert(requestID.uuidString)
+        defaults.set(Array(requestIDs), forKey: Self.projectSlotRequestsKey)
+
+        return ProjectSlotRedemptionResult(
+            status: Self.projectSlotStatus(defaults: defaults),
+            chargedCoins: cost,
+            redeemed: true
+        )
+    }
+
     func equipProjectBackground(projectID: UUID, itemID: String?) async throws {
         try ensureOwned(itemID, kind: .projectBackground)
         let key = Self.decorationPrefix + projectID.uuidString + ".background"
@@ -568,6 +648,20 @@ actor MockStarStoreRepository: StarStoreRepository {
         let owned = Set(UserDefaults.standard.stringArray(forKey: Self.ownedKey) ?? [])
         guard owned.contains(itemID) else { throw AppError.unauthorized }
     }
+
+    nonisolated private static func projectSlotStatus(
+        defaults: UserDefaults
+    ) -> ProjectSlotStatus {
+        let extraSlots = min(2, max(0, defaults.integer(forKey: extraProjectSlotsKey)))
+        return ProjectSlotStatus(
+            freeProjectLimit: 3 + extraSlots,
+            extraSlots: extraSlots,
+            nextSlotNumber: extraSlots < 2 ? 4 + extraSlots : nil,
+            nextSlotCost: extraSlots == 0 ? 200 : extraSlots == 1 ? 400 : nil,
+            balance: max(0, defaults.integer(forKey: "poco.starCoinBalance")),
+            walletRevision: Int64(defaults.integer(forKey: revisionKey))
+        )
+    }
 }
 
 actor MockModerationRepository: ModerationRepository {
@@ -591,7 +685,7 @@ actor MockModerationRepository: ModerationRepository {
     func fetchOwnedFeedbackIDs() async throws -> Set<UUID> { ownedFeedbackIDs }
 
     func fetchOwnedFeedbacks() async throws -> [Feedback] {
-        let feedbacks = await MockData.feedbacks
+        let feedbacks = MockData.feedbacks
         return feedbacks
             .filter { ownedFeedbackIDs.contains($0.id) }
             .sorted { $0.createdAt > $1.createdAt }
@@ -629,6 +723,150 @@ actor MockRightsHolderRequestRepository: RightsHolderRequestRepository {
             throw AppError.requestAlreadySubmitted
         }
         return UUID()
+    }
+}
+
+actor MockQAndARepository: QAndARepository {
+    private var questions: [PocoQuestion]
+    private let currentUserID: UUID
+
+    init(
+        currentUserID: UUID = MockData.forestCreator.id,
+        questions: [PocoQuestion]? = nil
+    ) {
+        self.currentUserID = currentUserID
+        self.questions = questions ?? [
+            PocoQuestion(
+                id: UUID(uuidString: "71000000-0000-0000-0000-000000000001")!,
+                projectID: MockData.forestProject.id,
+                projectTitle: MockData.forestProject.title,
+                sender: MockData.feedbackAuthors["はな"]!,
+                creator: MockData.forestCreator,
+                message: "森の色づかいは、どんな景色から思いついたのですか？",
+                answer: nil,
+                status: .pending,
+                createdAt: Date(timeIntervalSinceNow: -7_200),
+                answeredAt: nil,
+                withdrawnAt: nil
+            ),
+            PocoQuestion(
+                id: UUID(uuidString: "71000000-0000-0000-0000-000000000002")!,
+                projectID: MockData.tetraProject.id,
+                projectTitle: MockData.tetraProject.title,
+                sender: MockData.forestCreator,
+                creator: MockData.tetraCreator,
+                message: "音楽づくりで一番大切にしたことを知りたいです。",
+                answer: "冒険の途中でも、帰る場所を思い出せる音にしました。",
+                status: .answered,
+                createdAt: Date(timeIntervalSinceNow: -86_400),
+                answeredAt: Date(timeIntervalSinceNow: -43_200),
+                withdrawnAt: nil
+            )
+        ]
+    }
+
+    func fetchQuestions() async throws -> [PocoQuestion] {
+        expirePendingQuestions()
+        return questions
+            .filter { $0.sender.id == currentUserID || $0.creator.id == currentUserID }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
+    func sendQuestion(
+        creatorID: UUID,
+        projectID: UUID?,
+        message: String
+    ) async throws -> PocoQuestion {
+        expirePendingQuestions()
+        let normalized = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty,
+              normalized.count <= PocoQuestionLimits.messageLength,
+              creatorID != currentUserID else {
+            throw AppError.invalidInput
+        }
+        let recentCount = questions.filter {
+            $0.sender.id == currentUserID
+                && $0.creator.id == creatorID
+                && $0.createdAt > Date.now.addingTimeInterval(-86_400)
+        }.count
+        guard recentCount < PocoQuestionLimits.rollingDayCount else {
+            throw AppError.questionDailyLimitReached
+        }
+        let pendingCount = questions.filter {
+            $0.sender.id == currentUserID
+                && $0.creator.id == creatorID
+                && $0.effectiveStatus == .pending
+        }.count
+        guard pendingCount < PocoQuestionLimits.pendingCount else {
+            throw AppError.questionPendingLimitReached
+        }
+        guard let creator = MockData.projects.first(where: { $0.creator.id == creatorID })?.creator
+                ?? MockData.feedbackAuthors.values.first(where: { $0.id == creatorID }) else {
+            throw AppError.notFound
+        }
+        let project = projectID.flatMap { id in MockData.projects.first { $0.id == id } }
+        let question = PocoQuestion(
+            id: UUID(),
+            projectID: project?.id,
+            projectTitle: project?.title,
+            sender: MockData.forestCreator,
+            creator: creator,
+            message: normalized,
+            answer: nil,
+            status: .pending,
+            createdAt: .now,
+            answeredAt: nil,
+            withdrawnAt: nil
+        )
+        questions.insert(question, at: 0)
+        return question
+    }
+
+    func answerQuestion(id: UUID, answer: String) async throws -> PocoQuestion {
+        expirePendingQuestions()
+        guard let index = questions.firstIndex(where: { $0.id == id }) else {
+            throw AppError.notFound
+        }
+        let normalized = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard questions[index].creator.id == currentUserID else { throw AppError.unauthorized }
+        guard questions[index].effectiveStatus == .pending else {
+            throw AppError.questionUnavailable
+        }
+        guard !normalized.isEmpty, normalized.count <= PocoQuestionLimits.answerLength else {
+            throw AppError.invalidInput
+        }
+        questions[index].answer = normalized
+        questions[index].status = .answered
+        questions[index].answeredAt = .now
+        return questions[index]
+    }
+
+    func withdrawQuestion(id: UUID) async throws -> PocoQuestion {
+        expirePendingQuestions()
+        guard let index = questions.firstIndex(where: { $0.id == id }) else {
+            throw AppError.notFound
+        }
+        guard questions[index].sender.id == currentUserID else { throw AppError.unauthorized }
+        guard questions[index].effectiveStatus == .pending else {
+            throw AppError.questionUnavailable
+        }
+        questions[index].status = .withdrawn
+        questions[index].withdrawnAt = .now
+        return questions[index]
+    }
+
+    func reportQuestion(
+        id: UUID,
+        reason: FeedbackReportReason,
+        details: String?
+    ) async throws {
+        guard questions.contains(where: { $0.id == id }) else { throw AppError.notFound }
+    }
+
+    private func expirePendingQuestions() {
+        for index in questions.indices where questions[index].effectiveStatus == .expired {
+            questions[index].status = .expired
+        }
     }
 }
 

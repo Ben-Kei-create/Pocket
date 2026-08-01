@@ -10,7 +10,20 @@ struct ProjectCard: View {
                 .clipShape(RoundedRectangle(cornerRadius: PocoTheme.cornerSmall, style: .continuous))
 
             VStack(alignment: .leading, spacing: 7) {
-                ProjectRelationshipBadge(project: project, compact: true)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 5) {
+                        ProjectRelationshipBadge(project: project, compact: true)
+                        if project.purpose == .event {
+                            ProjectPurposeBadge(purpose: project.purpose, compact: true)
+                        }
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        ProjectRelationshipBadge(project: project, compact: true)
+                        if project.purpose == .event {
+                            ProjectPurposeBadge(purpose: project.purpose, compact: true)
+                        }
+                    }
+                }
 
                 if project.isContentLocked {
                     Label("年齢制限あり", systemImage: "lock.fill")
@@ -53,7 +66,9 @@ struct ProjectCard: View {
         .frame(maxWidth: .infinity, minHeight: 138, alignment: .leading)
         .pocoCard()
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(project.title)、\(project.creator.name)、感想\(project.feedbackCount)件")
+        .accessibilityLabel(
+            "\(project.title)、\(project.creator.name)、\(project.relationship.badgeTitle(verificationStatus: project.verificationStatus))、\(project.purpose.title)、感想\(project.feedbackCount)件"
+        )
     }
 }
 
@@ -89,8 +104,23 @@ struct ProjectRelationshipBadge: View {
         case .creator: PocoTheme.primary
         case .authorized: .blue
         case .fan: .purple
-        case .event: .orange
         }
+    }
+}
+
+struct ProjectPurposeBadge: View {
+    let purpose: ProjectPurpose
+    var compact = false
+
+    var body: some View {
+        Label(purpose.title, systemImage: purpose.symbolName)
+            .pocoFont(compact ? .caption2 : .caption, weight: .medium)
+            .foregroundStyle(.orange)
+            .padding(.horizontal, compact ? 7 : 9)
+            .padding(.vertical, compact ? 3 : 5)
+            .background(Color.orange.opacity(0.10), in: Capsule())
+            .lineLimit(1)
+            .accessibilityLabel("ページの使い方、\(purpose.title)")
     }
 }
 
@@ -187,6 +217,7 @@ struct ProjectArtworkView: View {
         case .book: [PocoTheme.bubble(.mint), Color(red: 0.36, green: 0.66, blue: 0.52)]
         case .game: [PocoTheme.bubble(.blue), Color(red: 0.22, green: 0.70, blue: 0.82)]
         case .manga: [PocoTheme.bubble(.lavender), PocoTheme.bubble(.pink)]
+        case .anime: [PocoTheme.bubble(.coral), PocoTheme.bubble(.yellow)]
         case .other: [PocoTheme.bubble(.yellow), PocoTheme.primary.opacity(0.8)]
         }
     }

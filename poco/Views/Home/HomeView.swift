@@ -2,12 +2,11 @@ import SwiftUI
 
 struct HomeView: View {
     @Environment(PocoStore.self) private var store
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedCategory: CategoryFilter = .all
-    @State private var showsNotifications = false
-    @State private var showsAnnouncements = false
     @State private var showsScanner = false
     @State private var searchText = ""
-    @AppStorage("poco.announcements.lastSeenAt") private var lastSeenAnnouncementTimestamp = 0.0
+    @Namespace private var categorySelectionAnimation
 
     private var visibleProjects: [Project] {
         let categoryProjects = switch selectedCategory {
@@ -87,58 +86,14 @@ struct HomeView: View {
             .navigationTitle("Poco")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button {
-                        showsAnnouncements = true
-                    } label: {
-                        Image(systemName: "megaphone")
-                            .overlay(alignment: .topTrailing) {
-                                if unreadAnnouncementCount > 0 {
-                                    Circle()
-                                        .fill(PocoTheme.primary)
-                                        .frame(width: 8, height: 8)
-                                        .offset(x: 2, y: -1)
-                                }
-                            }
-                    }
-                    .accessibilityLabel(
-                        unreadAnnouncementCount > 0
-                            ? "運営からのお知らせ、未読\(unreadAnnouncementCount)件"
-                            : "運営からのお知らせ"
-                    )
-
+                ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         showsScanner = true
                     } label: {
                         Image(systemName: "qrcode.viewfinder")
                     }
                     .accessibilityLabel("作品のQRコードを読み取る")
-
-                    Button {
-                        showsNotifications = true
-                    } label: {
-                        Image(systemName: "bell")
-                            .overlay(alignment: .topTrailing) {
-                                if store.unreadNotificationCount > 0 {
-                                    Circle()
-                                        .fill(PocoTheme.primary)
-                                        .frame(width: 8, height: 8)
-                                        .offset(x: 2, y: -1)
-                                }
-                            }
-                    }
-                    .accessibilityLabel(
-                        store.unreadNotificationCount > 0
-                            ? "通知、未読\(store.unreadNotificationCount)件"
-                            : "通知"
-                    )
                 }
-            }
-            .sheet(isPresented: $showsNotifications) {
-                NotificationCenterView()
-            }
-            .sheet(isPresented: $showsAnnouncements) {
-                AnnouncementCenterView()
             }
             .sheet(isPresented: $showsScanner) {
                 QRCodeScannerSheet { url in
@@ -156,12 +111,6 @@ struct HomeView: View {
                 await store.loadAnnouncements()
             }
         }
-    }
-
-    private var unreadAnnouncementCount: Int {
-        store.announcements.lazy.filter {
-            $0.publishedAt.timeIntervalSince1970 > lastSeenAnnouncementTimestamp
-        }.count
     }
 
     @ViewBuilder
@@ -210,7 +159,7 @@ struct HomeView: View {
             HStack(spacing: 10) {
                 ForEach(CategoryFilter.allCases) { filter in
                     Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
+                        withAnimation(reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.82)) {
                             selectedCategory = filter
                         }
                     } label: {
@@ -219,14 +168,35 @@ struct HomeView: View {
                             .foregroundStyle(selectedCategory == filter ? .white : PocoTheme.secondaryText)
                             .padding(.horizontal, 17)
                             .padding(.vertical, 9)
-                            .background(
-                                selectedCategory == filter ? PocoTheme.primary : PocoTheme.cardBackground,
-                                in: Capsule()
-                            )
+                            .background {
+                                if selectedCategory == filter {
+                                    Capsule()
+                                        .fill(PocoTheme.primary)
+                                        .matchedGeometryEffect(
+                                            id: "home-category-selection",
+                                            in: categorySelectionAnimation
+                                        )
+                                } else {
+                                    Capsule().fill(PocoTheme.cardBackground)
+                                }
+                            }
                     }
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(selectedCategory == filter ? .isSelected : [])
                 }
+
+                NavigationLink {
+                    QAndAView(showsNavigationChrome: false)
+                } label: {
+                    Label("Q&A", systemImage: "questionmark.bubble")
+                        .pocoFont(.subheadline, weight: .medium)
+                        .foregroundStyle(PocoTheme.secondaryText)
+                        .padding(.horizontal, 17)
+                        .padding(.vertical, 9)
+                        .background(PocoTheme.cardBackground, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Q&Aを開く")
             }
         }
     }
@@ -238,6 +208,11 @@ struct NotificationCenterView: View {
     @State private var selectedFeedback: Feedback?
     @State private var openingNotificationID: UUID?
     @State private var showsRegistration = false
+    let showsNavigationChrome: Bool
+
+    init(showsNavigationChrome: Bool = true) {
+        self.showsNavigationChrome = showsNavigationChrome
+    }
 
     private var receivedFeedbackNotifications: [PocoNotification] {
         store.notifications.filter { $0.type == .newFeedback }
@@ -256,69 +231,20 @@ struct NotificationCenterView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if store.accountStatus != .registered {
-                    ContentUnavailableView {
-                        Label("届いたことばを残そう", systemImage: "bell.badge")
-                    } description: {
-                        Text("登録すると、自分の作品へ届いた感想や、ことばへの共感をここで受け取れます。")
-                    } actions: {
-                        Button("無料で登録") {
-                            showsRegistration = true
+        Group {
+            if showsNavigationChrome {
+                NavigationStack {
+                    content
+                        .navigationTitle("届いたことば")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .confirmationAction) {
+                                Button("閉じる", action: dismiss.callAsFunction)
+                            }
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(PocoTheme.primary)
-                    }
-                } else if store.notificationLoadState == .loading && store.notifications.isEmpty {
-                    ProgressView("届いたことばを読み込んでいます")
-                } else if case .error = store.notificationLoadState,
-                          store.notifications.isEmpty {
-                    ContentUnavailableView {
-                        Label("読み込めませんでした", systemImage: "wifi.exclamationmark")
-                    } description: {
-                        Text("通信環境を確認して、もう一度お試しください。")
-                    } actions: {
-                        Button("もう一度試す") {
-                            Task { await store.loadNotifications() }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(PocoTheme.primary)
-                    }
-                } else if store.notifications.isEmpty {
-                    ContentUnavailableView {
-                        Label("まだ届いていません", systemImage: "bubble.left.and.bubble.right")
-                    } description: {
-                        Text("作品への新しい感想や、あなたのことばへの反応がここに届きます。")
-                    }
-                } else {
-                    List {
-                        notificationSection(
-                            "届いたことば",
-                            notifications: receivedFeedbackNotifications
-                        )
-                        notificationSection(
-                            "リアクション",
-                            notifications: reactionNotifications
-                        )
-                        notificationSection(
-                            "Pocoから",
-                            notifications: serviceNotifications
-                        )
-                    }
-                    .listStyle(.insetGrouped)
-                    .refreshable {
-                        await store.loadNotifications()
-                    }
                 }
-            }
-            .background(PocoTheme.background)
-            .navigationTitle("届いたことば")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("閉じる", action: dismiss.callAsFunction)
-                }
+            } else {
+                content
             }
         }
         .task {
@@ -333,6 +259,62 @@ struct NotificationCenterView: View {
         .sheet(isPresented: $showsRegistration) {
             RegistrationGateView(context: .account)
         }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        Group {
+            if store.accountStatus != .registered {
+                ContentUnavailableView {
+                    Label("届いたことばを残そう", systemImage: "bell.badge")
+                } actions: {
+                    Button("無料で登録") {
+                        showsRegistration = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(PocoTheme.primary)
+                }
+            } else if store.notificationLoadState == .loading && store.notifications.isEmpty {
+                ProgressView("届いたことばを読み込んでいます")
+            } else if case .error = store.notificationLoadState,
+                      store.notifications.isEmpty {
+                ContentUnavailableView {
+                    Label("読み込めませんでした", systemImage: "wifi.exclamationmark")
+                } description: {
+                    Text("通信環境を確認して、もう一度お試しください。")
+                } actions: {
+                    Button("もう一度試す") {
+                        Task { await store.loadNotifications() }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(PocoTheme.primary)
+                }
+            } else if store.notifications.isEmpty {
+                ContentUnavailableView {
+                    Label("まだ届いていません", systemImage: "bubble.left.and.bubble.right")
+                }
+            } else {
+                List {
+                    notificationSection(
+                        "届いたことば",
+                        notifications: receivedFeedbackNotifications
+                    )
+                    notificationSection(
+                        "リアクション",
+                        notifications: reactionNotifications
+                    )
+                    notificationSection(
+                        "Pocoから",
+                        notifications: serviceNotifications
+                    )
+                }
+                .listStyle(.insetGrouped)
+                .refreshable {
+                    await store.loadNotifications()
+                }
+            }
+        }
+        .background(PocoTheme.background)
     }
 
     @ViewBuilder
@@ -376,11 +358,18 @@ private struct NotificationInboxRow: View {
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             ZStack {
-                Circle()
-                    .fill(PocoTheme.primary.opacity(0.12))
-                Image(systemName: notification.type.symbolName)
-                    .pocoFont(.subheadline, weight: .medium)
-                    .foregroundStyle(PocoTheme.primary)
+                if notification.type == .creatorHeart {
+                    Image(PocoArtwork.creatorHeart)
+                        .resizable()
+                        .scaledToFit()
+                        .padding(2)
+                } else {
+                    Circle()
+                        .fill(PocoTheme.primary.opacity(0.12))
+                    Image(systemName: notification.type.symbolName)
+                        .pocoFont(.subheadline, weight: .medium)
+                        .foregroundStyle(PocoTheme.primary)
+                }
             }
             .frame(width: 38, height: 38)
 

@@ -13,11 +13,11 @@ struct MemberRewardCenterView: View {
         ScrollView {
             VStack(spacing: 22) {
                 VStack(spacing: 7) {
-                    Image(systemName: "sun.max.fill")
-                        .font(.system(size: 38, weight: .semibold))
-                        .foregroundStyle(PocoTheme.primary)
-                        .padding(18)
-                        .background(PocoTheme.bubble(.yellow), in: Circle())
+                    PocoCharacterView(
+                        size: 132,
+                        expression: .star,
+                        isInteractive: false
+                    )
                     Text("おかえりなさい")
                         .pocoFont(.title2, weight: .bold)
                     Text("毎日ひらくと、小さなごほうびが届きます。")
@@ -49,61 +49,6 @@ struct MemberRewardCenterView: View {
                 )
                 .accessibilityHint("今日のログインボーナスをスターコインで受け取ります")
 
-                NavigationLink {
-                    AchievementStampsView()
-                } label: {
-                    HStack(spacing: 14) {
-                        Image(systemName: "seal.fill")
-                            .pocoFont(.title2)
-                            .foregroundStyle(PocoTheme.primary)
-                            .frame(width: 44, height: 44)
-                            .background(PocoTheme.bubble(.pink).opacity(0.7), in: Circle())
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("達成スタンプ")
-                                .pocoFont(.headline, weight: .medium)
-                            Text("集まったスタンプを見てみよう")
-                                .pocoFont(.caption)
-                                .foregroundStyle(PocoTheme.secondaryText)
-                        }
-                        Spacer()
-                        Text("\(store.memberRewardSnapshot.unlockedStamps.count)/\(AchievementStamp.allCases.count)")
-                            .pocoFont(.subheadline, weight: .bold).monospacedDigit()
-                            .foregroundStyle(PocoTheme.primary)
-                        Image(systemName: "chevron.right")
-                            .pocoFont(.caption, weight: .bold)
-                            .foregroundStyle(PocoTheme.tertiaryText)
-                    }
-                    .padding(16)
-                    .pocoCard()
-                }
-                .buttonStyle(.plain)
-
-                NavigationLink {
-                    StarStoreView()
-                } label: {
-                    HStack(spacing: 14) {
-                        Image(systemName: "bag.fill")
-                            .pocoFont(.title2)
-                            .foregroundStyle(PocoTheme.primary)
-                            .frame(width: 44, height: 44)
-                            .background(PocoTheme.bubble(.yellow).opacity(0.7), in: Circle())
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("スターショップ")
-                                .pocoFont(.headline, weight: .medium)
-                            Text("背景やバッジをスターで選ぼう")
-                                .pocoFont(.caption)
-                                .foregroundStyle(PocoTheme.secondaryText)
-                        }
-                        Spacer()
-                        StarCoinBadge(balance: store.starCoinBalance)
-                        Image(systemName: "chevron.right")
-                            .pocoFont(.caption, weight: .bold)
-                            .foregroundStyle(PocoTheme.tertiaryText)
-                    }
-                    .padding(16)
-                    .pocoCard()
-                }
-                .buttonStyle(.plain)
             }
             .padding(PocoTheme.pagePadding)
         }
@@ -216,12 +161,20 @@ struct AchievementStampsView: View {
         let isUnlocked = store.memberRewardSnapshot.unlockedStamps.contains(stamp)
         return VStack(spacing: 11) {
             ZStack {
-                Circle()
-                    .fill(PocoTheme.bubble(stamp.color).opacity(isUnlocked ? 0.9 : 0.22))
-                    .frame(width: 76, height: 76)
-                Image(systemName: isUnlocked ? stamp.symbolName : "lock.fill")
-                    .font(.system(size: 27, weight: .semibold))
-                    .foregroundStyle(isUnlocked ? PocoTheme.primary : PocoTheme.tertiaryText)
+                Image(stamp.artworkAssetName)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 88, height: 88)
+                    .saturation(isUnlocked ? 1 : 0)
+                    .opacity(isUnlocked ? 1 : 0.28)
+
+                if !isUnlocked {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(PocoTheme.secondaryText)
+                        .padding(10)
+                        .background(.thinMaterial, in: Circle())
+                }
             }
             Text(stamp.title)
                 .pocoFont(.subheadline, weight: .bold)
@@ -232,7 +185,7 @@ struct AchievementStampsView: View {
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, minHeight: 174)
+        .frame(maxWidth: .infinity, minHeight: 188)
         .padding(13)
         .pocoCard(cornerRadius: PocoTheme.cornerSmall)
         .opacity(isUnlocked ? 1 : 0.62)

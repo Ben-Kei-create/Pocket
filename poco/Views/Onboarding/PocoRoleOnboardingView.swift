@@ -12,22 +12,19 @@ struct PocoRoleOnboardingView: View {
         case .member:
             [
                 PocoOnboardingPage(
-                    symbol: "bubble.left.and.bubble.right.fill",
-                    tint: .coral,
+                    character: .happy,
                     title: "ことばを届ける体験は、そのまま",
                     message: "作品を選んで感想を書き、フキダシを落とします。登録後は名前とアバターがプロフィールにつながります。",
                     footnote: "作品 → 感想を書く → フキダシを落とす"
                 ),
                 PocoOnboardingPage(
-                    symbol: "shippingbox.fill",
-                    tint: .yellow,
+                    character: .letter,
                     title: "「作る」から作品の箱をつくれます",
                     message: "作品を登録すると、専用QRコードとリンクができます。無料ユーザーは3作品まで作成できます。",
                     footnote: "作る → 新しい作品 → QRを共有"
                 ),
                 PocoOnboardingPage(
-                    symbol: "person.crop.circle.fill",
-                    tint: .mint,
+                    character: .star,
                     title: "記録はマイページへ",
                     message: "送った感想、いいねしたフキダシ、届いた通知をまとめて確認できます。ログインボーナスは、その日最初の起動時に届きます。",
                     footnote: "分からなくなったら、設定からもう一度見られます"
@@ -36,22 +33,19 @@ struct PocoRoleOnboardingView: View {
         case .pro:
             [
                 PocoOnboardingPage(
-                    symbol: "heart.text.square.fill",
-                    tint: .coral,
+                    character: .heart,
                     title: "反響を、もっと近くに",
                     message: "共感が集まったフキダシと、自分の作品・感想へ届いた反応を確認できます。",
                     footnote: "数字よりも、ことばが届いた実感を大切にします"
                 ),
                 PocoOnboardingPage(
-                    symbol: "sparkles",
-                    tint: .lavender,
+                    character: .rare,
                     title: "キャラが合体するProの遊び",
                     message: "同じキャラが触れると合体します。95%で消滅し、5%でレアキャラが生まれます。",
                     footnote: "確率は課金やスターでは変化しません"
                 ),
                 PocoOnboardingPage(
-                    symbol: "rectangle.badge.xmark",
-                    tint: .blue,
+                    character: .pro,
                     title: "広告なしで、作品づくりに集中",
                     message: "広告を表示せず、作品は30件まで。今後Pro機能が増えたときも、最初の一度だけ分かりやすく案内します。",
                     footnote: "この案内は設定からいつでも見直せます"
@@ -125,14 +119,12 @@ struct PocoRoleOnboardingView: View {
         VStack(spacing: 24) {
             Spacer(minLength: 12)
 
-            Circle()
-                .fill(PocoTheme.bubble(page.tint).opacity(0.72))
-                .frame(width: 148, height: 148)
-                .overlay {
-                    Image(systemName: page.symbol)
-                        .font(.system(size: 52, weight: .semibold))
-                        .foregroundStyle(PocoTheme.primary)
-                }
+            PocoCharacterView(
+                size: 176,
+                expression: page.character,
+                playsIdleAnimation: true,
+                isInteractive: false
+            )
                 .shadow(color: PocoTheme.primary.opacity(0.1), radius: 22, y: 10)
                 .accessibilityHidden(true)
 
@@ -165,8 +157,7 @@ struct PocoRoleOnboardingView: View {
 }
 
 private struct PocoOnboardingPage {
-    let symbol: String
-    let tint: BubbleColor
+    let character: PocoCharacterExpression
     let title: String
     let message: String
     let footnote: String

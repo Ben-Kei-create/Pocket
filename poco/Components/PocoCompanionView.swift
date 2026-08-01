@@ -15,16 +15,7 @@ nonisolated enum PocoCompanion {
     }
 
     static func avatar(for feedback: Feedback) -> BuiltInAvatar {
-        if let avatarName = feedback.senderAvatarName,
-           let avatar = BuiltInAvatar(rawValue: avatarName) {
-            return avatar
-        }
-
-        let avatars = BuiltInAvatar.allCases
-        let seed = feedback.id.uuidString.unicodeScalars.reduce(0) { partial, scalar in
-            (partial &* 31 &+ Int(scalar.value)) & 0x7fff_ffff
-        }
-        return avatars[seed % avatars.count]
+        .cat
     }
 }
 
@@ -41,7 +32,7 @@ struct PocoCompanionView: View {
         Button {
             playPoyon()
         } label: {
-            Image(PocoCompanion.assetName(for: feedback))
+            Image(BuiltInAvatar.characterAssetName)
                 .resizable()
                 .scaledToFit()
                 .frame(width: size, height: size)

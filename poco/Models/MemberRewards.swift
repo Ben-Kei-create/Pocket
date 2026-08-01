@@ -43,6 +43,17 @@ nonisolated enum AchievementStamp: String, CaseIterable, Identifiable, Codable, 
         }
     }
 
+    var artworkAssetName: String {
+        switch self {
+        case .firstFeedback: "BadgeFirstFeedback"
+        case .threeFeedbacks: "BadgeThreeFeedbacks"
+        case .firstProject: "BadgeFirstProject"
+        case .firstLike: "BadgeFirstLike"
+        case .creatorHeart: "BadgeCreatorHeart"
+        case .sevenDayStreak: "BadgeSevenDayStreak"
+        }
+    }
+
     var color: BubbleColor {
         switch self {
         case .firstFeedback: .pink

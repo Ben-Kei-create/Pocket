@@ -5,7 +5,6 @@ struct MyPageView: View {
     @State private var showsMembership = false
     @State private var showsRegistration = false
     @State private var showsProfileEdit = false
-    @State private var showsNotifications = false
 
     var body: some View {
         NavigationStack {
@@ -69,8 +68,6 @@ struct MyPageView: View {
                                     .pocoFont(.headline, weight: .medium)
                                     .foregroundStyle(PocoTheme.primary)
                             }
-                        } footer: {
-                            Text("登録すると作品ページを作成できます。感想投稿はゲストのまま利用できます。")
                         }
                     }
 
@@ -81,10 +78,8 @@ struct MyPageView: View {
                             Label("Poco Proになる", systemImage: "heart.circle.fill")
                                 .pocoFont(.headline, weight: .medium)
                                 .foregroundStyle(PocoTheme.primary)
-                        }
-                    } footer: {
-                        Text("共感のフキダシ、受け取ったいいね、広告なしを利用できます。")
                     }
+                }
                 }
 
                 if store.canCreateProjects {
@@ -129,28 +124,11 @@ struct MyPageView: View {
                         Label("いいねしたフキダシ", systemImage: "heart")
                     }
 
-                    Button {
-                        showsNotifications = true
+                    NavigationLink {
+                        QAndAView()
                     } label: {
-                        HStack {
-                            Label("届いたことば", systemImage: "bell")
-                            Spacer()
-                            if store.unreadNotificationCount > 0 {
-                                Text(store.unreadNotificationCount.formatted())
-                                    .pocoFont(.caption2, weight: .bold)
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 7)
-                                    .padding(.vertical, 3)
-                                    .background(PocoTheme.primary, in: Capsule())
-                            }
-                        }
+                        Label("Q&A", systemImage: "questionmark.bubble")
                     }
-                    .foregroundStyle(.primary)
-                    .accessibilityLabel(
-                        store.unreadNotificationCount > 0
-                            ? "届いたことば、未読\(store.unreadNotificationCount)件"
-                            : "届いたことば"
-                    )
 
                     NavigationLink {
                         PocoSettingsView()
@@ -168,7 +146,6 @@ struct MyPageView: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("マイページ")
             .sheet(isPresented: $showsMembership) {
                 PocoMembershipView()
             }
@@ -177,9 +154,6 @@ struct MyPageView: View {
             }
             .sheet(isPresented: $showsProfileEdit) {
                 ProfileEditView()
-            }
-            .sheet(isPresented: $showsNotifications) {
-                NotificationCenterView()
             }
             .task(id: store.canCreateProjects) {
                 if store.canCreateProjects {
