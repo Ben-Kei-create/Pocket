@@ -29,6 +29,11 @@ nonisolated struct StarStoreItem: Identifiable, Equatable, Codable, Sendable {
 
     var artworkAssetName: String? {
         switch id {
+        case "background_sakura": "ProjectBackgroundSakura"
+        case "background_lemon": "ProjectBackgroundLemon"
+        case "background_sky": "ProjectBackgroundSky"
+        case "background_mint": "ProjectBackgroundMint"
+        case "background_lavender": "ProjectBackgroundLavender"
         case "badge_first_light": "BadgeFirstLight"
         case "badge_word_bouquet": "BadgeWordBouquet"
         case "badge_poco_heart": "PocoCreatorHeartReceived"

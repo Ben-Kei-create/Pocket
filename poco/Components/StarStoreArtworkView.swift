@@ -8,15 +8,8 @@ struct StarStoreArtworkView: View {
     var body: some View {
         Group {
             if item.kind == .projectBackground {
-                RoundedRectangle(cornerRadius: size * 0.23, style: .continuous)
-                    .fill(item.decorationColor)
-                    .overlay(alignment: .topLeading) {
-                        Circle()
-                            .fill(.white.opacity(0.8))
-                            .frame(width: size * 0.22)
-                            .blur(radius: 1)
-                            .padding(size * 0.16)
-                    }
+                ProjectBackgroundArtwork(item: item)
+                    .clipShape(RoundedRectangle(cornerRadius: size * 0.23, style: .continuous))
                     .overlay {
                         RoundedRectangle(cornerRadius: size * 0.23, style: .continuous)
                             .stroke(.white.opacity(0.75), lineWidth: 1)

@@ -1,6 +1,8 @@
 import Foundation
 
 actor MockNotificationRepository: NotificationRepository {
+    nonisolated private static let achievementNotificationsKey =
+        "poco.mockReward.achievementNotifications"
     private var notifications: [PocoNotification]
     private var observers: [
         UUID: AsyncThrowingStream<PocoNotification, any Error>.Continuation
@@ -47,10 +49,12 @@ actor MockNotificationRepository: NotificationRepository {
     }
 
     func fetchNotifications() async throws -> [PocoNotification] {
-        notifications.sorted { $0.createdAt > $1.createdAt }
+        materializeAchievementNotifications()
+        return notifications.sorted { $0.createdAt > $1.createdAt }
     }
 
     func markRead(id: UUID) async throws -> Date {
+        materializeAchievementNotifications()
         guard let index = notifications.firstIndex(where: { $0.id == id }) else {
             throw AppError.notFound
         }
@@ -71,5 +75,38 @@ actor MockNotificationRepository: NotificationRepository {
 
     private func removeObserver(id: UUID) {
         observers[id] = nil
+    }
+
+    private func materializeAchievementNotifications() {
+        let queued = UserDefaults.standard.stringArray(
+            forKey: Self.achievementNotificationsKey
+        ) ?? []
+        for rawValue in queued {
+            guard let stamp = AchievementStamp(rawValue: rawValue),
+                  !notifications.contains(where: {
+                      $0.eventKey == "achievement:\(rawValue)"
+                  }),
+                  let index = AchievementStamp.allCases.firstIndex(of: stamp),
+                  let id = UUID(uuidString: String(
+                      format: "60000000-0000-0000-0000-%012d",
+                      100 + index
+                  )) else { continue }
+            notifications.append(
+                PocoNotification(
+                    id: id,
+                    recipientID: MockData.forestCreator.id,
+                    eventKey: "achievement:\(rawValue)",
+                    type: .achievement,
+                    projectID: nil,
+                    feedbackID: nil,
+                    actorProfileID: nil,
+                    projectTitle: nil,
+                    actorDisplayName: nil,
+                    messagePreview: stamp.detail,
+                    createdAt: .now.addingTimeInterval(Double(-index)),
+                    readAt: nil
+                )
+            )
+        }
     }
 }

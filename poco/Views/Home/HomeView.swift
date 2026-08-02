@@ -3,6 +3,7 @@ import SwiftUI
 struct HomeView: View {
     @Environment(PocoStore.self) private var store
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var selectedFeed: ProjectFeed = .newest
     @State private var selectedCategory: CategoryFilter = .all
     @State private var showsScanner = false
     @State private var searchText = ""
@@ -18,14 +19,26 @@ struct HomeView: View {
 
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         let handleQuery = CreatorHandle.normalize(query)
-        guard !query.isEmpty else { return categoryProjects }
-        return categoryProjects.filter { project in
+        let searchedProjects = query.isEmpty ? categoryProjects : categoryProjects.filter { project in
             project.title.localizedStandardContains(query)
+                || project.creditedAuthorName.localizedStandardContains(query)
                 || project.creator.name.localizedStandardContains(query)
                 || (!handleQuery.isEmpty
                     && (project.creator.handle?.localizedStandardContains(handleQuery) ?? false))
                 || project.description.localizedStandardContains(query)
                 || project.category.title.localizedStandardContains(query)
+        }
+        return searchedProjects.sorted { first, second in
+            switch selectedFeed {
+            case .newest:
+                first.createdAt > second.createdAt
+            case .recommended:
+                if first.feedbackCount != second.feedbackCount {
+                    first.feedbackCount > second.feedbackCount
+                } else {
+                    first.createdAt > second.createdAt
+                }
+            }
         }
     }
 
@@ -39,6 +52,46 @@ struct HomeView: View {
                         .pocoFont(.title2, weight: .bold)
                         .lineSpacing(4)
                         .padding(.top, 8)
+
+                    Picker("作品の並び順", selection: $selectedFeed) {
+                        ForEach(ProjectFeed.allCases) { feed in
+                            Text(feed.title).tag(feed)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .accessibilityLabel("作品の表示")
+
+                    if let draft = store.currentFeedbackDrafts.first,
+                       let project = store.project(id: draft.projectID) {
+                        NavigationLink(value: project.id) {
+                            HStack(spacing: 13) {
+                                Image(systemName: "doc.text.fill")
+                                    .foregroundStyle(PocoTheme.primary)
+                                    .frame(width: 28)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text("未送信の感想")
+                                        .pocoFont(.subheadline, weight: .medium)
+                                    Text(project.title)
+                                        .pocoFont(.caption)
+                                        .foregroundStyle(PocoTheme.secondaryText)
+                                        .lineLimit(1)
+                                }
+                                Spacer()
+                                if store.currentFeedbackDrafts.count > 1 {
+                                    Text("\(store.currentFeedbackDrafts.count)件")
+                                        .pocoFont(.caption, weight: .medium)
+                                        .foregroundStyle(PocoTheme.secondaryText)
+                                }
+                                Image(systemName: "chevron.right")
+                                    .pocoFont(.caption, weight: .bold)
+                                    .foregroundStyle(PocoTheme.tertiaryText)
+                            }
+                            .padding(16)
+                            .pocoCard(cornerRadius: PocoTheme.cornerSmall)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint("作品ページから下書きを再開します")
+                    }
 
                     categoryFilters
                         .padding(.vertical, 4)
@@ -230,6 +283,10 @@ struct NotificationCenterView: View {
         }
     }
 
+    private var achievementNotifications: [PocoNotification] {
+        store.notifications.filter { $0.type == .achievement }
+    }
+
     var body: some View {
         Group {
             if showsNavigationChrome {
@@ -302,6 +359,10 @@ struct NotificationCenterView: View {
                     notificationSection(
                         "リアクション",
                         notifications: reactionNotifications
+                    )
+                    notificationSection(
+                        "達成スタンプ",
+                        notifications: achievementNotifications
                     )
                     notificationSection(
                         "Pocoから",
@@ -438,6 +499,20 @@ private enum CategoryFilter: Hashable, Identifiable, CaseIterable {
         switch self {
         case .all: "すべて"
         case .category(let category): category.title
+        }
+    }
+}
+
+private enum ProjectFeed: String, CaseIterable, Identifiable {
+    case newest
+    case recommended
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .newest: "新着"
+        case .recommended: "おすすめ"
         }
     }
 }

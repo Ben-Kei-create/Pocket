@@ -17,11 +17,11 @@ nonisolated enum MockData {
         avatarName: nil,
         handle: "tetra_games"
     )
-    static let hoshikoCreator = Creator(
+    static let starFanCreator = Creator(
         id: UUID(uuidString: "10000000-0000-0000-0000-000000000003")!,
-        name: "Hoshiko",
-        avatarName: nil,
-        handle: "hoshiko"
+        name: "星の子応援部",
+        avatarName: BuiltInAvatar.pinkCat.rawValue,
+        handle: "hoshinoko_fan"
     )
     static let feedbackAuthors: [String: Creator] = [
         "はな": Creator(
@@ -67,6 +67,7 @@ nonisolated enum MockData {
         id: UUID(uuidString: "20000000-0000-0000-0000-000000000001")!,
         title: "絵本「森のこえ」",
         creator: forestCreator,
+        authorName: "もりのなかまたち",
         category: .book,
         description: "やさしい気持ちになれる、森の小さな仲間たちの物語。絵本を届けたい。",
         imageName: nil,
@@ -74,12 +75,14 @@ nonisolated enum MockData {
         feedbackCount: 100,
         createdAt: Date(timeIntervalSince1970: 1_750_000_000),
         relationship: .creator,
-        verificationStatus: .verified
+        verificationStatus: .verified,
+        acceptsQuestions: true
     )
     static let tetraProject = Project(
         id: UUID(uuidString: "20000000-0000-0000-0000-000000000002")!,
         title: "ゲーム「テトラの冒険」",
         creator: tetraCreator,
+        authorName: "Tetra Games",
         category: .game,
         description: "ドット絵の世界で冒険する、心あたたまるインディーRPGです。",
         imageName: nil,
@@ -87,19 +90,22 @@ nonisolated enum MockData {
         createdAt: Date(timeIntervalSince1970: 1_749_000_000),
         relationship: .authorized,
         purpose: .event,
-        verificationStatus: .unverified
+        verificationStatus: .unverified,
+        acceptsQuestions: true
     )
     static let starProject = Project(
         id: UUID(uuidString: "20000000-0000-0000-0000-000000000003")!,
         title: "マンガ「星の子」",
-        creator: hoshikoCreator,
+        creator: starFanCreator,
+        authorName: "Hoshiko",
         category: .manga,
         description: "心にそっとよりそう物語を描いています。",
         imageName: nil,
         feedbackCount: 6,
         createdAt: Date(timeIntervalSince1970: 1_748_000_000),
         relationship: .fan,
-        verificationStatus: .unverified
+        verificationStatus: .unverified,
+        acceptsQuestions: false
     )
 
     static let projects = [forestProject, tetraProject, starProject]

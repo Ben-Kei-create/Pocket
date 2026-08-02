@@ -30,6 +30,9 @@ nonisolated enum PocoCharacterExpression: String, CaseIterable, Sendable {
 
 nonisolated enum PocoArtwork {
     static let starCoin = "PocoStarCoin"
+    static let starCoinEarned = "PocoStarCoinEarned"
+    static let starCoinBurst = "PocoStarCoinBurst"
+    static let starCoinBundle = "PocoStarCoinBundle"
     static let creatorHeart = "PocoCreatorHeart"
     static let creatorHeartReceived = "PocoCreatorHeartReceived"
 }

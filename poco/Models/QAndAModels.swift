@@ -24,7 +24,7 @@ nonisolated struct PocoQuestion: Identifiable, Hashable, Codable, Sendable {
     let projectTitle: String?
     let sender: Creator
     let creator: Creator
-    let message: String
+    var message: String
     var answer: String?
     var status: PocoQuestionStatus
     let createdAt: Date

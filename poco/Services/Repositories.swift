@@ -131,6 +131,7 @@ protocol QAndARepository: Sendable {
         projectID: UUID?,
         message: String
     ) async throws -> PocoQuestion
+    nonisolated func updateQuestion(id: UUID, message: String) async throws -> PocoQuestion
     nonisolated func answerQuestion(id: UUID, answer: String) async throws -> PocoQuestion
     nonisolated func withdrawQuestion(id: UUID) async throws -> PocoQuestion
     nonisolated func reportQuestion(
@@ -312,7 +313,7 @@ actor MockProfileRepository: ProfileRepository {
         let values = creators ?? [
             MockData.forestCreator,
             MockData.tetraCreator,
-            MockData.hoshikoCreator
+            MockData.starFanCreator
         ] + Array(MockData.feedbackAuthors.values)
         self.creators = values.reduce(into: [:]) { creatorsByID, creator in
             creatorsByID[creator.id] = creator
@@ -393,11 +394,16 @@ actor MockMemberRewardRepository: MemberRewardRepository {
     nonisolated private static let streakKey = "poco.mockReward.loginStreak"
     nonisolated private static let lastClaimedDayKey = "poco.mockReward.lastClaimedDay"
     nonisolated private static let stampsKey = "poco.mockReward.stamps"
+    nonisolated private static let achievementNotificationsKey =
+        "poco.mockReward.achievementNotifications"
 
     func fetchRewards(signals: AchievementSignals) async throws -> MemberRewardSnapshot {
         var stamps = persistedStamps()
-        stamps.formUnion(unlockedStamps(for: signals))
+        let unlocked = unlockedStamps(for: signals)
+        let newlyUnlocked = unlocked.subtracting(stamps)
+        stamps.formUnion(unlocked)
         persist(stamps)
+        queueNotifications(for: newlyUnlocked)
         return MemberRewardSnapshot(
             loginStreak: UserDefaults.standard.integer(forKey: Self.streakKey),
             lastClaimedDay: UserDefaults.standard.string(forKey: Self.lastClaimedDayKey),
@@ -446,17 +452,21 @@ actor MockMemberRewardRepository: MemberRewardRepository {
         UserDefaults.standard.set(stamps.map(\.rawValue), forKey: Self.stampsKey)
     }
 
+    private func queueNotifications(for stamps: Set<AchievementStamp>) {
+        guard !stamps.isEmpty else { return }
+        let defaults = UserDefaults.standard
+        var queued = Set(
+            defaults.stringArray(forKey: Self.achievementNotificationsKey) ?? []
+        )
+        queued.formUnion(stamps.map(\.rawValue))
+        defaults.set(queued.sorted(), forKey: Self.achievementNotificationsKey)
+    }
+
     private func unlockedStamps(for signals: AchievementSignals) -> Set<AchievementStamp> {
-        var values: Set<AchievementStamp> = []
-        if signals.sentFeedbackCount >= 1 { values.insert(.firstFeedback) }
-        if signals.sentFeedbackCount >= 3 { values.insert(.threeFeedbacks) }
-        if signals.projectCount >= 1 { values.insert(.firstProject) }
-        if signals.likedFeedbackCount >= 1 { values.insert(.firstLike) }
-        if signals.hasCreatorHeart { values.insert(.creatorHeart) }
-        if UserDefaults.standard.integer(forKey: Self.streakKey) >= 7 {
-            values.insert(.sevenDayStreak)
-        }
-        return values
+        let loginStreak = UserDefaults.standard.integer(forKey: Self.streakKey)
+        return Set(AchievementStamp.allCases.filter {
+            $0.isUnlocked(signals: signals, loginStreak: loginStreak)
+        })
     }
 
     nonisolated private static func reward(for streak: Int) -> Int {
@@ -470,31 +480,31 @@ actor MockStarStoreRepository: StarStoreRepository {
         .init(
             id: "background_sakura", kind: .projectBackground,
             title: "さくらミルク", summary: "やさしい桜色で、ことばをふんわり包む背景です。",
-            priceCoins: 80, assetName: nil, appearanceValue: "#FFF2F4",
+            priceCoins: 80, assetName: "ProjectBackgroundSakura", appearanceValue: "#FFF2F4",
             requiresPro: false, sortOrder: 10
         ),
         .init(
             id: "background_lemon", kind: .projectBackground,
             title: "レモンクリーム", summary: "あたたかな光を感じる、淡い黄色の背景です。",
-            priceCoins: 80, assetName: nil, appearanceValue: "#FFF9E8",
+            priceCoins: 80, assetName: "ProjectBackgroundLemon", appearanceValue: "#FFF9E8",
             requiresPro: false, sortOrder: 20
         ),
         .init(
             id: "background_sky", kind: .projectBackground,
             title: "ソーダスカイ", summary: "晴れた空のように、ことばが軽やかに見える背景です。",
-            priceCoins: 80, assetName: nil, appearanceValue: "#EEF8FF",
+            priceCoins: 80, assetName: "ProjectBackgroundSky", appearanceValue: "#EEF8FF",
             requiresPro: false, sortOrder: 30
         ),
         .init(
             id: "background_mint", kind: .projectBackground,
             title: "ミスティミント", summary: "静かで落ち着いた、淡いミント色の背景です。",
-            priceCoins: 80, assetName: nil, appearanceValue: "#EFFAF5",
+            priceCoins: 80, assetName: "ProjectBackgroundMint", appearanceValue: "#EFFAF5",
             requiresPro: false, sortOrder: 40
         ),
         .init(
             id: "background_lavender", kind: .projectBackground,
             title: "ライラックミスト", summary: "少し特別な余韻を添える、淡い紫色の背景です。",
-            priceCoins: 80, assetName: nil, appearanceValue: "#F5F0FF",
+            priceCoins: 80, assetName: "ProjectBackgroundLavender", appearanceValue: "#F5F0FF",
             requiresPro: false, sortOrder: 50
         ),
         .init(
@@ -784,6 +794,13 @@ actor MockQAndARepository: QAndARepository {
               creatorID != currentUserID else {
             throw AppError.invalidInput
         }
+        if let projectID {
+            guard let project = MockData.projects.first(where: { $0.id == projectID }),
+                  project.creator.id == creatorID,
+                  project.acceptsQuestions else {
+                throw AppError.projectQuestionsDisabled
+            }
+        }
         let recentCount = questions.filter {
             $0.sender.id == currentUserID
                 && $0.creator.id == creatorID
@@ -838,6 +855,24 @@ actor MockQAndARepository: QAndARepository {
         questions[index].answer = normalized
         questions[index].status = .answered
         questions[index].answeredAt = .now
+        return questions[index]
+    }
+
+    func updateQuestion(id: UUID, message: String) async throws -> PocoQuestion {
+        expirePendingQuestions()
+        guard let index = questions.firstIndex(where: { $0.id == id }) else {
+            throw AppError.notFound
+        }
+        let normalized = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard questions[index].sender.id == currentUserID else { throw AppError.unauthorized }
+        guard questions[index].effectiveStatus == .pending else {
+            throw AppError.questionUnavailable
+        }
+        guard !normalized.isEmpty,
+              normalized.count <= PocoQuestionLimits.messageLength else {
+            throw AppError.invalidInput
+        }
+        questions[index].message = normalized
         return questions[index]
     }
 

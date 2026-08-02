@@ -1,13 +1,14 @@
 import SwiftUI
+import UIKit
 
 struct ProjectDecorationBackground: View {
     @Environment(PocoStore.self) private var store
     let projectID: UUID
 
     var body: some View {
-        backgroundColor
+        ProjectBackgroundArtwork(item: backgroundItem)
             .overlay {
-                Color.white.opacity(backgroundItem == nil ? 0 : 0.16)
+                Color.white.opacity(backgroundItem == nil ? 0 : 0.1)
             }
             .ignoresSafeArea()
             .accessibilityHidden(true)
@@ -18,8 +19,24 @@ struct ProjectDecorationBackground: View {
         return store.starStoreItem(id: decoration.backgroundItemID)
     }
 
-    private var backgroundColor: Color {
-        backgroundItem?.decorationColor ?? PocoTheme.background
+}
+
+struct ProjectBackgroundArtwork: View {
+    let item: StarStoreItem?
+
+    var body: some View {
+        Group {
+            if let imageName = item?.artworkAssetName,
+               UIImage(named: imageName) != nil {
+                Image(imageName)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                item?.decorationColor ?? PocoTheme.background
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
     }
 }
 

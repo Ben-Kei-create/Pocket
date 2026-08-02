@@ -194,7 +194,6 @@ final class SupabaseFeedbackRepository: FeedbackRepository, Sendable {
         guard await currentUserProvider.currentUserID() != nil else {
             throw AppError.unauthorized
         }
-        let publishesProfile = await currentUserProvider.accountStatus() == .registered
         do {
             try await client
                 .rpc(
@@ -206,7 +205,7 @@ final class SupabaseFeedbackRepository: FeedbackRepository, Sendable {
                         message: feedback.message,
                         isPublic: feedback.isPublic,
                         bubbleColor: feedback.bubbleColor.rawValue,
-                        publishesProfile: publishesProfile
+                        publishesProfile: feedback.publishesProfile
                     )
                 )
                 .execute()
@@ -631,6 +630,13 @@ final class SupabaseQAndARepository: QAndARepository, Sendable {
         try await mutate(
             function: "answer_question",
             parameters: AnswerQuestionParameters(questionID: id, answer: answer)
+        )
+    }
+
+    nonisolated func updateQuestion(id: UUID, message: String) async throws -> PocoQuestion {
+        try await mutate(
+            function: "update_question",
+            parameters: UpdateQuestionParameters(questionID: id, message: message)
         )
     }
 

@@ -3,6 +3,7 @@ import UIKit
 
 struct MemberRewardCenterView: View {
     @Environment(PocoStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isClaiming = false
     @State private var awardedCoins: Int?
@@ -13,11 +14,7 @@ struct MemberRewardCenterView: View {
         ScrollView {
             VStack(spacing: 22) {
                 VStack(spacing: 7) {
-                    PocoCharacterView(
-                        size: 132,
-                        expression: .star,
-                        isInteractive: false
-                    )
+                    rewardArtwork
                     Text("おかえりなさい")
                         .pocoFont(.title2, weight: .bold)
                     Text("毎日ひらくと、小さなごほうびが届きます。")
@@ -29,7 +26,11 @@ struct MemberRewardCenterView: View {
                 loginCalendar
 
                 Button {
-                    claim()
+                    if awardedCoins != nil {
+                        dismiss()
+                    } else {
+                        claim()
+                    }
                 } label: {
                     if isClaiming {
                         ProgressView().tint(.white)
@@ -44,10 +45,13 @@ struct MemberRewardCenterView: View {
                 .buttonStyle(PocoPrimaryButtonStyle())
                 .disabled(
                     isClaiming
-                        || awardedCoins != nil
-                        || !store.memberRewardSnapshot.canClaimToday
+                        || (awardedCoins == nil && !store.memberRewardSnapshot.canClaimToday)
                 )
-                .accessibilityHint("今日のログインボーナスをスターコインで受け取ります")
+                .accessibilityHint(
+                    awardedCoins == nil
+                        ? "今日のログインボーナスをスターコインで受け取ります"
+                        : "ログインボーナス画面を閉じます"
+                )
 
             }
             .padding(PocoTheme.pagePadding)
@@ -83,8 +87,17 @@ struct MemberRewardCenterView: View {
                         Text("\(index + 1)")
                             .pocoFont(.caption2, weight: .medium)
                             .foregroundStyle(PocoTheme.secondaryText)
-                        Image(systemName: isCompleted ? "checkmark.circle.fill" : "star.fill")
-                            .foregroundStyle(isCompleted ? PocoTheme.primary : Color.yellow)
+                        Group {
+                            if isCompleted {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(PocoTheme.primary)
+                            } else {
+                                Image(PocoArtwork.starCoin)
+                                    .resizable()
+                                    .scaledToFit()
+                            }
+                        }
+                            .frame(width: 22, height: 22)
                         Text("\(dailyRewards[index])")
                             .pocoFont(.caption2, weight: .bold).monospacedDigit()
                     }
@@ -116,6 +129,28 @@ struct MemberRewardCenterView: View {
         guard store.memberRewardSnapshot.loginStreak > 0 else { return [] }
         let completed = ((store.memberRewardSnapshot.loginStreak - 1) % dailyRewards.count) + 1
         return Set(0..<completed)
+    }
+
+    @ViewBuilder
+    private var rewardArtwork: some View {
+        if let awardedCoins {
+            Image(
+                awardedCoins >= 15
+                    ? PocoArtwork.starCoinBurst
+                    : PocoArtwork.starCoinEarned
+            )
+            .resizable()
+            .scaledToFit()
+            .frame(width: 132, height: 132)
+            .transition(.scale.combined(with: .opacity))
+            .accessibilityLabel("スターを\(awardedCoins)個受け取りました")
+        } else {
+            PocoCharacterView(
+                size: 132,
+                expression: .star,
+                isInteractive: false
+            )
+        }
     }
 
     private func claim() {
@@ -161,12 +196,25 @@ struct AchievementStampsView: View {
         let isUnlocked = store.memberRewardSnapshot.unlockedStamps.contains(stamp)
         return VStack(spacing: 11) {
             ZStack {
-                Image(stamp.artworkAssetName)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 88, height: 88)
-                    .saturation(isUnlocked ? 1 : 0)
-                    .opacity(isUnlocked ? 1 : 0.28)
+                Group {
+                    if UIImage(named: stamp.artworkAssetName) != nil {
+                        Image(stamp.artworkAssetName)
+                            .resizable()
+                            .scaledToFit()
+                    } else {
+                        Image(systemName: stamp.symbolName)
+                            .font(.system(size: 38, weight: .medium))
+                            .foregroundStyle(PocoTheme.bubble(stamp.color))
+                            .padding(20)
+                            .background(
+                                PocoTheme.bubble(stamp.color).opacity(0.2),
+                                in: Circle()
+                            )
+                    }
+                }
+                .frame(width: 88, height: 88)
+                .saturation(isUnlocked ? 1 : 0)
+                .opacity(isUnlocked ? 1 : 0.28)
 
                 if !isUnlocked {
                     Image(systemName: "lock.fill")

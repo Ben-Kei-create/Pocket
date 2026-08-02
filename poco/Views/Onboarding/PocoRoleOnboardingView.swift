@@ -20,7 +20,7 @@ struct PocoRoleOnboardingView: View {
                 PocoOnboardingPage(
                     character: .letter,
                     title: "「作る」から作品の箱をつくれます",
-                    message: "作品を登録すると、専用QRコードとリンクができます。無料ユーザーは3作品まで作成できます。",
+                    message: "作品を登録すると、専用QRコードとリンクができます。Pocoユーザーは3作品、スターで最大5作品まで作成できます。",
                     footnote: "作る → 新しい作品 → QRを共有"
                 ),
                 PocoOnboardingPage(
@@ -35,7 +35,7 @@ struct PocoRoleOnboardingView: View {
                 PocoOnboardingPage(
                     character: .heart,
                     title: "反響を、もっと近くに",
-                    message: "共感が集まったフキダシと、自分の作品・感想へ届いた反応を確認できます。",
+                    message: "共感が集まったフキダシと、作品ごとの反響や傾向を詳しく確認できます。",
                     footnote: "数字よりも、ことばが届いた実感を大切にします"
                 ),
                 PocoOnboardingPage(

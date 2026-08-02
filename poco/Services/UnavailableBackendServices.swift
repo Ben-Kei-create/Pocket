@@ -93,6 +93,7 @@ nonisolated struct UnavailableBackendServices: ProjectRepository,
         projectID: UUID?,
         message: String
     ) async throws -> PocoQuestion { throw error }
+    func updateQuestion(id: UUID, message: String) async throws -> PocoQuestion { throw error }
     func answerQuestion(id: UUID, answer: String) async throws -> PocoQuestion { throw error }
     func withdrawQuestion(id: UUID) async throws -> PocoQuestion { throw error }
     func reportQuestion(

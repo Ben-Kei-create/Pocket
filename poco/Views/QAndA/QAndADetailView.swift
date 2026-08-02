@@ -7,6 +7,7 @@ struct QAndADetailView: View {
 
     @State private var answer = ""
     @State private var isSubmitting = false
+    @State private var showsEditQuestion = false
     @State private var showsReport = false
     @State private var showsWithdrawConfirmation = false
     @State private var showsBlockConfirmation = false
@@ -45,6 +46,12 @@ struct QAndADetailView: View {
                 .sheet(isPresented: $showsReport) {
                     QAndAReportSheet(questionID: question.id)
                 }
+                .sheet(isPresented: $showsEditQuestion) {
+                    QAndAEditSheet(
+                        questionID: question.id,
+                        initialMessage: question.message
+                    )
+                }
                 .confirmationDialog(
                     "質問を取り下げますか？",
                     isPresented: $showsWithdrawConfirmation,
@@ -72,6 +79,11 @@ struct QAndADetailView: View {
     private var actionMenu: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             Menu {
+                if let question, canEdit(question) {
+                    Button("質問を編集", systemImage: "pencil") {
+                        showsEditQuestion = true
+                    }
+                }
                 Button("通報", systemImage: "exclamationmark.bubble") {
                     showsReport = true
                 }
@@ -185,6 +197,10 @@ struct QAndADetailView: View {
         question.isSent(by: store.currentUserID) && question.effectiveStatus == .pending
     }
 
+    private func canEdit(_ question: PocoQuestion) -> Bool {
+        question.isSent(by: store.currentUserID) && question.effectiveStatus == .pending
+    }
+
     private func submitAnswer(_ question: PocoQuestion) {
         guard !isSubmitting else { return }
         isSubmitting = true
@@ -204,6 +220,75 @@ struct QAndADetailView: View {
             if case .success = await store.block(creator) {
                 dismiss()
             }
+        }
+    }
+}
+
+private struct QAndAEditSheet: View {
+    @Environment(PocoStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    let questionID: UUID
+    let initialMessage: String
+
+    @State private var message: String
+    @State private var isSubmitting = false
+
+    init(questionID: UUID, initialMessage: String) {
+        self.questionID = questionID
+        self.initialMessage = initialMessage
+        _message = State(initialValue: initialMessage)
+    }
+
+    private var normalizedMessage: String {
+        message.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canSave: Bool {
+        !isSubmitting
+            && !normalizedMessage.isEmpty
+            && normalizedMessage != initialMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextEditor(text: $message)
+                        .frame(minHeight: 180)
+                        .onChange(of: message) { _, value in
+                            if value.count > PocoQuestionLimits.messageLength {
+                                message = String(value.prefix(PocoQuestionLimits.messageLength))
+                            }
+                        }
+
+                    Text("\(message.count)/\(PocoQuestionLimits.messageLength)")
+                        .pocoFont(.caption)
+                        .foregroundStyle(PocoTheme.secondaryText)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+            }
+            .navigationTitle("質問を編集")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("キャンセル", action: dismiss.callAsFunction)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("保存") { save() }
+                        .disabled(!canSave)
+                }
+            }
+            .interactiveDismissDisabled(isSubmitting)
+        }
+    }
+
+    private func save() {
+        guard canSave else { return }
+        isSubmitting = true
+        Task {
+            let result = await store.updateQuestion(id: questionID, message: normalizedMessage)
+            isSubmitting = false
+            if case .success = result { dismiss() }
         }
     }
 }

@@ -29,9 +29,8 @@ struct ProjectCustomizationView: View {
         )
     }
 
-    private var previewColor: Color {
-        store.starStoreItem(id: decoration.backgroundItemID)?.decorationColor
-            ?? PocoTheme.background
+    private var previewBackgroundItem: StarStoreItem? {
+        store.starStoreItem(id: decoration.backgroundItemID)
     }
 
     var body: some View {
@@ -101,8 +100,10 @@ struct ProjectCustomizationView: View {
             }
 
             ZStack {
-                RoundedRectangle(cornerRadius: PocoTheme.cornerLarge, style: .continuous)
-                    .fill(previewColor)
+                ProjectBackgroundArtwork(item: previewBackgroundItem)
+                    .clipShape(
+                        RoundedRectangle(cornerRadius: PocoTheme.cornerLarge, style: .continuous)
+                    )
 
                 VStack(spacing: 14) {
                     Text(project.title)
@@ -168,9 +169,9 @@ struct ProjectCustomizationView: View {
             updateBackground(item?.id)
         } label: {
             VStack(spacing: 7) {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(item?.decorationColor ?? PocoTheme.background)
+                ProjectBackgroundArtwork(item: item)
                     .frame(width: 76, height: 62)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .overlay {
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .stroke(

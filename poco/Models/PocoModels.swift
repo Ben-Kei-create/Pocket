@@ -206,6 +206,9 @@ nonisolated struct Project: Identifiable, Hashable, Codable, Sendable {
     let id: UUID
     var title: String
     var creator: Creator
+    /// The name credited on the work. `creator` is always the Poco account
+    /// that owns this feedback box, which may be a different person.
+    var authorName: String? = nil
     var category: ProjectCategory
     var description: String
     var imageName: String?
@@ -218,6 +221,12 @@ nonisolated struct Project: Identifiable, Hashable, Codable, Sendable {
     var verificationStatus: ProjectVerificationStatus = .unverified
     var contentRating: ProjectContentRating = .general
     var isContentLocked: Bool = false
+    var acceptsQuestions: Bool = false
+
+    var creditedAuthorName: String {
+        let trimmed = authorName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? creator.name : trimmed
+    }
 }
 
 nonisolated enum ProjectContentRating: String, CaseIterable, Identifiable, Codable, Sendable {
@@ -384,6 +393,7 @@ nonisolated struct Feedback: Identifiable, Hashable, Codable, Sendable {
     var senderAvatarName: String? = nil
     var senderAvatarURL: URL? = nil
     var senderHandle: String? = nil
+    var publishesProfile: Bool = true
     var creatorReceivedAt: Date? = nil
     var expiresAt: Date? = nil
 
@@ -447,7 +457,7 @@ nonisolated struct RightsHolderRequest: Sendable {
 
 nonisolated extension Feedback {
     var senderCreator: Creator? {
-        guard let senderID else { return nil }
+        guard publishesProfile, let senderID else { return nil }
         return Creator(
             id: senderID,
             name: nickname,
@@ -456,6 +466,17 @@ nonisolated extension Feedback {
             handle: senderHandle
         )
     }
+}
+
+nonisolated struct FeedbackDraft: Identifiable, Hashable, Codable, Sendable {
+    var id: UUID { projectID }
+    let projectID: UUID
+    var message: String
+    var nickname: String
+    var isPublic: Bool
+    var publishesProfile: Bool
+    var updatedAt: Date
+    let ownerKey: String
 }
 
 nonisolated enum MembershipTier: String, Codable, Sendable {
@@ -509,7 +530,7 @@ nonisolated struct AppCapabilities: Equatable, Sendable {
                 canCreateProject: true,
                 maximumProjectCount: 3,
                 canSeePopularFeedbacks: false,
-                canSeeOwnReactionCounts: false,
+                canSeeOwnReactionCounts: true,
                 canUseProReactions: false,
                 canUseCompanionEvolution: false,
                 canUseCodeProtectedProjects: false,

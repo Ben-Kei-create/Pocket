@@ -14,6 +14,7 @@ struct CreateProjectView: View {
     @State private var contentRating: ProjectContentRating
     @State private var relationship: ProjectRelationship
     @State private var purpose: ProjectPurpose
+    @State private var acceptsQuestions: Bool
     @State private var projectDescription: String
     @State private var externalURLText: String
     @State private var isPhotoPickerPresented = false
@@ -34,11 +35,12 @@ struct CreateProjectView: View {
         self.project = project
         self.onProjectLimitReached = onProjectLimitReached
         _title = State(initialValue: project?.title ?? "")
-        _creatorName = State(initialValue: project?.creator.name ?? "")
+        _creatorName = State(initialValue: project?.creditedAuthorName ?? "")
         _category = State(initialValue: project?.category ?? .book)
         _contentRating = State(initialValue: project?.contentRating ?? .general)
         _relationship = State(initialValue: project?.relationship ?? .creator)
         _purpose = State(initialValue: project?.purpose ?? .standard)
+        _acceptsQuestions = State(initialValue: project?.acceptsQuestions ?? false)
         _projectDescription = State(initialValue: project?.description ?? "")
         _externalURLText = State(initialValue: project?.externalURL?.absoluteString ?? "")
         _hasAgreedToPublishingRules = State(initialValue: project != nil)
@@ -81,7 +83,7 @@ struct CreateProjectView: View {
                 } header: {
                     Text("この作品との関係")
                 } footer: {
-                    Text("権利者との関係を選びます。本人確認が済むまでは「未確認」と表示されます。")
+                    Text("権利者との関係を選びます。確認状況は作品ページ下部に表示されます。")
                 }
 
                 Section {
@@ -100,7 +102,15 @@ struct CreateProjectView: View {
                 } header: {
                     Text("このページの使い方")
                 } footer: {
-                    Text("「制作者本人＋イベント・頒布用」のように、作品との関係とは別に選べます。")
+                    Text("作品との関係とは別に、公開方法を選びます。")
+                }
+
+                Section {
+                    Toggle("Q&Aを受け取る", isOn: $acceptsQuestions)
+                } header: {
+                    Text("Q&A")
+                } footer: {
+                    Text(qAndAFooter)
                 }
 
                 Section("作品画像") {
@@ -169,7 +179,7 @@ struct CreateProjectView: View {
 
                 Section("作品情報") {
                     TextField("作品名", text: $title)
-                    TextField("作者名・クリエイター名", text: $creatorName)
+                    TextField("作品の作者名・制作名義", text: $creatorName)
                     Picker("カテゴリ", selection: $category) {
                         ForEach(ProjectCategory.allCases) { category in
                             Label(category.title, systemImage: category.symbolName)
@@ -296,6 +306,11 @@ struct CreateProjectView: View {
                     removesExistingImage = false
                 }
             }
+            .onChange(of: relationship) { oldValue, newValue in
+                if oldValue != .fan, newValue == .fan {
+                    acceptsQuestions = false
+                }
+            }
             .alert(
                 "作品を保存できませんでした",
                 isPresented: Binding(
@@ -331,6 +346,7 @@ struct CreateProjectView: View {
                     relationship: relationship,
                     purpose: purpose,
                     contentRating: contentRating,
+                    acceptsQuestions: acceptsQuestions,
                     description: cleanDescription,
                     externalURL: externalURL,
                     imageData: selectedImageData,
@@ -344,6 +360,7 @@ struct CreateProjectView: View {
                     relationship: relationship,
                     purpose: purpose,
                     contentRating: contentRating,
+                    acceptsQuestions: acceptsQuestions,
                     description: cleanDescription,
                     externalURL: externalURL,
                     imageData: selectedImageData
@@ -360,6 +377,17 @@ struct CreateProjectView: View {
                     saveErrorMessage = error.userMessage
                 }
             }
+        }
+    }
+
+    private var qAndAFooter: String {
+        switch relationship {
+        case .creator:
+            "この作品についての質問が届きます。"
+        case .authorized:
+            "質問に答えられる場合のみオンにします。"
+        case .fan:
+            "著作者ではなく、感想箱の作成者として質問を受け取ります。"
         }
     }
 }

@@ -21,7 +21,7 @@ struct PocoMembershipView: View {
 
                     VStack(spacing: 12) {
                         benefit("共感が集まったフキダシがわかる", symbol: "heart.text.square")
-                        benefit("自分の作品・感想へ届いた反応を確認", symbol: "chart.bar.xaxis")
+                        benefit("作品の反響と傾向を詳しく確認", symbol: "chart.bar.xaxis")
                         benefit("作品のハコを最大30件まで作れる", symbol: "shippingbox.fill")
                         benefit("同じ顔ぷよの合体とレア誕生", symbol: "sparkles")
                         benefit("活動で受け取るスターが2倍", symbol: "star.circle.fill")

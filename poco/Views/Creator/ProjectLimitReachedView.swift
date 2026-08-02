@@ -12,12 +12,7 @@ struct ProjectLimitReachedView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 24) {
-                Image(systemName: store.role == .pro ? "shippingbox.fill" : "sparkles")
-                    .font(.system(size: 36, weight: .semibold))
-                    .foregroundStyle(PocoTheme.primary)
-                    .frame(width: 88, height: 88)
-                    .background(PocoTheme.bubble(.yellow).opacity(0.8), in: Circle())
-                    .accessibilityHidden(true)
+                limitArtwork
 
                 Text(title)
                     .pocoFont(.title2, weight: .bold)
@@ -123,6 +118,24 @@ struct ProjectLimitReachedView: View {
             return "新しい作品を作れます"
         }
         return "無料プランの\(store.maximumProjectCount)作品まで登録済みです"
+    }
+
+    @ViewBuilder
+    private var limitArtwork: some View {
+        if store.role == .user {
+            Image(PocoArtwork.starCoinBundle)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 96, height: 96)
+                .accessibilityHidden(true)
+        } else {
+            Image(systemName: "shippingbox.fill")
+                .font(.system(size: 36, weight: .semibold))
+                .foregroundStyle(PocoTheme.primary)
+                .frame(width: 88, height: 88)
+                .background(PocoTheme.bubble(.yellow).opacity(0.8), in: Circle())
+                .accessibilityHidden(true)
+        }
     }
 
     @ViewBuilder

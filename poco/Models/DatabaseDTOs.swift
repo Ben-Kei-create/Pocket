@@ -79,6 +79,7 @@ nonisolated struct ProjectDTO: Codable, Sendable {
     let creatorID: UUID
     let title: String
     let creatorName: String
+    let authorName: String
     let category: String
     let description: String
     let imageURL: String?
@@ -91,12 +92,14 @@ nonisolated struct ProjectDTO: Codable, Sendable {
     let contentRating: String
     let publishingRulesVersion: Int
     let publishingRulesAcceptedAt: Date
+    let acceptsQuestions: Bool
 
     enum CodingKeys: String, CodingKey {
         case id
         case creatorID = "creator_id"
         case title
         case creatorName = "creator_name"
+        case authorName = "author_name"
         case category
         case description
         case imageURL = "image_url"
@@ -109,6 +112,7 @@ nonisolated struct ProjectDTO: Codable, Sendable {
         case contentRating = "content_rating"
         case publishingRulesVersion = "publishing_rules_version"
         case publishingRulesAcceptedAt = "publishing_rules_accepted_at"
+        case acceptsQuestions = "accepts_questions"
     }
 
     init(project: Project, isPublished: Bool = true) {
@@ -116,6 +120,7 @@ nonisolated struct ProjectDTO: Codable, Sendable {
         creatorID = project.creator.id
         title = project.title
         creatorName = project.creator.name
+        authorName = project.creditedAuthorName
         category = project.category.rawValue
         description = project.description
         imageURL = project.imageURL?.absoluteString
@@ -128,6 +133,7 @@ nonisolated struct ProjectDTO: Codable, Sendable {
         contentRating = project.contentRating.rawValue
         publishingRulesVersion = PocoPublishingRules.currentVersion
         publishingRulesAcceptedAt = project.createdAt
+        acceptsQuestions = project.acceptsQuestions
     }
 }
 
@@ -136,6 +142,7 @@ nonisolated struct ProjectQueryDTO: Codable, Sendable {
     let creatorID: UUID
     let title: String
     let creatorName: String
+    let authorName: String?
     let category: String
     let description: String
     let imageURL: String?
@@ -151,12 +158,14 @@ nonisolated struct ProjectQueryDTO: Codable, Sendable {
     let verificationStatus: String?
     let contentRating: String?
     let isContentLocked: Bool?
+    let acceptsQuestions: Bool?
 
     enum CodingKeys: String, CodingKey {
         case id
         case creatorID = "creator_id"
         case title
         case creatorName = "creator_name"
+        case authorName = "author_name"
         case category
         case description
         case imageURL = "image_url"
@@ -172,6 +181,7 @@ nonisolated struct ProjectQueryDTO: Codable, Sendable {
         case verificationStatus = "verification_status"
         case contentRating = "content_rating"
         case isContentLocked = "is_content_locked"
+        case acceptsQuestions = "accepts_questions"
     }
 
     var domainModel: Project {
@@ -186,6 +196,7 @@ nonisolated struct ProjectQueryDTO: Codable, Sendable {
                 avatarURL: creatorAvatarURL.flatMap(URL.init(string:)),
                 handle: creatorHandle
             ),
+            authorName: authorName ?? creatorName,
             category: ProjectCategory(rawValue: category) ?? .other,
             description: description,
             imageName: nil,
@@ -201,14 +212,15 @@ nonisolated struct ProjectQueryDTO: Codable, Sendable {
                 : purpose.flatMap(ProjectPurpose.init(rawValue:)) ?? .standard,
             verificationStatus: verificationStatus.flatMap(ProjectVerificationStatus.init(rawValue:)) ?? .unverified,
             contentRating: contentRating.flatMap(ProjectContentRating.init(rawValue:)) ?? .general,
-            isContentLocked: isContentLocked ?? false
+            isContentLocked: isContentLocked ?? false,
+            acceptsQuestions: acceptsQuestions ?? false
         )
     }
 }
 
 nonisolated struct ProjectUpdateDTO: Encodable, Sendable {
     let title: String
-    let creatorName: String
+    let authorName: String
     let category: String
     let description: String
     let imageURL: String?
@@ -216,10 +228,11 @@ nonisolated struct ProjectUpdateDTO: Encodable, Sendable {
     let relationship: String
     let purpose: String
     let contentRating: String
+    let acceptsQuestions: Bool
 
     enum CodingKeys: String, CodingKey {
         case title
-        case creatorName = "creator_name"
+        case authorName = "author_name"
         case category
         case description
         case imageURL = "image_url"
@@ -227,11 +240,12 @@ nonisolated struct ProjectUpdateDTO: Encodable, Sendable {
         case relationship
         case purpose
         case contentRating = "content_rating"
+        case acceptsQuestions = "accepts_questions"
     }
 
     init(project: Project) {
         title = project.title
-        creatorName = project.creator.name
+        authorName = project.creditedAuthorName
         category = project.category.rawValue
         description = project.description
         imageURL = project.imageURL?.absoluteString
@@ -239,12 +253,13 @@ nonisolated struct ProjectUpdateDTO: Encodable, Sendable {
         relationship = project.relationship.rawValue
         purpose = project.purpose.rawValue
         contentRating = project.contentRating.rawValue
+        acceptsQuestions = project.acceptsQuestions
     }
 
     func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(title, forKey: .title)
-        try container.encode(creatorName, forKey: .creatorName)
+        try container.encode(authorName, forKey: .authorName)
         try container.encode(category, forKey: .category)
         try container.encode(description, forKey: .description)
         if let imageURL {
@@ -260,6 +275,7 @@ nonisolated struct ProjectUpdateDTO: Encodable, Sendable {
         try container.encode(relationship, forKey: .relationship)
         try container.encode(purpose, forKey: .purpose)
         try container.encode(contentRating, forKey: .contentRating)
+        try container.encode(acceptsQuestions, forKey: .acceptsQuestions)
     }
 }
 
@@ -319,6 +335,7 @@ nonisolated struct FeedbackDTO: Codable, Sendable {
             likes: likesCount,
             bubbleColor: BubbleColor(rawValue: bubbleColor) ?? .coral,
             senderID: authorProfileID,
+            publishesProfile: authorProfileID != nil,
             expiresAt: expiresAt
         )
     }
@@ -533,6 +550,16 @@ nonisolated struct AnswerQuestionParameters: Encodable, Sendable {
     enum CodingKeys: String, CodingKey {
         case questionID = "p_question_id"
         case answer = "p_answer"
+    }
+}
+
+nonisolated struct UpdateQuestionParameters: Encodable, Sendable {
+    let questionID: UUID
+    let message: String
+
+    enum CodingKeys: String, CodingKey {
+        case questionID = "p_question_id"
+        case message = "p_message"
     }
 }
 

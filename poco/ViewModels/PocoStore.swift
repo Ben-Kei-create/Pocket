@@ -9,6 +9,7 @@ final class PocoStore {
     private(set) var notifications: [PocoNotification] = []
     private(set) var announcements: [AppAnnouncement] = []
     private(set) var questions: [PocoQuestion] = []
+    private(set) var feedbackDrafts: [FeedbackDraft] = []
     var selectedTab = AppTab.home
     var homePath: [UUID] = []
     private(set) var isResolvingDeepLink = false
@@ -75,6 +76,7 @@ final class PocoStore {
     private static let starCoinBalanceKey = "poco.starCoinBalance"
     private static let starCoinWalletRevisionKey = "poco.starCoinWalletRevision"
     private static let rewardedCoinEventsKey = "poco.rewardedCoinEvents"
+    private static let feedbackDraftsKey = "poco.feedbackDrafts"
 
     init(
         projectRepository: (any ProjectRepository)? = nil,
@@ -129,6 +131,10 @@ final class PocoStore {
         rewardedCoinEventKeys = Set(
             UserDefaults.standard.stringArray(forKey: Self.rewardedCoinEventsKey) ?? []
         )
+        if let data = UserDefaults.standard.data(forKey: Self.feedbackDraftsKey),
+           let drafts = try? JSONDecoder().decode([FeedbackDraft].self, from: data) {
+            feedbackDrafts = drafts
+        }
     }
 
     func load() async {
@@ -313,6 +319,17 @@ final class PocoStore {
     func answerQuestion(id: UUID, answer: String) async -> Result<Void, AppError> {
         do {
             mergeQuestion(try await qAndARepository.answerQuestion(id: id, answer: answer))
+            return .success(())
+        } catch {
+            let appError = map(error)
+            errorMessage = appError.userMessage
+            return .failure(appError)
+        }
+    }
+
+    func updateQuestion(id: UUID, message: String) async -> Result<Void, AppError> {
+        do {
+            mergeQuestion(try await qAndARepository.updateQuestion(id: id, message: message))
             return .success(())
         } catch {
             let appError = map(error)
@@ -689,7 +706,7 @@ final class PocoStore {
 
     func submit(_ feedback: Feedback) async -> Result<Void, AppError> {
         var feedback = feedback
-        if feedback.senderID == nil, canCreateProjects {
+        if feedback.senderID == nil, canCreateProjects, feedback.publishesProfile {
             feedback.senderID = currentUserID
         }
         if let senderID = feedback.senderID,
@@ -719,12 +736,70 @@ final class PocoStore {
             claimStarCoinReward(
                 eventKey: "feedback-delivered:\(feedback.id.uuidString)"
             )
+            refreshAchievementProgressInBackground()
             return .success(())
         } catch {
             let appError = map(error)
             errorMessage = "送信できませんでした。もう一度試してください。"
             return .failure(appError)
         }
+    }
+
+    var currentFeedbackDrafts: [FeedbackDraft] {
+        feedbackDrafts
+            .filter { $0.ownerKey == feedbackDraftOwnerKey }
+            .sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    func feedbackDraft(for projectID: UUID) -> FeedbackDraft? {
+        currentFeedbackDrafts.first { $0.projectID == projectID }
+    }
+
+    func saveFeedbackDraft(
+        projectID: UUID,
+        message: String,
+        nickname: String,
+        isPublic: Bool,
+        publishesProfile: Bool
+    ) {
+        let trimmedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedMessage.isEmpty else {
+            discardFeedbackDraft(for: projectID)
+            return
+        }
+        let draft = FeedbackDraft(
+            projectID: projectID,
+            message: message,
+            nickname: nickname,
+            isPublic: isPublic,
+            publishesProfile: publishesProfile,
+            updatedAt: .now,
+            ownerKey: feedbackDraftOwnerKey
+        )
+        feedbackDrafts.removeAll {
+            $0.projectID == projectID && $0.ownerKey == feedbackDraftOwnerKey
+        }
+        feedbackDrafts.append(draft)
+        persistFeedbackDrafts()
+    }
+
+    func discardFeedbackDraft(for projectID: UUID) {
+        let priorCount = feedbackDrafts.count
+        feedbackDrafts.removeAll {
+            $0.projectID == projectID && $0.ownerKey == feedbackDraftOwnerKey
+        }
+        if priorCount != feedbackDrafts.count {
+            persistFeedbackDrafts()
+        }
+    }
+
+    private var feedbackDraftOwnerKey: String {
+        currentUserID?.uuidString ?? "local-guest"
+    }
+
+    private func persistFeedbackDrafts() {
+        guard let data = try? JSONEncoder().encode(feedbackDrafts) else { return }
+        UserDefaults.standard.set(data, forKey: Self.feedbackDraftsKey)
     }
 
     func like(_ feedback: Feedback) async {
@@ -750,6 +825,7 @@ final class PocoStore {
                 }
                 applyCreatorReceipts([feedback.id: receivedAt])
             }
+            refreshAchievementProgressInBackground()
         } catch AppError.alreadyLiked {
             // The backend unique constraint is the source of truth. Keep the
             // button selected without incrementing the displayed count again.
@@ -823,10 +899,27 @@ final class PocoStore {
     private var achievementSignals: AchievementSignals {
         AchievementSignals(
             sentFeedbackCount: sentFeedbacks.count,
+            longestFeedbackStreak: PocoCalendar.longestConsecutiveDayStreak(
+                sentFeedbacks.map(\.createdAt)
+            ),
+            uniqueProjectCount: Set(sentFeedbacks.map(\.projectID)).count,
             projectCount: currentUserProjects.count,
             likedFeedbackCount: likedFeedbackIDs.count,
-            hasCreatorHeart: sentFeedbacks.contains { $0.creatorReceivedAt != nil }
+            receivedLikeCount: sentFeedbacks.reduce(0) { $0 + $1.likes },
+            creatorHeartCount: sentFeedbacks.filter { $0.creatorReceivedAt != nil }.count
         )
+    }
+
+    /// Achievement evaluation never delays the action that earned it. The
+    /// server remains authoritative, then the inbox is refreshed so the newly
+    /// unlocked stamp appears as a notification in the same session.
+    private func refreshAchievementProgressInBackground() {
+        guard accountStatus == .registered else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            await self.loadMemberRewards()
+            await self.loadNotifications()
+        }
     }
 
     private func persistStarCoinBalance() {
@@ -912,7 +1005,7 @@ final class PocoStore {
         guard feedback.creatorReceivedAt == nil,
               let currentUserID,
               let project = project(id: feedback.projectID) else { return false }
-        return project.creator.id == currentUserID
+        return project.creator.id == currentUserID && project.relationship == .creator
     }
 
     func owns(_ feedback: Feedback) -> Bool {
@@ -1411,6 +1504,7 @@ final class PocoStore {
         relationship: ProjectRelationship,
         purpose: ProjectPurpose,
         contentRating: ProjectContentRating,
+        acceptsQuestions: Bool,
         description: String,
         externalURL: URL?,
         imageData: Data?
@@ -1438,7 +1532,9 @@ final class PocoStore {
         do {
             let creator = Creator(
                 id: creatorID,
-                name: creatorName,
+                name: currentProfile?.id == creatorID
+                    ? currentProfile?.name ?? currentDisplayName
+                    : currentDisplayName,
                 avatarName: currentProfile?.id == creatorID ? currentProfile?.avatarName : nil,
                 avatarURL: currentProfile?.id == creatorID ? currentProfile?.avatarURL : nil,
                 handle: currentProfile?.id == creatorID ? currentProfile?.handle : nil
@@ -1447,6 +1543,7 @@ final class PocoStore {
                 id: projectID,
                 title: title,
                 creator: creator,
+                authorName: creatorName,
                 category: category,
                 description: description,
                 imageName: nil,
@@ -1457,7 +1554,8 @@ final class PocoStore {
                 relationship: relationship,
                 purpose: purpose,
                 verificationStatus: .unverified,
-                contentRating: contentRating
+                contentRating: contentRating,
+                acceptsQuestions: acceptsQuestions
             )
 
             // The database row is created first so Storage RLS can verify that
@@ -1480,6 +1578,7 @@ final class PocoStore {
             }
 
             projects.insert(project, at: 0)
+            refreshAchievementProgressInBackground()
             return .success(project)
         } catch {
             if let imageURL, let projectImageStorage {
@@ -1502,6 +1601,7 @@ final class PocoStore {
         relationship: ProjectRelationship,
         purpose: ProjectPurpose,
         contentRating: ProjectContentRating,
+        acceptsQuestions: Bool,
         description: String,
         externalURL: URL?,
         imageData: Data?,
@@ -1532,7 +1632,7 @@ final class PocoStore {
 
             var updatedProject = existingProject
             updatedProject.title = title
-            updatedProject.creator.name = creatorName
+            updatedProject.authorName = creatorName
             updatedProject.category = category
             updatedProject.description = description
             updatedProject.externalURL = externalURL
@@ -1542,6 +1642,7 @@ final class PocoStore {
                 ? existingProject.verificationStatus
                 : .unverified
             updatedProject.contentRating = contentRating
+            updatedProject.acceptsQuestions = acceptsQuestions
             updatedProject.isContentLocked = false
             if let uploadedImageURL {
                 updatedProject.imageURL = uploadedImageURL

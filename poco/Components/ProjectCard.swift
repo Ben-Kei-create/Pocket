@@ -10,19 +10,8 @@ struct ProjectCard: View {
                 .clipShape(RoundedRectangle(cornerRadius: PocoTheme.cornerSmall, style: .continuous))
 
             VStack(alignment: .leading, spacing: 7) {
-                ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 5) {
-                        ProjectRelationshipBadge(project: project, compact: true)
-                        if project.purpose == .event {
-                            ProjectPurposeBadge(purpose: project.purpose, compact: true)
-                        }
-                    }
-                    VStack(alignment: .leading, spacing: 4) {
-                        ProjectRelationshipBadge(project: project, compact: true)
-                        if project.purpose == .event {
-                            ProjectPurposeBadge(purpose: project.purpose, compact: true)
-                        }
-                    }
+                if project.purpose == .event {
+                    ProjectPurposeBadge(purpose: project.purpose, compact: true)
                 }
 
                 if project.isContentLocked {
@@ -36,7 +25,7 @@ struct ProjectCard: View {
                     .foregroundStyle(.primary)
                     .lineLimit(2)
 
-                Text("\(project.category.creatorPrefix)：\(project.creator.name)")
+                Text("\(project.category.creatorPrefix)：\(project.creditedAuthorName)")
                     .pocoFont(.caption)
                     .foregroundStyle(PocoTheme.secondaryText)
                     .lineLimit(1)
@@ -67,7 +56,7 @@ struct ProjectCard: View {
         .pocoCard()
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            "\(project.title)、\(project.creator.name)、\(project.relationship.badgeTitle(verificationStatus: project.verificationStatus))、\(project.purpose.title)、感想\(project.feedbackCount)件"
+            "\(project.title)、\(project.creditedAuthorName)\(project.purpose == .event ? "、イベント・頒布用" : "")、感想\(project.feedbackCount)件"
         )
     }
 }

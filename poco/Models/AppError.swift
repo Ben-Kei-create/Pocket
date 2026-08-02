@@ -21,6 +21,7 @@ nonisolated enum AppError: Error, Equatable, Sendable {
     case questionDailyLimitReached
     case questionPendingLimitReached
     case questionUnavailable
+    case projectQuestionsDisabled
     case accountDeletion
     case unknown(String?)
 
@@ -61,11 +62,13 @@ nonisolated enum AppError: Error, Equatable, Sendable {
         case .projectSlotRedemptionUnavailable:
             "Poco Proでは30作品まで利用できるため、無料枠の購入はできません。"
         case .questionDailyLimitReached:
-            "同じクリエイターへ送れる質問は24時間で3件までです。"
+            "同じ相手へ送れる質問は24時間で3件までです。"
         case .questionPendingLimitReached:
-            "回答待ちの質問は、同じクリエイターにつき3件までです。"
+            "同じ相手への回答待ちの質問は3件までです。"
         case .questionUnavailable:
             "この質問は回答または変更できません。"
+        case .projectQuestionsDisabled:
+            "この作品ではQ&Aを受け付けていません。"
         case .accountDeletion:
             "アカウントを削除できませんでした。時間をおいてもう一度お試しください。"
         case .unknown:

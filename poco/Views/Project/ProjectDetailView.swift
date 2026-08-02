@@ -34,6 +34,8 @@ struct ProjectDetailView: View {
                         VStack(alignment: .leading, spacing: 24) {
                             projectHeader(project)
 
+                            creatorCard(project)
+
                             if !equippedBadges.isEmpty {
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text("この作品のバッジ")
@@ -86,10 +88,6 @@ struct ProjectDetailView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .pocoCard()
 
-                            relationshipNotice(project)
-
-                            creatorCard(project)
-
                             VStack(spacing: 12) {
                                 Button {
                                     if store.canSubmitFeedback(to: project.id) {
@@ -98,7 +96,14 @@ struct ProjectDetailView: View {
                                         showsFeedbackLimitAlert = true
                                     }
                                 } label: {
-                                    Label("感想を送る", systemImage: "bubble.left.and.bubble.right.fill")
+                                    Label(
+                                        store.feedbackDraft(for: project.id) == nil
+                                            ? "感想を送る"
+                                            : "下書きを再開",
+                                        systemImage: store.feedbackDraft(for: project.id) == nil
+                                            ? "bubble.left.and.bubble.right.fill"
+                                            : "doc.text.fill"
+                                    )
                                 }
                                 .buttonStyle(PocoPrimaryButtonStyle())
 
@@ -115,7 +120,8 @@ struct ProjectDetailView: View {
                                 }
                                 .buttonStyle(PocoSecondaryButtonStyle())
 
-                                if project.creator.id != store.currentUserID {
+                                if project.acceptsQuestions,
+                                   project.creator.id != store.currentUserID {
                                     Button {
                                         if store.accountStatus == .registered {
                                             showsQuestionCompose = true
@@ -124,7 +130,10 @@ struct ProjectDetailView: View {
                                             showsQuestionRegistration = true
                                         }
                                     } label: {
-                                        Label("Q&Aで質問する", systemImage: "questionmark.bubble")
+                                        Label(
+                                            qAndAButtonTitle(project),
+                                            systemImage: "questionmark.bubble"
+                                        )
                                     }
                                     .buttonStyle(.plain)
                                     .pocoFont(.subheadline, weight: .medium)
@@ -132,6 +141,8 @@ struct ProjectDetailView: View {
                                     .padding(.top, 4)
                                 }
                             }
+
+                            relationshipNotice(project)
                         }
                         .padding(PocoTheme.pagePadding)
                         .padding(.bottom, 24)
@@ -140,7 +151,7 @@ struct ProjectDetailView: View {
                     .safeAreaInset(edge: .bottom, spacing: 0) {
                         PocoAdPlacementView(placement: .project)
                     }
-                    .navigationTitle(project.title)
+                    .navigationTitle("")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
                         ToolbarItemGroup(placement: .topBarTrailing) {
@@ -237,16 +248,12 @@ struct ProjectDetailView: View {
                 .clipShape(RoundedRectangle(cornerRadius: PocoTheme.cornerMedium, style: .continuous))
 
             VStack(alignment: .leading, spacing: 8) {
-                ProjectRelationshipBadge(project: project)
                 if project.purpose == .event {
                     ProjectPurposeBadge(purpose: project.purpose)
                 }
 
                 Text(project.title)
                     .pocoFont(.title3, weight: .bold)
-                Text("\(project.category.creatorPrefix)：\(project.creator.name)")
-                    .pocoFont(.subheadline)
-                    .foregroundStyle(PocoTheme.secondaryText)
                 Label("\(project.feedbackCount.formatted())件の感想", systemImage: "bubble.left")
                     .pocoFont(.subheadline, weight: .medium)
                     .foregroundStyle(PocoTheme.primary)
@@ -289,8 +296,33 @@ struct ProjectDetailView: View {
         }
     }
 
+    private func qAndAButtonTitle(_ project: Project) -> String {
+        switch project.relationship {
+        case .creator:
+            "Q&Aで質問する"
+        case .authorized, .fan:
+            "感想箱の作成者に質問する"
+        }
+    }
+
     @ViewBuilder
     private func relationshipNotice(_ project: Project) -> some View {
+        if project.purpose == .event {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: project.purpose.symbolName)
+                    .foregroundStyle(.orange)
+                    .frame(width: 24)
+                Text("イベントや頒布の場で感想を集めるページです。")
+                    .pocoFont(.subheadline)
+                    .foregroundStyle(PocoTheme.secondaryText)
+                    .lineSpacing(3)
+                Spacer(minLength: 0)
+            }
+            .padding(16)
+            .background(Color.orange.opacity(0.07), in: RoundedRectangle(cornerRadius: 16))
+            .accessibilityElement(children: .combine)
+        }
+
         if project.relationship == .fan || project.verificationStatus != .verified {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: project.relationship.symbolName)
@@ -304,22 +336,6 @@ struct ProjectDetailView: View {
             }
             .padding(16)
             .background(PocoTheme.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
-            .accessibilityElement(children: .combine)
-        }
-
-        if project.purpose == .event {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: project.purpose.symbolName)
-                    .foregroundStyle(.orange)
-                    .frame(width: 24)
-                Text("このページはイベントや頒布の場で感想を集めるために使われています。権利関係は上の区分で確認できます。")
-                    .pocoFont(.subheadline)
-                    .foregroundStyle(PocoTheme.secondaryText)
-                    .lineSpacing(3)
-                Spacer(minLength: 0)
-            }
-            .padding(16)
-            .background(Color.orange.opacity(0.07), in: RoundedRectangle(cornerRadius: 16))
             .accessibilityElement(children: .combine)
         }
     }

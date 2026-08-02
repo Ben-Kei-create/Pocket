@@ -37,7 +37,9 @@
 |---|---|
 | `PocoStarCoin` | 通常のスター表示 |
 | `PocoStarCoinEarned` | 獲得時 |
-| `PocoStarCoinSpent` | 使用確認 |
+| `PocoStarCoinBurst` | 大きな獲得時 |
+| `PocoStarCoinBundle` | スター袋、作品枠の解放 |
+| `PocoStarCoinSpent` | 使用確認（未受領） |
 | `PocoCreatorHeart` | フキダシ詳細 |
 | `PocoCreatorHeartReceived` | 作者❤️受信 |
 | `PocoCreatorHeartNotification` | 通知一覧 |
@@ -45,6 +47,9 @@
 ## Priority A: バッジ
 
 推奨サイズ: 512×512 px
+
+達成スタンプは54種類へ拡張済みです。全Asset名と条件は
+`Docs/AchievementStampCatalog.md`を正とします。
 
 | Asset名 | 表示名 | 種別 |
 |---|---|---|
@@ -127,11 +132,15 @@
 ## 2026-08-01 受領済み
 
 - Pocoキャラクター10種: `Default` / `Happy` / `Heart` / `Star` / `Question` / `Letter` / `Sleep` / `Sorry` / `Pro` / `Rare`
-- スター: `PocoStarCoin`
+- スター: `PocoStarCoin` / `PocoStarCoinEarned` / `PocoStarCoinBurst` / `PocoStarCoinBundle`
 - 作者❤️: `PocoCreatorHeart` / `PocoCreatorHeartReceived`
 - 達成バッジ6種: `BadgeFirstFeedback` / `BadgeThreeFeedbacks` / `BadgeFirstProject` / `BadgeFirstLike` / `BadgeCreatorHeart` / `BadgeSevenDayStreak`
 - ショップバッジ2種: `BadgeFirstLight` / `BadgeWordBouquet`
+- 作品背景5種: `ProjectBackgroundSakura` / `ProjectBackgroundLemon` / `ProjectBackgroundSky` / `ProjectBackgroundMint` / `ProjectBackgroundLavender`
 - `BadgePocoHeart`は、専用素材を受領するまで`PocoCreatorHeartReceived`を使用
 - 旧キャラクター: `Archive/Characters/Previous/`へ保存
+- 背景一覧3枚とバッジ見本シートは参照用。アプリには個別の縦長背景と既存の個別バッジ素材を使用
 
-現在のPriority A残りは、スターの獲得・使用状態2種と、作者❤️通知・Pocoハート専用素材です。
+スターの白い形状レイヤーは`Archive/Rewards/SourceLayers/`へ保存し、画面には表示しません。
+
+現在のPriority A残りは、スター使用確認と、作者❤️通知・Pocoハート専用素材です。

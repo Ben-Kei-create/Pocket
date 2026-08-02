@@ -45,7 +45,7 @@ struct MyPageView: View {
                     .padding(.vertical, 6)
                 }
 
-                if store.isPocoMember {
+                if store.capabilities.canSeeOwnReactionCounts {
                     Section("もらったいいね") {
                         LikeSummaryRow(
                             title: "自分の作品",
@@ -112,6 +112,20 @@ struct MyPageView: View {
                 }
 
                 Section("Poco") {
+                    if !store.currentFeedbackDrafts.isEmpty {
+                        NavigationLink {
+                            FeedbackDraftListView()
+                        } label: {
+                            HStack {
+                                Label("感想の下書き", systemImage: "doc.text")
+                                Spacer()
+                                Text(store.currentFeedbackDrafts.count.formatted())
+                                    .pocoFont(.subheadline).monospacedDigit()
+                                    .foregroundStyle(PocoTheme.secondaryText)
+                            }
+                        }
+                    }
+
                     NavigationLink {
                         FeedbackActivityView(kind: .sent)
                     } label: {

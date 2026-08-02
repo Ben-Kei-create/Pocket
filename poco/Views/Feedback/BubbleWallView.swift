@@ -271,7 +271,7 @@ private struct ProjectInsightSummaryView: View {
                 VStack(alignment: .leading, spacing: 7) {
                     Text(project.title)
                         .pocoFont(.headline, weight: .medium)
-                    Text("\(project.category.creatorPrefix)：\(project.creator.name)")
+                    Text("\(project.category.creatorPrefix)：\(project.creditedAuthorName)")
                         .pocoFont(.subheadline)
                         .foregroundStyle(PocoTheme.secondaryText)
                     Text(project.description)

@@ -8,6 +8,7 @@ struct QAndAComposeView: View {
     @State private var message = ""
     @State private var isSubmitting = false
     @State private var submitted = false
+    @State private var errorMessage: String?
 
     var body: some View {
         NavigationStack {
@@ -18,7 +19,7 @@ struct QAndAComposeView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(project.creator.name)
                                 .pocoFont(.headline, weight: .medium)
-                            Text(project.title)
+                            Text(recipientContext)
                                 .pocoFont(.caption)
                                 .foregroundStyle(PocoTheme.secondaryText)
                         }
@@ -49,6 +50,7 @@ struct QAndAComposeView: View {
                         .disabled(
                             message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                                 || isSubmitting
+                                || !project.acceptsQuestions
                                 || project.creator.id == store.currentUserID
                         )
                 }
@@ -62,11 +64,22 @@ struct QAndAComposeView: View {
                         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
                 }
             }
+            .alert(
+                "質問を送れませんでした",
+                isPresented: Binding(
+                    get: { errorMessage != nil },
+                    set: { if !$0 { errorMessage = nil } }
+                )
+            ) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(errorMessage ?? AppError.unknown(nil).userMessage)
+            }
         }
     }
 
     private func submit() {
-        guard !isSubmitting else { return }
+        guard !isSubmitting, project.acceptsQuestions else { return }
         isSubmitting = true
         Task {
             let result = await store.sendQuestion(
@@ -79,7 +92,18 @@ struct QAndAComposeView: View {
                 submitted = true
                 try? await Task.sleep(for: .milliseconds(650))
                 dismiss()
+            } else if case .failure(let error) = result {
+                errorMessage = error.userMessage
             }
+        }
+    }
+
+    private var recipientContext: String {
+        switch project.relationship {
+        case .creator:
+            project.title
+        case .authorized, .fan:
+            "感想箱の作成者へ ・ \(project.title)"
         }
     }
 }
