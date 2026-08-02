@@ -35,7 +35,8 @@ protocol ProjectImageStorage: Sendable {
     nonisolated func uploadProjectImage(
         _ data: Data,
         projectID: UUID,
-        creatorID: UUID
+        creatorID: UUID,
+        imageID: UUID
     ) async throws -> URL
     nonisolated func deleteProjectImage(at url: URL) async throws
 }
@@ -75,7 +76,7 @@ protocol MemberRewardRepository: Sendable {
 
 protocol StarStoreRepository: Sendable {
     nonisolated func fetchCatalog() async throws -> [StarStoreItem]
-    nonisolated func fetchOwnedItemIDs() async throws -> Set<String>
+    nonisolated func fetchOwnedItemQuantities() async throws -> [String: Int]
     nonisolated func fetchProjectDecoration(projectID: UUID) async throws -> ProjectDecoration
     nonisolated func purchaseItem(id: String, requestID: UUID) async throws
         -> StarStorePurchaseResult
@@ -88,6 +89,11 @@ protocol StarStoreRepository: Sendable {
         slot: Int,
         itemID: String?
     ) async throws
+    nonisolated func giftBadge(
+        itemID: String,
+        recipientID: UUID,
+        requestID: UUID
+    ) async throws -> BadgeGiftResult
     nonisolated func fetchProjectSlotStatus() async throws -> ProjectSlotStatus
     nonisolated func redeemProjectSlot(
         requestID: UUID
@@ -307,6 +313,7 @@ actor MockFeedbackRepository: FeedbackRepository {
 }
 
 actor MockProfileRepository: ProfileRepository {
+    nonisolated private static let persistedProfilesKey = "poco.mockProfiles"
     private var creators: [UUID: Creator]
 
     init(creators: [Creator]? = nil) {
@@ -317,6 +324,12 @@ actor MockProfileRepository: ProfileRepository {
         ] + Array(MockData.feedbackAuthors.values)
         self.creators = values.reduce(into: [:]) { creatorsByID, creator in
             creatorsByID[creator.id] = creator
+        }
+        if let data = UserDefaults.standard.data(forKey: Self.persistedProfilesKey),
+           let persistedProfiles = try? JSONDecoder().decode([Creator].self, from: data) {
+            for profile in persistedProfiles {
+                self.creators[profile.id] = profile
+            }
         }
     }
 
@@ -329,13 +342,16 @@ actor MockProfileRepository: ProfileRepository {
 
     func saveProfile(_ creator: Creator) async throws {
         creators[creator.id] = creator
+        if let data = try? JSONEncoder().encode(Array(creators.values)) {
+            UserDefaults.standard.set(data, forKey: Self.persistedProfilesKey)
+        }
     }
 }
 
 struct MockCurrentUserProvider: CurrentUserProvider {
     let userID: UUID?
 
-    init(userID: UUID? = MockData.forestCreator.id) {
+    init(userID: UUID? = MockData.previewUser.id) {
         self.userID = userID
     }
 
@@ -353,7 +369,7 @@ struct MockCurrentUserProvider: CurrentUserProvider {
 struct MockAuthRepository: AuthRepository {
     let userID: UUID
 
-    init(userID: UUID = MockData.forestCreator.id) {
+    init(userID: UUID = MockData.previewUser.id) {
         self.userID = userID
     }
 
@@ -528,6 +544,8 @@ actor MockStarStoreRepository: StarStoreRepository {
     ]
 
     nonisolated private static let ownedKey = "poco.mockStarStore.owned"
+    nonisolated private static let quantitiesKey = "poco.mockStarStore.quantities"
+    nonisolated private static let giftRequestsKey = "poco.mockStarStore.giftRequests"
     nonisolated private static let revisionKey = "poco.starCoinWalletRevision"
     nonisolated private static let decorationPrefix = "poco.mockStarStore.decoration."
     nonisolated private static let extraProjectSlotsKey = "poco.mockProjectSlots.extra"
@@ -537,8 +555,8 @@ actor MockStarStoreRepository: StarStoreRepository {
         Self.catalog.sorted { $0.sortOrder < $1.sortOrder }
     }
 
-    func fetchOwnedItemIDs() async throws -> Set<String> {
-        Set(UserDefaults.standard.stringArray(forKey: Self.ownedKey) ?? [])
+    func fetchOwnedItemQuantities() async throws -> [String: Int] {
+        Self.ownedQuantities(defaults: .standard)
     }
 
     func fetchProjectDecoration(projectID: UUID) async throws -> ProjectDecoration {
@@ -560,26 +578,29 @@ actor MockStarStoreRepository: StarStoreRepository {
             throw AppError.notFound
         }
         let defaults = UserDefaults.standard
-        var owned = Set(defaults.stringArray(forKey: Self.ownedKey) ?? [])
+        var quantities = Self.ownedQuantities(defaults: defaults)
         let currentBalance = max(0, defaults.integer(forKey: "poco.starCoinBalance"))
         let currentRevision = Int64(defaults.integer(forKey: Self.revisionKey))
-        guard !owned.contains(id) else {
+        let currentQuantity = quantities[id, default: 0]
+        guard item.kind == .profileBadge || currentQuantity == 0 else {
             return .init(
                 itemID: id, balance: currentBalance, chargedCoins: 0,
-                walletRevision: currentRevision, purchased: false
+                walletRevision: currentRevision, ownedQuantity: currentQuantity,
+                purchased: false
             )
         }
         guard currentBalance >= item.priceCoins else { throw AppError.insufficientStarCoins }
 
         let nextBalance = currentBalance - item.priceCoins
         let nextRevision = currentRevision + 1
-        owned.insert(id)
-        defaults.set(Array(owned), forKey: Self.ownedKey)
+        quantities[id] = currentQuantity + 1
+        Self.saveOwnedQuantities(quantities, defaults: defaults)
         defaults.set(nextBalance, forKey: "poco.starCoinBalance")
         defaults.set(nextRevision, forKey: Self.revisionKey)
         return .init(
             itemID: id, balance: nextBalance, chargedCoins: item.priceCoins,
-            walletRevision: nextRevision, purchased: true
+            walletRevision: nextRevision, ownedQuantity: currentQuantity + 1,
+            purchased: true
         )
     }
 
@@ -639,12 +660,17 @@ actor MockStarStoreRepository: StarStoreRepository {
     func equipProjectBadge(projectID: UUID, slot: Int, itemID: String?) async throws {
         guard (0..<3).contains(slot) else { throw AppError.invalidInput }
         try ensureOwned(itemID, kind: .profileBadge)
-        let decoration = try await fetchProjectDecoration(projectID: projectID)
-        if let itemID,
-           decoration.badgeItemIDsBySlot.contains(where: {
-               $0.key != slot && $0.value == itemID
-           }) {
-            throw AppError.itemAlreadyEquipped
+        if let itemID {
+            let equippedExcludingTarget = Self.equippedQuantity(
+                itemID: itemID,
+                excludingProjectID: projectID,
+                slot: slot,
+                defaults: .standard
+            )
+            let ownedQuantity = Self.ownedQuantities(defaults: .standard)[itemID, default: 0]
+            guard equippedExcludingTarget < ownedQuantity else {
+                throw AppError.itemAlreadyEquipped
+            }
         }
         let key = Self.decorationPrefix + projectID.uuidString + ".badge.\(slot)"
         UserDefaults.standard.set(itemID, forKey: key)
@@ -655,8 +681,81 @@ actor MockStarStoreRepository: StarStoreRepository {
         guard Self.catalog.contains(where: { $0.id == itemID && $0.kind == kind }) else {
             throw AppError.invalidInput
         }
-        let owned = Set(UserDefaults.standard.stringArray(forKey: Self.ownedKey) ?? [])
-        guard owned.contains(itemID) else { throw AppError.unauthorized }
+        let quantity = Self.ownedQuantities(defaults: .standard)[itemID, default: 0]
+        guard quantity > 0 else { throw AppError.unauthorized }
+    }
+
+    func giftBadge(
+        itemID: String,
+        recipientID: UUID,
+        requestID: UUID
+    ) async throws -> BadgeGiftResult {
+        guard recipientID != MockData.previewUser.id else { throw AppError.cannotGiftToSelf }
+        guard Self.catalog.contains(where: { $0.id == itemID && $0.kind == .profileBadge }) else {
+            throw AppError.invalidInput
+        }
+        let defaults = UserDefaults.standard
+        var requestIDs = Set(defaults.stringArray(forKey: Self.giftRequestsKey) ?? [])
+        if requestIDs.contains(requestID.uuidString) {
+            return BadgeGiftResult(
+                itemID: itemID,
+                senderQuantity: Self.ownedQuantities(defaults: defaults)[itemID, default: 0],
+                recipientQuantity: 0,
+                gifted: false
+            )
+        }
+
+        var quantities = Self.ownedQuantities(defaults: defaults)
+        let equipped = Self.equippedQuantity(itemID: itemID, defaults: defaults)
+        guard quantities[itemID, default: 0] > equipped else {
+            throw AppError.insufficientBadgeQuantity
+        }
+        quantities[itemID, default: 0] -= 1
+        if quantities[itemID] == 0 { quantities[itemID] = nil }
+        Self.saveOwnedQuantities(quantities, defaults: defaults)
+        requestIDs.insert(requestID.uuidString)
+        defaults.set(Array(requestIDs), forKey: Self.giftRequestsKey)
+        return BadgeGiftResult(
+            itemID: itemID,
+            senderQuantity: quantities[itemID, default: 0],
+            recipientQuantity: 1,
+            gifted: true
+        )
+    }
+
+    nonisolated private static func ownedQuantities(defaults: UserDefaults) -> [String: Int] {
+        if let stored = defaults.dictionary(forKey: quantitiesKey) {
+            return stored.reduce(into: [:]) { result, pair in
+                if let value = pair.value as? Int, value > 0 { result[pair.key] = value }
+            }
+        }
+        return Dictionary(
+            uniqueKeysWithValues: (defaults.stringArray(forKey: ownedKey) ?? []).map { ($0, 1) }
+        )
+    }
+
+    nonisolated private static func saveOwnedQuantities(
+        _ quantities: [String: Int],
+        defaults: UserDefaults
+    ) {
+        defaults.set(quantities, forKey: quantitiesKey)
+        defaults.set(Array(quantities.keys), forKey: ownedKey)
+    }
+
+    nonisolated private static func equippedQuantity(
+        itemID: String,
+        excludingProjectID: UUID? = nil,
+        slot: Int? = nil,
+        defaults: UserDefaults
+    ) -> Int {
+        let excludedKey = excludingProjectID.flatMap { projectID in
+            slot.map { decorationPrefix + projectID.uuidString + ".badge.\($0)" }
+        }
+        return defaults.dictionaryRepresentation().reduce(into: 0) { count, pair in
+            guard pair.key.hasPrefix(decorationPrefix), pair.key.contains(".badge."),
+                  pair.key != excludedKey, pair.value as? String == itemID else { return }
+            count += 1
+        }
     }
 
     nonisolated private static func projectSlotStatus(
@@ -683,7 +782,7 @@ actor MockModerationRepository: ModerationRepository {
         let feedbacks = MockData.feedbacks
         self.ownedFeedbackIDs = ownedFeedbackIDs ?? Set(
             feedbacks
-                .filter { $0.senderID == MockData.forestCreator.id }
+                .filter { $0.senderID == MockData.previewUser.id }
                 .prefix(2)
                 .map(\.id)
         )
@@ -741,7 +840,7 @@ actor MockQAndARepository: QAndARepository {
     private let currentUserID: UUID
 
     init(
-        currentUserID: UUID = MockData.forestCreator.id,
+        currentUserID: UUID = MockData.previewUser.id,
         questions: [PocoQuestion]? = nil
     ) {
         self.currentUserID = currentUserID
@@ -763,7 +862,7 @@ actor MockQAndARepository: QAndARepository {
                 id: UUID(uuidString: "71000000-0000-0000-0000-000000000002")!,
                 projectID: MockData.tetraProject.id,
                 projectTitle: MockData.tetraProject.title,
-                sender: MockData.forestCreator,
+                sender: MockData.previewUser,
                 creator: MockData.tetraCreator,
                 message: "音楽づくりで一番大切にしたことを知りたいです。",
                 answer: "冒険の途中でも、帰る場所を思い出せる音にしました。",
@@ -826,7 +925,7 @@ actor MockQAndARepository: QAndARepository {
             id: UUID(),
             projectID: project?.id,
             projectTitle: project?.title,
-            sender: MockData.forestCreator,
+            sender: MockData.previewUser,
             creator: creator,
             message: normalized,
             answer: nil,
@@ -909,7 +1008,8 @@ struct DisabledProjectImageStorage: ProjectImageStorage {
     nonisolated func uploadProjectImage(
         _ data: Data,
         projectID: UUID,
-        creatorID: UUID
+        creatorID: UUID,
+        imageID: UUID
     ) async throws -> URL {
         throw AppError.storage
     }

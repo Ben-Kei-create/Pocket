@@ -19,14 +19,14 @@ struct CreateProjectView: View {
     @State private var externalURLText: String
     @State private var isPhotoPickerPresented = false
     @State private var selectedPhoto: PhotosPickerItem?
-    @State private var selectedImage: UIImage?
-    @State private var selectedImageData: Data?
+    @State private var retainedImageURLs: [URL]
+    @State private var pendingImages: [PendingProjectImage] = []
+    @State private var cropCandidate: ProjectImageCropCandidate?
     @State private var isSaving = false
     @State private var isAnalyzingImage = false
     @State private var saveErrorMessage: String?
     @State private var hasAgreedToPublishingRules: Bool
     @State private var showsPublishingRules = false
-    @State private var removesExistingImage = false
 
     init(
         project: Project? = nil,
@@ -43,10 +43,17 @@ struct CreateProjectView: View {
         _acceptsQuestions = State(initialValue: project?.acceptsQuestions ?? false)
         _projectDescription = State(initialValue: project?.description ?? "")
         _externalURLText = State(initialValue: project?.externalURL?.absoluteString ?? "")
+        _retainedImageURLs = State(initialValue: project?.artworkURLs ?? [])
         _hasAgreedToPublishingRules = State(initialValue: project != nil)
     }
 
     private var isEditing: Bool { project != nil }
+
+    private var imageLimit: Int {
+        store.membershipTier.isMember ? 3 : max(1, project?.artworkURLs.count ?? 0)
+    }
+
+    private var imageCount: Int { retainedImageURLs.count + pendingImages.count }
 
     private var isValid: Bool {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -100,9 +107,9 @@ struct CreateProjectView: View {
                         .accessibilityAddTraits(purpose == option ? .isSelected : [])
                     }
                 } header: {
-                    Text("このページの使い方")
+                    Text("見つけてもらう方法")
                 } footer: {
-                    Text("作品との関係とは別に、公開方法を選びます。")
+                    Text("どちらもHomeに掲載され、専用URLとQRコードを使えます。")
                 }
 
                 Section {
@@ -114,67 +121,15 @@ struct CreateProjectView: View {
                 }
 
                 Section("作品画像") {
-                    Button {
-                        isPhotoPickerPresented = true
-                    } label: {
-                        HStack(spacing: 14) {
-                            Group {
-                                if let selectedImage {
-                                    Image(uiImage: selectedImage)
-                                        .resizable()
-                                        .scaledToFill()
-                                } else if !removesExistingImage,
-                                          let imageURL = project?.imageURL {
-                                    SecureRemoteImage(url: imageURL) { phase in
-                                        switch phase {
-                                        case .success(let image):
-                                            image
-                                                .resizable()
-                                                .scaledToFill()
-                                        case .empty:
-                                            ProgressView()
-                                        case .failure:
-                                            Image(systemName: "photo.badge.plus")
-                                                .foregroundStyle(PocoTheme.primary)
-                                        }
-                                    }
-                                } else {
-                                    Image(systemName: "photo.badge.plus")
-                                        .pocoFont(.title2)
-                                        .foregroundStyle(PocoTheme.primary)
-                                }
-                            }
-                            .frame(width: 62, height: 62)
-                            .background(PocoTheme.primary.opacity(0.08))
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                            if isAnalyzingImage {
-                                ProgressView("画像を確認しています…")
-                            } else {
-                                Text(
-                                    selectedImage != nil
-                                        || (!removesExistingImage && project?.imageURL != nil)
-                                        ? "画像を変更"
-                                        : "画像を選ぶ"
-                                )
-                            }
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .photosPicker(
-                        isPresented: $isPhotoPickerPresented,
-                        selection: $selectedPhoto,
-                        matching: .images
+                    ProjectImageSelectionEditor(
+                        retainedImageURLs: $retainedImageURLs,
+                        pendingImages: $pendingImages,
+                        isPhotoPickerPresented: $isPhotoPickerPresented,
+                        selectedPhoto: $selectedPhoto,
+                        imageLimit: imageLimit,
+                        isPocoPro: store.membershipTier.isMember,
+                        isAnalyzingImage: isAnalyzingImage
                     )
-
-                    if selectedImage != nil || (!removesExistingImage && project?.imageURL != nil) {
-                        Button("画像を削除", role: .destructive) {
-                            selectedPhoto = nil
-                            selectedImage = nil
-                            selectedImageData = nil
-                            removesExistingImage = true
-                        }
-                    }
                 }
 
                 Section("作品情報") {
@@ -296,14 +251,11 @@ struct CreateProjectView: View {
                           ) else { return }
                     guard await ImageSensitivityService.analyze(sanitizedData) != .sensitive else {
                         selectedPhoto = nil
-                        selectedImageData = nil
-                        selectedImage = nil
                         saveErrorMessage = "露骨な性的表現を含む可能性がある画像は、対象区分にかかわらず登録できません。"
                         return
                     }
-                    selectedImageData = sanitizedData
-                    selectedImage = image
-                    removesExistingImage = false
+                    selectedPhoto = nil
+                    cropCandidate = ProjectImageCropCandidate(image: image)
                 }
             }
             .onChange(of: relationship) { oldValue, newValue in
@@ -324,6 +276,12 @@ struct CreateProjectView: View {
             }
             .sheet(isPresented: $showsPublishingRules) {
                 ProjectPublishingGuidelinesView()
+            }
+            .sheet(item: $cropCandidate) { candidate in
+                ProjectImageCropperView(image: candidate.image) { image, data in
+                    guard imageCount < imageLimit else { return }
+                    pendingImages.append(PendingProjectImage(image: image, data: data))
+                }
             }
             .interactiveDismissDisabled(isSaving)
         }
@@ -349,8 +307,8 @@ struct CreateProjectView: View {
                     acceptsQuestions: acceptsQuestions,
                     description: cleanDescription,
                     externalURL: externalURL,
-                    imageData: selectedImageData,
-                    removesExistingImage: removesExistingImage
+                    retainedImageURLs: retainedImageURLs,
+                    newImageData: pendingImages.map(\.data)
                 )
             } else {
                 result = await store.createProject(
@@ -363,7 +321,7 @@ struct CreateProjectView: View {
                     acceptsQuestions: acceptsQuestions,
                     description: cleanDescription,
                     externalURL: externalURL,
-                    imageData: selectedImageData
+                    imageData: pendingImages.map(\.data)
                 )
             }
             isSaving = false
@@ -442,6 +400,15 @@ private struct ProjectPurposeOptionRow: View {
                     .pocoFont(.caption)
                     .foregroundStyle(PocoTheme.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
+                Text(purpose.discoveryLabel)
+                    .pocoFont(.caption2, weight: .bold)
+                    .foregroundStyle(isSelected ? PocoTheme.primary : PocoTheme.tertiaryText)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(
+                        (isSelected ? PocoTheme.primary : Color.secondary).opacity(0.10),
+                        in: Capsule()
+                    )
             }
 
             Spacer(minLength: 8)
@@ -451,5 +418,299 @@ private struct ProjectPurposeOptionRow: View {
         }
         .padding(.vertical, 4)
         .contentShape(Rectangle())
+    }
+}
+
+private struct PendingProjectImage: Identifiable {
+    let id = UUID()
+    let image: UIImage
+    let data: Data
+}
+
+private struct ProjectImageCropCandidate: Identifiable {
+    let id = UUID()
+    let image: UIImage
+}
+
+private struct ProjectImageSelectionEditor: View {
+    @Binding var retainedImageURLs: [URL]
+    @Binding var pendingImages: [PendingProjectImage]
+    @Binding var isPhotoPickerPresented: Bool
+    @Binding var selectedPhoto: PhotosPickerItem?
+
+    let imageLimit: Int
+    let isPocoPro: Bool
+    let isAnalyzingImage: Bool
+
+    private var imageCount: Int {
+        retainedImageURLs.count + pendingImages.count
+    }
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                retainedTiles
+                pendingTiles
+                if imageCount < imageLimit {
+                    addButton
+                }
+            }
+        }
+        .photosPicker(
+            isPresented: $isPhotoPickerPresented,
+            selection: $selectedPhoto,
+            matching: .images
+        )
+
+        HStack {
+            Text("\(imageCount)/\(imageLimit)枚")
+            Spacer()
+            if isPocoPro {
+                Label("Poco Proは3枚まで", systemImage: "sparkles")
+            } else {
+                Text("Poco Proは3枚まで")
+            }
+        }
+        .pocoFont(.caption)
+        .foregroundStyle(PocoTheme.secondaryText)
+
+        if isAnalyzingImage {
+            ProgressView("画像を確認しています…")
+        }
+    }
+
+    @ViewBuilder
+    private var retainedTiles: some View {
+        ForEach(retainedImageURLs, id: \.self) { url in
+            let index = retainedImageURLs.firstIndex(of: url) ?? 0
+            ProjectImageEditTile(index: index, imageURL: url) {
+                retainedImageURLs.removeAll { $0 == url }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var pendingTiles: some View {
+        ForEach(pendingImages) { item in
+            let pendingIndex = pendingImages.firstIndex { $0.id == item.id } ?? 0
+            ProjectImageEditTile(
+                index: retainedImageURLs.count + pendingIndex,
+                image: item.image
+            ) {
+                pendingImages.removeAll { $0.id == item.id }
+            }
+        }
+    }
+
+    private var addButton: some View {
+        Button {
+            isPhotoPickerPresented = true
+        } label: {
+            VStack(spacing: 7) {
+                Image(systemName: "plus")
+                    .pocoFont(.title3, weight: .bold)
+                Text("追加")
+                    .pocoFont(.caption, weight: .medium)
+            }
+            .foregroundStyle(PocoTheme.primary)
+            .frame(width: 92, height: 92)
+            .background(PocoTheme.primary.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct ProjectImageEditTile: View {
+    let index: Int
+    var imageURL: URL?
+    var image: UIImage?
+    let onDelete: () -> Void
+
+    init(index: Int, imageURL: URL, onDelete: @escaping () -> Void) {
+        self.index = index
+        self.imageURL = imageURL
+        image = nil
+        self.onDelete = onDelete
+    }
+
+    init(index: Int, image: UIImage, onDelete: @escaping () -> Void) {
+        self.index = index
+        imageURL = nil
+        self.image = image
+        self.onDelete = onDelete
+    }
+
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            Group {
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                } else if let imageURL {
+                    SecureRemoteImage(url: imageURL) { phase in
+                        switch phase {
+                        case .success(let image): image.resizable().scaledToFill()
+                        case .empty: ProgressView()
+                        case .failure: Image(systemName: "photo")
+                        }
+                    }
+                }
+            }
+            .frame(width: 92, height: 92)
+            .background(PocoTheme.primary.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(alignment: .bottomLeading) {
+                if index == 0 {
+                    Text("メイン")
+                        .pocoFont(.caption2, weight: .bold)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 4)
+                        .background(PocoTheme.primary, in: Capsule())
+                        .padding(6)
+                }
+            }
+
+            Button(action: onDelete) {
+                Image(systemName: "xmark")
+                    .pocoFixedFont(size: 10, weight: .bold)
+                    .foregroundStyle(.white)
+                    .frame(width: 25, height: 25)
+                    .background(.black.opacity(0.58), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .offset(x: 6, y: -6)
+            .accessibilityLabel("画像\(index + 1)を削除")
+        }
+    }
+}
+
+private struct ProjectImageCropperView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let image: UIImage
+    let onComplete: (UIImage, Data) -> Void
+
+    @State private var zoom: CGFloat = 1
+    @State private var settledZoom: CGFloat = 1
+    @State private var offset: CGSize = .zero
+    @State private var settledOffset: CGSize = .zero
+    @State private var previewSide: CGFloat = 1
+    @State private var errorMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            GeometryReader { proxy in
+                let side = min(proxy.size.width - 32, proxy.size.height - 130)
+                VStack(spacing: 22) {
+                    Spacer(minLength: 0)
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: side, height: side)
+                        .scaleEffect(zoom)
+                        .offset(offset)
+                        .frame(width: side, height: side)
+                        .clipped()
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                                .stroke(.white, lineWidth: 3)
+                                .shadow(color: .black.opacity(0.18), radius: 5)
+                        }
+                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                        .simultaneousGesture(magnificationGesture(side: side))
+                        .simultaneousGesture(dragGesture(side: side))
+                        .onAppear { previewSide = side }
+                        .onChange(of: side) { _, value in
+                            previewSide = value
+                            offset = clampedOffset(offset, zoom: zoom, side: value)
+                            settledOffset = offset
+                        }
+
+                    Label("ピンチで拡大・ドラッグで位置調整", systemImage: "arrow.up.left.and.arrow.down.right")
+                        .pocoFont(.subheadline, weight: .medium)
+                        .foregroundStyle(PocoTheme.secondaryText)
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.horizontal, 16)
+            }
+            .background(Color.black.opacity(0.94).ignoresSafeArea())
+            .navigationTitle("画像を調整")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("キャンセル") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("決定") { completeCrop() }
+                        .fontWeight(.semibold)
+                }
+            }
+            .alert("画像を調整できませんでした", isPresented: Binding(
+                get: { errorMessage != nil },
+                set: { if !$0 { errorMessage = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            }
+        }
+    }
+
+    private func magnificationGesture(side: CGFloat) -> some Gesture {
+        MagnificationGesture()
+            .onChanged { value in
+                zoom = min(max(settledZoom * value, 1), 4)
+                offset = clampedOffset(offset, zoom: zoom, side: side)
+            }
+            .onEnded { _ in
+                settledZoom = zoom
+                offset = clampedOffset(offset, zoom: zoom, side: side)
+                settledOffset = offset
+            }
+    }
+
+    private func dragGesture(side: CGFloat) -> some Gesture {
+        DragGesture()
+            .onChanged { value in
+                let proposed = CGSize(
+                    width: settledOffset.width + value.translation.width,
+                    height: settledOffset.height + value.translation.height
+                )
+                offset = clampedOffset(proposed, zoom: zoom, side: side)
+            }
+            .onEnded { _ in
+                settledOffset = offset
+            }
+    }
+
+    private func clampedOffset(_ value: CGSize, zoom: CGFloat, side: CGFloat) -> CGSize {
+        guard let cgImage = image.cgImage else { return .zero }
+        let width = CGFloat(cgImage.width)
+        let height = CGFloat(cgImage.height)
+        let baseScale = max(side / width, side / height)
+        let maxX = max(0, (width * baseScale * zoom - side) / 2)
+        let maxY = max(0, (height * baseScale * zoom - side) / 2)
+        return CGSize(
+            width: min(max(value.width, -maxX), maxX),
+            height: min(max(value.height, -maxY), maxY)
+        )
+    }
+
+    private func completeCrop() {
+        do {
+            let result = try ProjectImageProcessor.croppedSquareJPEG(
+                from: image,
+                previewSide: previewSide,
+                zoom: zoom,
+                offset: offset
+            )
+            onComplete(result.image, result.data)
+            dismiss()
+        } catch {
+            errorMessage = AppError.storage.userMessage
+        }
     }
 }

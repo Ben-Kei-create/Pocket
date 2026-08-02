@@ -12,13 +12,14 @@ final class SupabaseProjectImageStorage: ProjectImageStorage, Sendable {
     nonisolated func uploadProjectImage(
         _ data: Data,
         projectID: UUID,
-        creatorID: UUID
+        creatorID: UUID,
+        imageID: UUID
     ) async throws -> URL {
         let path = [
             "projects",
             creatorID.uuidString.lowercased(),
             projectID.uuidString.lowercased(),
-            "cover.jpg"
+            "\(imageID.uuidString.lowercased()).jpg"
         ].joined(separator: "/")
 
         do {

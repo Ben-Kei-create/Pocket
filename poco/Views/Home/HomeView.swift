@@ -7,6 +7,7 @@ struct HomeView: View {
     @State private var selectedCategory: CategoryFilter = .all
     @State private var showsScanner = false
     @State private var searchText = ""
+    @State private var galleryProject: Project?
     @Namespace private var categorySelectionAnimation
 
     private var visibleProjects: [Project] {
@@ -63,34 +64,10 @@ struct HomeView: View {
 
                     if let draft = store.currentFeedbackDrafts.first,
                        let project = store.project(id: draft.projectID) {
-                        NavigationLink(value: project.id) {
-                            HStack(spacing: 13) {
-                                Image(systemName: "doc.text.fill")
-                                    .foregroundStyle(PocoTheme.primary)
-                                    .frame(width: 28)
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text("未送信の感想")
-                                        .pocoFont(.subheadline, weight: .medium)
-                                    Text(project.title)
-                                        .pocoFont(.caption)
-                                        .foregroundStyle(PocoTheme.secondaryText)
-                                        .lineLimit(1)
-                                }
-                                Spacer()
-                                if store.currentFeedbackDrafts.count > 1 {
-                                    Text("\(store.currentFeedbackDrafts.count)件")
-                                        .pocoFont(.caption, weight: .medium)
-                                        .foregroundStyle(PocoTheme.secondaryText)
-                                }
-                                Image(systemName: "chevron.right")
-                                    .pocoFont(.caption, weight: .bold)
-                                    .foregroundStyle(PocoTheme.tertiaryText)
-                            }
-                            .padding(16)
-                            .pocoCard(cornerRadius: PocoTheme.cornerSmall)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityHint("作品ページから下書きを再開します")
+                        HomeFeedbackDraftCard(
+                            project: project,
+                            draftCount: store.currentFeedbackDrafts.count
+                        )
                     }
 
                     categoryFilters
@@ -117,10 +94,9 @@ struct HomeView: View {
                             .padding(.vertical, 48)
                     } else {
                         ForEach(visibleProjects) { project in
-                            NavigationLink(value: project.id) {
-                                ProjectCard(project: project)
+                            HomeProjectRow(project: project) {
+                                galleryProject = project
                             }
-                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -143,7 +119,11 @@ struct HomeView: View {
                     Button {
                         showsScanner = true
                     } label: {
-                        Image(systemName: "qrcode.viewfinder")
+                        HStack(spacing: 5) {
+                            Text("読み取り")
+                                .pocoFont(.caption, weight: .medium)
+                            Image(systemName: "qrcode.viewfinder")
+                        }
                     }
                     .accessibilityLabel("作品のQRコードを読み取る")
                 }
@@ -152,6 +132,9 @@ struct HomeView: View {
                 QRCodeScannerSheet { url in
                     store.open(url: url)
                 }
+            }
+            .fullScreenCover(item: $galleryProject) { project in
+                ProjectImageGalleryView(project: project)
             }
             .navigationDestination(for: UUID.self) { id in
                 if let project = store.project(id: id) {
@@ -250,6 +233,77 @@ struct HomeView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Q&Aを開く")
+            }
+        }
+    }
+}
+
+private struct HomeFeedbackDraftCard: View {
+    let project: Project
+    let draftCount: Int
+
+    var body: some View {
+        NavigationLink(value: project.id) {
+            HStack(spacing: 13) {
+                Image(systemName: "doc.text.fill")
+                    .foregroundStyle(PocoTheme.primary)
+                    .frame(width: 28)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("未送信の感想")
+                        .pocoFont(.subheadline, weight: .medium)
+                    Text(project.title)
+                        .pocoFont(.caption)
+                        .foregroundStyle(PocoTheme.secondaryText)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                if draftCount > 1 {
+                    Text("\(draftCount)件")
+                        .pocoFont(.caption, weight: .medium)
+                        .foregroundStyle(PocoTheme.secondaryText)
+                }
+
+                Image(systemName: "chevron.right")
+                    .pocoFont(.caption, weight: .bold)
+                    .foregroundStyle(PocoTheme.tertiaryText)
+            }
+            .padding(16)
+            .pocoCard(cornerRadius: PocoTheme.cornerSmall)
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("作品ページから下書きを再開します")
+    }
+}
+
+private struct HomeProjectRow: View {
+    let project: Project
+    let openGallery: () -> Void
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            NavigationLink(value: project.id) {
+                ProjectCard(project: project, compact: true)
+            }
+            .buttonStyle(.plain)
+
+            if !project.isContentLocked, !project.artworkURLs.isEmpty {
+                Button(action: openGallery) {
+                    Color.clear
+                        .frame(width: 78, height: 88)
+                        .contentShape(
+                            RoundedRectangle(
+                                cornerRadius: PocoTheme.cornerSmall,
+                                style: .continuous
+                            )
+                        )
+                }
+                .buttonStyle(.plain)
+                .padding(5)
+                .accessibilityLabel(Text(project.title + "の作品画像を見る"))
+                .accessibilityHint("複数の画像がある場合は左右にスワイプできます")
             }
         }
     }

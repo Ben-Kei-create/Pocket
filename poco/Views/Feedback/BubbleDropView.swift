@@ -96,6 +96,16 @@ struct BubbleDropView: View {
         .task(id: project.id) {
             await store.loadProjectDecoration(projectID: project.id)
         }
+        .task(id: deliveryState) {
+            guard deliveryState == .delivered else { return }
+
+            try? await Task.sleep(for: .seconds(1.8))
+            guard !Task.isCancelled, deliveryState == .delivered else { return }
+
+            withAnimation(shouldReduceMotion ? nil : .easeOut(duration: 0.22)) {
+                showsSuccess = false
+            }
+        }
     }
 
     private var successCard: some View {

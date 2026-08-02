@@ -104,7 +104,7 @@ private extension AppTab {
     var title: String {
         switch self {
         case .home: "ホーム"
-        case .create: "作る"
+        case .create: "作品"
         case .myPage: "マイページ"
         case .notifications: "通知"
         }

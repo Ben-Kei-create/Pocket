@@ -6,7 +6,7 @@ nonisolated struct ProfileDTO: Codable, Sendable {
     let avatarName: String?
     let avatarURL: String?
     let handle: String?
-    let socialLinks: [String: String]?
+    let socialLinks: ProfileSocialLinksPayload?
     let createdAt: Date?
 
     enum CodingKeys: String, CodingKey {
@@ -25,9 +25,7 @@ nonisolated struct ProfileDTO: Codable, Sendable {
         avatarName = creator.avatarName
         avatarURL = creator.avatarURL?.absoluteString
         handle = creator.handle
-        socialLinks = creator.profileLinks.reduce(into: [:]) { values, link in
-            values[link.service.rawValue] = link.url.absoluteString
-        }
+        socialLinks = ProfileSocialLinksPayload(links: creator.profileLinks)
         createdAt = nil
     }
 
@@ -52,7 +50,7 @@ nonisolated struct ProfileDTO: Codable, Sendable {
             try container.encode(handle, forKey: .handle)
         }
 
-        try container.encode(socialLinks ?? [:], forKey: .socialLinks)
+        try container.encode(socialLinks ?? .empty, forKey: .socialLinks)
 
         if let createdAt {
             try container.encode(createdAt, forKey: .createdAt)
@@ -66,11 +64,57 @@ nonisolated struct ProfileDTO: Codable, Sendable {
             avatarName: avatarName,
             avatarURL: avatarURL.flatMap(URL.init(string:)),
             handle: handle,
-            profileLinks: ProfileLinkService.allCases.compactMap { service in
-                guard let value = socialLinks?[service.rawValue] else { return nil }
-                return ProfileSocialLink(service: service, value: value)
-            }
+            profileLinks: socialLinks?.domainLinks ?? []
         )
+    }
+}
+
+nonisolated struct ProfileSocialLinksPayload: Codable, Sendable {
+    struct Entry: Codable, Sendable {
+        let service: String
+        let url: String
+    }
+
+    let entries: [Entry]
+
+    static let empty = Self(entries: [])
+
+    init(entries: [Entry]) {
+        self.entries = entries
+    }
+
+    init(links: [ProfileSocialLink]) {
+        entries = links.map {
+            Entry(service: $0.service.rawValue, url: $0.url.absoluteString)
+        }
+    }
+
+    init(from decoder: any Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let entries = try? container.decode([Entry].self) {
+            self.entries = entries
+            return
+        }
+
+        // Older Poco clients stored one URL per service as a JSON object.
+        let legacy = try container.decode([String: String].self)
+        entries = ProfileLinkService.allCases.compactMap { service in
+            legacy[service.rawValue].map {
+                Entry(service: service.rawValue, url: $0)
+            }
+        }
+    }
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(entries)
+    }
+
+    var domainLinks: [ProfileSocialLink] {
+        entries.compactMap { entry in
+            guard let service = ProfileLinkService(rawValue: entry.service) else { return nil }
+            return ProfileSocialLink(service: service, value: entry.url)
+        }
     }
 }
 
@@ -83,6 +127,7 @@ nonisolated struct ProjectDTO: Codable, Sendable {
     let category: String
     let description: String
     let imageURL: String?
+    let imageURLs: [String]?
     let externalURL: String?
     let createdAt: Date
     let isPublished: Bool
@@ -103,6 +148,7 @@ nonisolated struct ProjectDTO: Codable, Sendable {
         case category
         case description
         case imageURL = "image_url"
+        case imageURLs = "image_urls"
         case externalURL = "external_url"
         case createdAt = "created_at"
         case isPublished = "is_published"
@@ -124,6 +170,7 @@ nonisolated struct ProjectDTO: Codable, Sendable {
         category = project.category.rawValue
         description = project.description
         imageURL = project.imageURL?.absoluteString
+        imageURLs = project.artworkURLs.map(\.absoluteString)
         externalURL = project.externalURL?.absoluteString
         createdAt = project.createdAt
         self.isPublished = isPublished
@@ -146,6 +193,7 @@ nonisolated struct ProjectQueryDTO: Codable, Sendable {
     let category: String
     let description: String
     let imageURL: String?
+    let imageURLs: [String]?
     let externalURL: String?
     let createdAt: Date
     let isPublished: Bool
@@ -169,6 +217,7 @@ nonisolated struct ProjectQueryDTO: Codable, Sendable {
         case category
         case description
         case imageURL = "image_url"
+        case imageURLs = "image_urls"
         case externalURL = "external_url"
         case createdAt = "created_at"
         case isPublished = "is_published"
@@ -186,7 +235,7 @@ nonisolated struct ProjectQueryDTO: Codable, Sendable {
 
     var domainModel: Project {
         let isLegacyEvent = relationship == "event"
-        return Project(
+        var project = Project(
             id: id,
             title: title,
             creator: Creator(
@@ -201,6 +250,7 @@ nonisolated struct ProjectQueryDTO: Codable, Sendable {
             description: description,
             imageName: nil,
             imageURL: imageURL.flatMap(URL.init(string:)),
+            imageURLs: imageURLs?.compactMap(URL.init(string:)),
             externalURL: externalURL.flatMap { PocoExternalURL.normalized(from: $0) },
             feedbackCount: feedbackCount ?? 0,
             createdAt: createdAt,
@@ -215,6 +265,10 @@ nonisolated struct ProjectQueryDTO: Codable, Sendable {
             isContentLocked: isContentLocked ?? false,
             acceptsQuestions: acceptsQuestions ?? false
         )
+        if project.imageURLs?.isEmpty != false, let primary = project.imageURL {
+            project.imageURLs = [primary]
+        }
+        return project
     }
 }
 
@@ -224,6 +278,7 @@ nonisolated struct ProjectUpdateDTO: Encodable, Sendable {
     let category: String
     let description: String
     let imageURL: String?
+    let imageURLs: [String]
     let externalURL: String?
     let relationship: String
     let purpose: String
@@ -236,6 +291,7 @@ nonisolated struct ProjectUpdateDTO: Encodable, Sendable {
         case category
         case description
         case imageURL = "image_url"
+        case imageURLs = "image_urls"
         case externalURL = "external_url"
         case relationship
         case purpose
@@ -249,6 +305,7 @@ nonisolated struct ProjectUpdateDTO: Encodable, Sendable {
         category = project.category.rawValue
         description = project.description
         imageURL = project.imageURL?.absoluteString
+        imageURLs = project.artworkURLs.map(\.absoluteString)
         externalURL = project.externalURL?.absoluteString
         relationship = project.relationship.rawValue
         purpose = project.purpose.rawValue
@@ -267,6 +324,7 @@ nonisolated struct ProjectUpdateDTO: Encodable, Sendable {
         } else {
             try container.encodeNil(forKey: .imageURL)
         }
+        try container.encode(imageURLs, forKey: .imageURLs)
         if let externalURL {
             try container.encode(externalURL, forKey: .externalURL)
         } else {

@@ -17,6 +17,8 @@ nonisolated enum AppError: Error, Equatable, Sendable {
     case purchase
     case insufficientStarCoins
     case itemAlreadyEquipped
+    case insufficientBadgeQuantity
+    case cannotGiftToSelf
     case projectSlotRedemptionUnavailable
     case questionDailyLimitReached
     case questionPendingLimitReached
@@ -58,7 +60,11 @@ nonisolated enum AppError: Error, Equatable, Sendable {
         case .insufficientStarCoins:
             "スターが足りません。もう少し集めてからお試しください。"
         case .itemAlreadyEquipped:
-            "このバッジは、すでに別の枠へ飾っています。"
+            "飾っていないバッジがありません。追加購入するか、別の枠から外してください。"
+        case .insufficientBadgeQuantity:
+            "贈れるバッジがありません。作品から外すか、もう1つ購入してください。"
+        case .cannotGiftToSelf:
+            "自分自身へバッジを贈ることはできません。"
         case .projectSlotRedemptionUnavailable:
             "Poco Proでは30作品まで利用できるため、無料枠の購入はできません。"
         case .questionDailyLimitReached:

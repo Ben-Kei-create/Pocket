@@ -39,9 +39,11 @@ nonisolated struct StarStoreItemDTO: Decodable, Sendable {
 
 nonisolated struct OwnedStarItemDTO: Decodable, Sendable {
     let itemID: String
+    let quantity: Int
 
     enum CodingKeys: String, CodingKey {
         case itemID = "item_id"
+        case quantity
     }
 }
 
@@ -68,6 +70,7 @@ nonisolated struct StarStorePurchaseResultDTO: Decodable, Sendable {
     let starCoinBalance: Int
     let chargedCoins: Int
     let walletRevision: Int64
+    let ownedQuantity: Int
     let purchased: Bool
 
     enum CodingKeys: String, CodingKey {
@@ -75,6 +78,7 @@ nonisolated struct StarStorePurchaseResultDTO: Decodable, Sendable {
         case starCoinBalance = "star_coin_balance"
         case chargedCoins = "charged_coins"
         case walletRevision = "wallet_revision"
+        case ownedQuantity = "owned_quantity"
         case purchased
     }
 
@@ -84,7 +88,43 @@ nonisolated struct StarStorePurchaseResultDTO: Decodable, Sendable {
             balance: starCoinBalance,
             chargedCoins: chargedCoins,
             walletRevision: walletRevision,
+            ownedQuantity: ownedQuantity,
             purchased: purchased
+        )
+    }
+}
+
+nonisolated struct GiftBadgeParameters: Encodable, Sendable {
+    let recipientID: UUID
+    let itemID: String
+    let requestID: UUID
+
+    enum CodingKeys: String, CodingKey {
+        case recipientID = "p_recipient_id"
+        case itemID = "p_item_id"
+        case requestID = "p_request_id"
+    }
+}
+
+nonisolated struct BadgeGiftResultDTO: Decodable, Sendable {
+    let itemID: String
+    let senderQuantity: Int
+    let recipientQuantity: Int
+    let gifted: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case itemID = "item_id"
+        case senderQuantity = "sender_quantity"
+        case recipientQuantity = "recipient_quantity"
+        case gifted
+    }
+
+    var domainModel: BadgeGiftResult {
+        BadgeGiftResult(
+            itemID: itemID,
+            senderQuantity: senderQuantity,
+            recipientQuantity: recipientQuantity,
+            gifted: gifted
         )
     }
 }

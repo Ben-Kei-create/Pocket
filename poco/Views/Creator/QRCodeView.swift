@@ -6,6 +6,7 @@ import UIKit
 struct QRCodeView: View {
     let project: Project
     @State private var showsSavedConfirmation = false
+    @State private var showsCopiedConfirmation = false
 
     var body: some View {
         ScrollView {
@@ -35,7 +36,7 @@ struct QRCodeView: View {
                     .buttonStyle(PocoPrimaryButtonStyle())
 
                     Button {
-                        UIPasteboard.general.url = project.deepLinkURL
+                        copyProjectLink()
                     } label: {
                         Label("リンクをコピー", systemImage: "doc.on.doc")
                     }
@@ -54,6 +55,37 @@ struct QRCodeView: View {
         .navigationBarTitleDisplayMode(.inline)
         .alert("写真に保存しました", isPresented: $showsSavedConfirmation) {
             Button("OK", role: .cancel) {}
+        }
+        .overlay(alignment: .top) {
+            if showsCopiedConfirmation {
+                Label("リンクをコピーしました", systemImage: "checkmark.circle.fill")
+                    .pocoFont(.subheadline, weight: .bold)
+                    .foregroundStyle(PocoTheme.primary)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 12)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .shadow(color: .black.opacity(0.08), radius: 12, y: 5)
+                    .padding(.top, 10)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .accessibilityAddTraits(.isStaticText)
+            }
+        }
+    }
+
+    private func copyProjectLink() {
+        UIPasteboard.general.url = project.deepLinkURL
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        UIAccessibility.post(notification: .announcement, argument: "リンクをコピーしました")
+
+        withAnimation(.easeOut(duration: 0.2)) {
+            showsCopiedConfirmation = true
+        }
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.8))
+            withAnimation(.easeIn(duration: 0.2)) {
+                showsCopiedConfirmation = false
+            }
         }
     }
 

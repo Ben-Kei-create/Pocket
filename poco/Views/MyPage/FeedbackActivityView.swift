@@ -60,6 +60,9 @@ struct FeedbackActivityView: View {
                                 FeedbackActivityRow(
                                     feedback: feedback,
                                     projectTitle: store.project(id: feedback.projectID)?.title,
+                                    creatorLikeDisplayName: store.creatorLikeDisplayName(
+                                        for: feedback
+                                    ),
                                     showsVisibility: kind == .sent
                                 )
                             }
@@ -114,6 +117,7 @@ struct FeedbackActivityView: View {
 private struct FeedbackActivityRow: View {
     let feedback: Feedback
     let projectTitle: String?
+    let creatorLikeDisplayName: String?
     let showsVisibility: Bool
 
     var body: some View {
@@ -151,8 +155,8 @@ private struct FeedbackActivityRow: View {
                 .foregroundStyle(PocoTheme.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
-                if feedback.creatorReceivedAt != nil {
-                    Label("作者もいいねしました", systemImage: "heart.fill")
+                if let creatorLikeDisplayName {
+                    Label("\(creatorLikeDisplayName)さんもいいねしました", systemImage: "heart.fill")
                         .pocoFont(.caption, weight: .medium)
                         .foregroundStyle(PocoTheme.primary)
                 }

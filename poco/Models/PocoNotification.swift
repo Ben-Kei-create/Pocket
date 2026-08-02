@@ -64,7 +64,10 @@ nonisolated struct PocoNotification: Identifiable, Hashable, Sendable {
         case .feedbackLike:
             return "あなたのことばに共感が届きました"
         case .creatorHeart:
-            return "作者があなたのことばにいいねしました"
+            if let actorDisplayName, !actorDisplayName.isEmpty {
+                return "\(actorDisplayName)さんがあなたのことばにいいねしました"
+            }
+            return "作品のクリエイターがあなたのことばにいいねしました"
         case .achievement:
             if let achievementStamp {
                 return "「\(achievementStamp.title)」を達成しました"

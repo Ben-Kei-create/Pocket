@@ -92,7 +92,7 @@ nonisolated struct ProfileSocialLink: Identifiable, Hashable, Codable, Sendable 
     let service: ProfileLinkService
     let url: URL
 
-    var id: ProfileLinkService { service }
+    var id: String { "\(service.rawValue):\(url.absoluteString)" }
 
     init?(service: ProfileLinkService, value: String) {
         guard let url = PocoExternalURL.normalized(from: value), service.allows(url) else {
@@ -153,16 +153,27 @@ nonisolated enum BuiltInAvatar: String, CaseIterable, Identifiable, Codable, Sen
     case pinkCat = "PocoAvatarPinkCat"
 
     static let characterAssetName = "PocoCharacterDefault"
-    static let selectableCases: [Self] = [.cat]
+    static let selectableCases: [Self] = Self.allCases
 
     var id: Self { self }
 
     var title: String {
-        "Poco"
+        switch self {
+        case .cat: "ミントねこ"
+        case .pig: "ラベンダーねこ"
+        case .bear: "はちみつベア"
+        case .dog: "ももいろバニー"
+        case .lion: "コーラルねこ"
+        case .greenBear: "みどりベア"
+        case .greenSpirit: "みどりのぷよ"
+        case .starSpirit: "ほしのぷよ"
+        case .blueSpirit: "そらのぷよ"
+        case .pinkCat: "さくらねこ"
+        }
     }
 
     var companionAssetName: String {
-        Self.characterAssetName
+        rawValue
     }
 }
 
@@ -213,6 +224,10 @@ nonisolated struct Project: Identifiable, Hashable, Codable, Sendable {
     var description: String
     var imageName: String?
     var imageURL: URL? = nil
+    /// Ordered project artwork. `imageURL` remains the primary-image field so
+    /// older clients and rows continue to work while Pro galleries use up to
+    /// three images.
+    var imageURLs: [URL]? = nil
     var externalURL: URL? = nil
     var feedbackCount: Int
     let createdAt: Date
@@ -226,6 +241,20 @@ nonisolated struct Project: Identifiable, Hashable, Codable, Sendable {
     var creditedAuthorName: String {
         let trimmed = authorName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return trimmed.isEmpty ? creator.name : trimmed
+    }
+
+    var artworkURLs: [URL] {
+        let candidates = (imageURLs?.isEmpty == false)
+            ? imageURLs ?? []
+            : [imageURL].compactMap { $0 }
+        var seen = Set<String>()
+        return candidates.filter { seen.insert($0.absoluteString).inserted }
+    }
+
+    mutating func setArtworkURLs(_ urls: [URL]) {
+        let limited = Array(urls.prefix(3))
+        imageURL = limited.first
+        imageURLs = limited
     }
 }
 
@@ -311,15 +340,22 @@ nonisolated enum ProjectPurpose: String, CaseIterable, Identifiable, Codable, Se
 
     var title: String {
         switch self {
-        case .standard: "通常公開"
-        case .event: "イベント・頒布用"
+        case .standard: "通常の作品ページ"
+        case .event: "イベントで使う"
         }
     }
 
     var explanation: String {
         switch self {
-        case .standard: "いつでも見つけてもらえる通常の作品ページです"
-        case .event: "会場や頒布物のQRから感想を集めるページです"
+        case .standard: "Home・検索から継続的に見つけてもらう"
+        case .event: "会場や頒布物のQRから、その場で感想を集める"
+        }
+    }
+
+    var discoveryLabel: String {
+        switch self {
+        case .standard: "Home・検索向け"
+        case .event: "QR・頒布物向け"
         }
     }
 

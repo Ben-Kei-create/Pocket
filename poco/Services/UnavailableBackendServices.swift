@@ -51,7 +51,7 @@ nonisolated struct UnavailableBackendServices: ProjectRepository,
     }
     func claimDailyLoginBonus() async throws -> DailyLoginBonusClaim { throw error }
     func fetchCatalog() async throws -> [StarStoreItem] { throw error }
-    func fetchOwnedItemIDs() async throws -> Set<String> { throw error }
+    func fetchOwnedItemQuantities() async throws -> [String: Int] { throw error }
     func fetchProjectDecoration(projectID: UUID) async throws -> ProjectDecoration { throw error }
     func purchaseItem(id: String, requestID: UUID) async throws -> StarStorePurchaseResult {
         throw error
@@ -60,6 +60,11 @@ nonisolated struct UnavailableBackendServices: ProjectRepository,
     func equipProjectBadge(projectID: UUID, slot: Int, itemID: String?) async throws {
         throw error
     }
+    func giftBadge(
+        itemID: String,
+        recipientID: UUID,
+        requestID: UUID
+    ) async throws -> BadgeGiftResult { throw error }
     func fetchProjectSlotStatus() async throws -> ProjectSlotStatus { throw error }
     func redeemProjectSlot(requestID: UUID) async throws -> ProjectSlotRedemptionResult {
         throw error

@@ -23,6 +23,12 @@ nonisolated enum MockData {
         avatarName: BuiltInAvatar.pinkCat.rawValue,
         handle: "hoshinoko_fan"
     )
+    static let previewUser = Creator(
+        id: UUID(uuidString: "10000000-0000-0000-0000-000000000009")!,
+        name: "そらのひつじ",
+        avatarName: BuiltInAvatar.cat.rawValue,
+        handle: "sora_no_hitsuji"
+    )
     static let feedbackAuthors: [String: Creator] = [
         "はな": Creator(
             id: UUID(uuidString: "10000000-0000-0000-0000-000000000010")!,
@@ -54,7 +60,7 @@ nonisolated enum MockData {
             avatarName: BuiltInAvatar.lion.rawValue,
             handle: "midori"
         ),
-        "そらのひつじ": forestCreator,
+        "そらのひつじ": previewUser,
         "ちい": Creator(
             id: UUID(uuidString: "10000000-0000-0000-0000-000000000015")!,
             name: "ちい",

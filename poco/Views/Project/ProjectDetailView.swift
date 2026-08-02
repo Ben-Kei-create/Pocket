@@ -5,7 +5,6 @@ struct ProjectDetailView: View {
     let projectID: UUID
 
     @State private var showsCompose = false
-    @State private var showsFeedbackLimitAlert = false
     @State private var pendingFeedback: Feedback?
     @State private var dropFeedback: Feedback?
     @State private var showsRightsHolderRequest = false
@@ -13,6 +12,7 @@ struct ProjectDetailView: View {
     @State private var showsQuestionRegistration = false
     @State private var opensQuestionAfterRegistration = false
     @State private var selectedBadge: StarStoreItem?
+    @State private var showsImageGallery = false
 
     private var project: Project? {
         store.project(id: projectID)
@@ -90,11 +90,7 @@ struct ProjectDetailView: View {
 
                             VStack(spacing: 12) {
                                 Button {
-                                    if store.canSubmitFeedback(to: project.id) {
-                                        showsCompose = true
-                                    } else {
-                                        showsFeedbackLimitAlert = true
-                                    }
+                                    showsCompose = true
                                 } label: {
                                     Label(
                                         store.feedbackDraft(for: project.id) == nil
@@ -106,6 +102,12 @@ struct ProjectDetailView: View {
                                     )
                                 }
                                 .buttonStyle(PocoPrimaryButtonStyle())
+                                .disabled(!store.canSubmitFeedback(to: project.id))
+                                .accessibilityHint(
+                                    store.canSubmitFeedback(to: project.id)
+                                        ? "感想の入力画面を開きます"
+                                        : "この作品へ送れる感想は3件までです"
+                                )
 
                                 Text(
                                     "この作品には1人\(PocoLimits.feedbacksPerProject)件まで送れます（現在\(store.ownFeedbackCount(for: project.id))件）"
@@ -222,11 +224,6 @@ struct ProjectDetailView: View {
                         await store.refreshOwnFeedbackCount(for: project.id)
                         _ = await decoration
                     }
-                    .alert("感想は3件までです", isPresented: $showsFeedbackLimitAlert) {
-                        Button("OK", role: .cancel) {}
-                    } message: {
-                        Text("同じ作品へ送れる感想は、1人につき3件までです。")
-                    }
                 }
             } else {
                 ContentUnavailableView("作品が見つかりません", systemImage: "questionmark.folder")
@@ -243,14 +240,33 @@ struct ProjectDetailView: View {
 
     private func projectHeader(_ project: Project) -> some View {
         HStack(spacing: 18) {
-            ProjectArtworkThumbnail(project: project)
-                .frame(width: 118, height: 128)
-                .clipShape(RoundedRectangle(cornerRadius: PocoTheme.cornerMedium, style: .continuous))
+            Button {
+                showsImageGallery = true
+            } label: {
+                ProjectArtworkThumbnail(project: project)
+                    .frame(width: 118, height: 128)
+                    .clipShape(RoundedRectangle(cornerRadius: PocoTheme.cornerMedium, style: .continuous))
+                    .overlay(alignment: .bottomTrailing) {
+                        if project.artworkURLs.count > 1 {
+                            Label("\(project.artworkURLs.count)", systemImage: "photo.on.rectangle.angled")
+                                .pocoFont(.caption2, weight: .bold)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 5)
+                                .background(.black.opacity(0.55), in: Capsule())
+                                .padding(7)
+                        }
+                    }
+            }
+            .buttonStyle(.plain)
+            .disabled(project.isContentLocked || project.artworkURLs.isEmpty)
+            .accessibilityLabel("\(project.title)の作品画像を見る")
+            .fullScreenCover(isPresented: $showsImageGallery) {
+                ProjectImageGalleryView(project: project)
+            }
 
             VStack(alignment: .leading, spacing: 8) {
-                if project.purpose == .event {
-                    ProjectPurposeBadge(purpose: project.purpose)
-                }
+                ProjectPurposeBadge(purpose: project.purpose)
 
                 Text(project.title)
                     .pocoFont(.title3, weight: .bold)

@@ -40,7 +40,10 @@ final class PocoStore {
     private(set) var lastDailyLoginClaim: DailyLoginBonusClaim?
     private(set) var starCoinBalance = 0
     private(set) var starStoreItems: [StarStoreItem] = []
-    private(set) var ownedStarItemIDs: Set<String> = []
+    private(set) var ownedStarItemQuantities: [String: Int] = [:]
+    var ownedStarItemIDs: Set<String> {
+        Set(ownedStarItemQuantities.lazy.filter { $0.value > 0 }.map(\.key))
+    }
     private(set) var projectDecorations: [UUID: ProjectDecoration] = [:]
     private(set) var projectSlotStatus = ProjectSlotStatus.base
     var onboardingGuideRequest: PocoOnboardingGuide?
@@ -77,6 +80,7 @@ final class PocoStore {
     private static let starCoinWalletRevisionKey = "poco.starCoinWalletRevision"
     private static let rewardedCoinEventsKey = "poco.rewardedCoinEvents"
     private static let feedbackDraftsKey = "poco.feedbackDrafts"
+    private static let mockAvatarImageDataKey = "poco.mockAvatarImageData"
 
     init(
         projectRepository: (any ProjectRepository)? = nil,
@@ -552,6 +556,10 @@ final class PocoStore {
         return starStoreItems.first { $0.id == id }
     }
 
+    func ownedQuantity(for itemID: String) -> Int {
+        ownedStarItemQuantities[itemID, default: 0]
+    }
+
     func projectDecoration(for projectID: UUID) -> ProjectDecoration {
         projectDecorations[projectID] ?? .empty
     }
@@ -561,9 +569,9 @@ final class PocoStore {
         starStoreLoadState = .loading
         do {
             starStoreItems = try await starStoreRepository.fetchCatalog()
-            ownedStarItemIDs = canCreateProjects
-                ? try await starStoreRepository.fetchOwnedItemIDs()
-                : []
+            ownedStarItemQuantities = canCreateProjects
+                ? try await starStoreRepository.fetchOwnedItemQuantities()
+                : [:]
             starStoreLoadState = .loaded
         } catch {
             let appError = map(error)
@@ -594,7 +602,7 @@ final class PocoStore {
                 requestID: UUID()
             )
             applyWallet(balance: result.balance, revision: result.walletRevision)
-            ownedStarItemIDs.insert(result.itemID)
+            ownedStarItemQuantities[result.itemID] = result.ownedQuantity
             return .success(result.purchased)
         } catch {
             let appError = map(error)
@@ -678,6 +686,32 @@ final class PocoStore {
             )
             await loadProjectDecoration(projectID: projectID)
             return .success(())
+        } catch {
+            let appError = map(error)
+            errorMessage = appError.userMessage
+            return .failure(appError)
+        }
+    }
+
+    func giftBadge(
+        _ item: StarStoreItem,
+        to recipient: Creator
+    ) async -> Result<BadgeGiftResult, AppError> {
+        guard accountStatus == .registered else { return .failure(.unauthorized) }
+        guard recipient.id != currentUserID else { return .failure(.cannotGiftToSelf) }
+        guard item.kind == .profileBadge else { return .failure(.invalidInput) }
+        do {
+            let result = try await starStoreRepository.giftBadge(
+                itemID: item.id,
+                recipientID: recipient.id,
+                requestID: UUID()
+            )
+            if result.senderQuantity > 0 {
+                ownedStarItemQuantities[item.id] = result.senderQuantity
+            } else {
+                ownedStarItemQuantities[item.id] = nil
+            }
+            return .success(result)
         } catch {
             let appError = map(error)
             errorMessage = appError.userMessage
@@ -849,6 +883,10 @@ final class PocoStore {
         .forRole(role)
     }
 
+    var maximumProfileLinkCount: Int {
+        role == .pro ? 10 : 5
+    }
+
     var canCreateProjects: Bool {
         capabilities.canCreateProject
     }
@@ -948,7 +986,7 @@ final class PocoStore {
         starCoinBalance = 0
         starCoinWalletRevision = 0
         starStoreItems = []
-        ownedStarItemIDs = []
+        ownedStarItemQuantities = [:]
         projectDecorations = [:]
         projectSlotStatus = .base
         starStoreLoadState = .idle
@@ -1006,6 +1044,13 @@ final class PocoStore {
               let currentUserID,
               let project = project(id: feedback.projectID) else { return false }
         return project.creator.id == currentUserID && project.relationship == .creator
+    }
+
+    func creatorLikeDisplayName(for feedback: Feedback) -> String? {
+        guard feedback.creatorReceivedAt != nil,
+              let project = project(id: feedback.projectID),
+              project.relationship == .creator else { return nil }
+        return project.creator.name
     }
 
     func owns(_ feedback: Feedback) -> Bool {
@@ -1145,9 +1190,14 @@ final class PocoStore {
         guard backendMode == .mock else { return }
         UserDefaults.standard.set(true, forKey: "poco.previewRegisteredAccount")
         accountStatus = .registered
-        let profileID = currentUserID ?? MockData.forestCreator.id
+        let profileID = currentUserID ?? MockData.previewUser.id
         currentUserID = profileID
         currentAvatarImageData = avatarImageData
+        if let avatarImageData {
+            UserDefaults.standard.set(avatarImageData, forKey: Self.mockAvatarImageDataKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: Self.mockAvatarImageDataKey)
+        }
         currentProfile = Creator(
             id: profileID,
             name: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -1268,7 +1318,8 @@ final class PocoStore {
               let userID = currentUserID,
               !normalizedName.isEmpty,
               normalizedName.count <= 80,
-              CreatorHandle.isValid(normalizedHandle) else {
+              CreatorHandle.isValid(normalizedHandle),
+              profileLinks.count <= maximumProfileLinkCount else {
             return .failure(.unauthorized)
         }
 
@@ -1309,6 +1360,16 @@ final class PocoStore {
             try await profileRepository.saveProfile(profile)
             currentProfile = profile
             currentAvatarImageData = displayImageData
+            if backendMode == .mock {
+                if let displayImageData {
+                    UserDefaults.standard.set(
+                        displayImageData,
+                        forKey: Self.mockAvatarImageDataKey
+                    )
+                } else {
+                    UserDefaults.standard.removeObject(forKey: Self.mockAvatarImageDataKey)
+                }
+            }
             profileCache[userID] = profile
             applyProfile(profile)
 
@@ -1507,7 +1568,7 @@ final class PocoStore {
         acceptsQuestions: Bool,
         description: String,
         externalURL: URL?,
-        imageData: Data?
+        imageData: [Data]
     ) async -> Result<Project, AppError> {
         guard canCreateProjects else {
             let error = AppError.unauthorized
@@ -1526,7 +1587,7 @@ final class PocoStore {
         }
 
         let projectID = UUID()
-        var imageURL: URL?
+        var uploadedImageURLs: [URL] = []
         var createdProject: Project?
 
         do {
@@ -1563,16 +1624,20 @@ final class PocoStore {
             try await projectRepository.createProject(project)
             createdProject = project
 
-            if let imageData, let projectImageStorage {
-                let compressedData = try await Task.detached(priority: .userInitiated) {
-                    try ProjectImageProcessor.compressedJPEG(from: imageData)
-                }.value
-                imageURL = try await projectImageStorage.uploadProjectImage(
-                    compressedData,
-                    projectID: projectID,
-                    creatorID: creatorID
-                )
-                project.imageURL = imageURL
+            if !imageData.isEmpty, let projectImageStorage {
+                for data in imageData.prefix(membershipTier.isMember ? 3 : 1) {
+                    let compressedData = try await Task.detached(priority: .userInitiated) {
+                        try ProjectImageProcessor.compressedJPEG(from: data)
+                    }.value
+                    let imageURL = try await projectImageStorage.uploadProjectImage(
+                        compressedData,
+                        projectID: projectID,
+                        creatorID: creatorID,
+                        imageID: UUID()
+                    )
+                    uploadedImageURLs.append(imageURL)
+                }
+                project.setArtworkURLs(uploadedImageURLs)
                 try await projectRepository.updateProject(project)
                 createdProject = project
             }
@@ -1581,8 +1646,10 @@ final class PocoStore {
             refreshAchievementProgressInBackground()
             return .success(project)
         } catch {
-            if let imageURL, let projectImageStorage {
-                try? await projectImageStorage.deleteProjectImage(at: imageURL)
+            if let projectImageStorage {
+                for imageURL in uploadedImageURLs {
+                    try? await projectImageStorage.deleteProjectImage(at: imageURL)
+                }
             }
             if createdProject != nil {
                 try? await projectRepository.deleteProject(id: projectID)
@@ -1604,8 +1671,8 @@ final class PocoStore {
         acceptsQuestions: Bool,
         description: String,
         externalURL: URL?,
-        imageData: Data?,
-        removesExistingImage: Bool
+        retainedImageURLs: [URL],
+        newImageData: [Data]
     ) async -> Result<Project, AppError> {
         guard canCreateProjects,
               let creatorID = await currentUserProvider.currentUserID(),
@@ -1615,19 +1682,27 @@ final class PocoStore {
             return .failure(error)
         }
 
-        let oldImageURL = existingProject.imageURL
-        var uploadedImageURL: URL?
+        let oldImageURLs = existingProject.artworkURLs
+        var uploadedImageURLs: [URL] = []
 
         do {
-            if let imageData, let projectImageStorage {
-                let compressedData = try await Task.detached(priority: .userInitiated) {
-                    try ProjectImageProcessor.compressedJPEG(from: imageData)
-                }.value
-                uploadedImageURL = try await projectImageStorage.uploadProjectImage(
-                    compressedData,
-                    projectID: existingProject.id,
-                    creatorID: creatorID
-                )
+            if !newImageData.isEmpty, let projectImageStorage {
+                let maximumCount = membershipTier.isMember
+                    ? 3
+                    : max(1, existingProject.artworkURLs.count)
+                let uploadCapacity = max(0, maximumCount - retainedImageURLs.count)
+                for data in newImageData.prefix(uploadCapacity) {
+                    let compressedData = try await Task.detached(priority: .userInitiated) {
+                        try ProjectImageProcessor.compressedJPEG(from: data)
+                    }.value
+                    let imageURL = try await projectImageStorage.uploadProjectImage(
+                        compressedData,
+                        projectID: existingProject.id,
+                        creatorID: creatorID,
+                        imageID: UUID()
+                    )
+                    uploadedImageURLs.append(imageURL)
+                }
             }
 
             var updatedProject = existingProject
@@ -1644,26 +1719,30 @@ final class PocoStore {
             updatedProject.contentRating = contentRating
             updatedProject.acceptsQuestions = acceptsQuestions
             updatedProject.isContentLocked = false
-            if let uploadedImageURL {
-                updatedProject.imageURL = uploadedImageURL
-            } else if removesExistingImage {
-                updatedProject.imageURL = nil
-            }
+            let maximumCount = membershipTier.isMember
+                ? 3
+                : max(1, existingProject.artworkURLs.count)
+            updatedProject.setArtworkURLs(
+                Array((retainedImageURLs + uploadedImageURLs).prefix(maximumCount))
+            )
 
             try await projectRepository.updateProject(updatedProject)
             if let index = projects.firstIndex(where: { $0.id == updatedProject.id }) {
                 projects[index] = updatedProject
             }
 
-            if let oldImageURL,
-               oldImageURL != updatedProject.imageURL,
-               let projectImageStorage {
-                try? await projectImageStorage.deleteProjectImage(at: oldImageURL)
+            if let projectImageStorage {
+                let retained = Set(updatedProject.artworkURLs.map(\.absoluteString))
+                for oldImageURL in oldImageURLs where !retained.contains(oldImageURL.absoluteString) {
+                    try? await projectImageStorage.deleteProjectImage(at: oldImageURL)
+                }
             }
             return .success(updatedProject)
         } catch {
-            if let uploadedImageURL, let projectImageStorage {
-                try? await projectImageStorage.deleteProjectImage(at: uploadedImageURL)
+            if let projectImageStorage {
+                for uploadedImageURL in uploadedImageURLs {
+                    try? await projectImageStorage.deleteProjectImage(at: uploadedImageURL)
+                }
             }
             let appError = map(error)
             errorMessage = appError.userMessage
@@ -1818,13 +1897,14 @@ final class PocoStore {
     private func applyCreatorReceipts(_ receipts: [UUID: Date]) {
         guard !receipts.isEmpty else { return }
         for index in feedbacks.indices {
-            if let receivedAt = receipts[feedbacks[index].id] {
-                feedbacks[index].creatorReceivedAt = receivedAt
-                // A creator heart promotes an ephemeral guest message into a
-                // permanent received message. The database trigger remains
-                // the source of truth; this keeps optimistic UI consistent.
-                feedbacks[index].expiresAt = nil
-            }
+            guard let project = project(id: feedbacks[index].projectID),
+                  project.relationship == .creator,
+                  let receivedAt = receipts[feedbacks[index].id] else { continue }
+            feedbacks[index].creatorReceivedAt = receivedAt
+            // A creator heart promotes an ephemeral guest message into a
+            // permanent received message. The database trigger remains
+            // the source of truth; this keeps optimistic UI consistent.
+            feedbacks[index].expiresAt = nil
         }
     }
 
@@ -1858,11 +1938,18 @@ final class PocoStore {
     }
 
     private func loadCurrentProfile() async {
-        guard backendMode == .supabase, let currentUserID else { return }
+        guard accountStatus == .registered, let currentUserID else {
+            currentProfile = nil
+            currentAvatarImageData = nil
+            return
+        }
         currentProfile = try? await profileRepository.fetchProfile(id: currentUserID)
-        currentAvatarImageData = nil
+        currentAvatarImageData = backendMode == .mock
+            ? UserDefaults.standard.data(forKey: Self.mockAvatarImageDataKey)
+            : nil
         if let currentProfile {
             profileCache[currentUserID] = currentProfile
+            applyProfile(currentProfile)
         }
     }
 

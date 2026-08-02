@@ -15,7 +15,11 @@ nonisolated enum PocoCompanion {
     }
 
     static func avatar(for feedback: Feedback) -> BuiltInAvatar {
-        .cat
+        guard let avatarName = feedback.senderAvatarName,
+              let avatar = BuiltInAvatar(rawValue: avatarName) else {
+            return .cat
+        }
+        return avatar
     }
 }
 
@@ -32,7 +36,7 @@ struct PocoCompanionView: View {
         Button {
             playPoyon()
         } label: {
-            Image(BuiltInAvatar.characterAssetName)
+            Image(PocoCompanion.assetName(for: feedback))
                 .resizable()
                 .scaledToFit()
                 .frame(width: size, height: size)

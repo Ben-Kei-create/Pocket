@@ -50,8 +50,8 @@ struct StarStoreView: View {
         .sheet(item: $selectedBadge) { item in
             BadgeDetailSheet(
                 item: item,
-                ownershipLabel: store.ownedStarItemIDs.contains(item.id)
-                    ? "購入済み"
+                ownershipLabel: store.ownedQuantity(for: item.id) > 0
+                    ? "所持 ×\(store.ownedQuantity(for: item.id))"
                     : "⭐︎ \(item.priceCoins.formatted())"
             )
         }
@@ -124,7 +124,7 @@ struct StarStoreView: View {
                     ForEach(items) { item in
                         StarStoreItemCard(
                             item: item,
-                            isOwned: store.ownedStarItemIDs.contains(item.id),
+                            ownedQuantity: store.ownedQuantity(for: item.id),
                             isPurchasing: purchasingItemID == item.id,
                             canAfford: store.starCoinBalance >= item.priceCoins,
                             isProLocked: item.requiresPro && !store.isPocoMember,
@@ -158,7 +158,10 @@ struct StarStoreView: View {
             case .success(let purchased):
                 if purchased {
                     UIImpactFeedbackGenerator(style: .soft).impactOccurred()
-                    noticeMessage = "「\(item.title)」を購入しました。"
+                    let quantity = store.ownedQuantity(for: item.id)
+                    noticeMessage = item.kind == .profileBadge
+                        ? "「\(item.title)」を購入しました。所持数は\(quantity)個です。"
+                        : "「\(item.title)」を購入しました。"
                 } else {
                     noticeMessage = "このアイテムは購入済みです。"
                 }
@@ -171,12 +174,16 @@ struct StarStoreView: View {
 
 private struct StarStoreItemCard: View {
     let item: StarStoreItem
-    let isOwned: Bool
+    let ownedQuantity: Int
     let isPurchasing: Bool
     let canAfford: Bool
     let isProLocked: Bool
     let onShowDetail: (() -> Void)?
     let onPurchase: () -> Void
+
+    private var canBuyAnother: Bool {
+        item.kind == .profileBadge || ownedQuantity == 0
+    }
 
     var body: some View {
         VStack(spacing: 11) {
@@ -199,14 +206,16 @@ private struct StarStoreItemCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            if isOwned {
-                Label("購入済み", systemImage: "checkmark.circle.fill")
-                    .pocoFont(.caption, weight: .bold)
-                    .foregroundStyle(PocoTheme.primary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-                    .background(PocoTheme.primary.opacity(0.09), in: Capsule())
-            } else {
+            if ownedQuantity > 0 {
+                Label(
+                    item.kind == .profileBadge ? "所持 ×\(ownedQuantity)" : "購入済み",
+                    systemImage: "checkmark.circle.fill"
+                )
+                .pocoFont(.caption, weight: .bold)
+                .foregroundStyle(PocoTheme.primary)
+            }
+
+            if canBuyAnother {
                 Button(action: onPurchase) {
                     if isPurchasing {
                         ProgressView()

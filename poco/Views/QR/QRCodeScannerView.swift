@@ -6,7 +6,6 @@ struct QRCodeScannerSheet: View {
     let onScan: (URL) -> Void
 
     @State private var scannerError: String?
-    @State private var showsManualEntry = false
     @State private var manualURL = ""
 
     var body: some View {
@@ -37,7 +36,7 @@ struct QRCodeScannerSheet: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                VStack(spacing: 12) {
+                VStack(spacing: 10) {
                     if let scannerError {
                         Label(scannerError, systemImage: "camera.fill")
                             .pocoFont(.caption)
@@ -45,29 +44,24 @@ struct QRCodeScannerSheet: View {
                             .multilineTextAlignment(.center)
                     }
 
-                    Button(showsManualEntry ? "URL入力を閉じる" : "URLを入力して開く") {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            showsManualEntry.toggle()
-                        }
-                    }
-                    .pocoFont(.subheadline, weight: .medium)
-                    .foregroundStyle(PocoTheme.primary)
-
-                    if showsManualEntry {
-                        HStack(spacing: 10) {
-                            TextField("poco://project/…", text: $manualURL)
-                                .textInputAutocapitalization(.never)
-                                .autocorrectionDisabled()
-                                .keyboardType(.URL)
-                                .textFieldStyle(.roundedBorder)
-
-                            Button("開く") {
+                    HStack(spacing: 10) {
+                        TextField("作品URLを入力", text: $manualURL)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                            .keyboardType(.URL)
+                            .textContentType(.URL)
+                            .submitLabel(.go)
+                            .textFieldStyle(.roundedBorder)
+                            .onSubmit {
                                 _ = handleScannedValue(manualURL)
                             }
-                            .buttonStyle(.borderedProminent)
-                            .tint(PocoTheme.primary)
-                            .disabled(manualURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                        Button("開く") {
+                            _ = handleScannedValue(manualURL)
                         }
+                        .buttonStyle(.borderedProminent)
+                        .tint(PocoTheme.primary)
+                        .disabled(manualURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     }
                 }
                 .padding(PocoTheme.pagePadding)

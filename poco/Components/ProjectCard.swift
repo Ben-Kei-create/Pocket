@@ -2,61 +2,70 @@ import SwiftUI
 
 struct ProjectCard: View {
     let project: Project
+    var compact = false
 
     var body: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: compact ? 9 : 14) {
             ProjectArtworkThumbnail(project: project)
-                .frame(width: 108, height: 118)
+                .frame(
+                    width: compact ? 78 : 108,
+                    height: compact ? 88 : 118
+                )
                 .clipShape(RoundedRectangle(cornerRadius: PocoTheme.cornerSmall, style: .continuous))
 
-            VStack(alignment: .leading, spacing: 7) {
-                if project.purpose == .event {
-                    ProjectPurposeBadge(purpose: project.purpose, compact: true)
-                }
+            VStack(alignment: .leading, spacing: compact ? 2 : 7) {
+                ProjectPurposeBadge(purpose: project.purpose, compact: true)
 
-                if project.isContentLocked {
+                if project.isContentLocked, !compact {
                     Label("年齢制限あり", systemImage: "lock.fill")
                         .pocoFont(.caption2, weight: .medium)
                         .foregroundStyle(PocoTheme.primary)
                 }
 
                 Text(project.title)
-                    .pocoFont(.headline, weight: .medium)
+                    .pocoFont(compact ? .subheadline : .headline, weight: .medium)
                     .foregroundStyle(.primary)
-                    .lineLimit(2)
+                    .lineLimit(compact ? 1 : 2)
+                    .truncationMode(.tail)
 
                 Text("\(project.category.creatorPrefix)：\(project.creditedAuthorName)")
-                    .pocoFont(.caption)
+                    .pocoFont(compact ? .caption2 : .caption)
                     .foregroundStyle(PocoTheme.secondaryText)
                     .lineLimit(1)
+                    .truncationMode(.tail)
 
                 Text(project.description)
-                    .pocoFont(.caption)
+                    .pocoFont(compact ? .caption2 : .caption)
                     .foregroundStyle(PocoTheme.secondaryText)
-                    .lineLimit(2)
-                    .lineSpacing(2)
+                    .lineLimit(compact ? 1 : 2)
+                    .lineSpacing(compact ? 0 : 2)
+                    .truncationMode(.tail)
 
                 Spacer(minLength: 0)
 
                 HStack {
-                    AvatarStack(names: ["は", "れ", "そ"])
+                    AvatarStack(names: ["は", "れ", "そ"], compact: compact)
                     Spacer()
                     Label(project.feedbackCount.formatted(), systemImage: "bubble.left")
-                        .pocoFont(.caption, weight: .medium)
+                        .pocoFont(compact ? .caption2 : .caption, weight: .medium)
                         .foregroundStyle(PocoTheme.secondaryText)
                     Image(systemName: "chevron.right")
-                        .pocoFont(.caption, weight: .bold)
+                        .pocoFont(compact ? .caption2 : .caption, weight: .bold)
                         .foregroundStyle(PocoTheme.primary)
                 }
             }
-            .padding(.vertical, 2)
+            .padding(.vertical, compact ? 0 : 2)
         }
-        .padding(10)
-        .frame(maxWidth: .infinity, minHeight: 138, alignment: .leading)
-        .pocoCard()
+        .padding(compact ? 5 : 10)
+        .frame(
+            maxWidth: .infinity,
+            minHeight: compact ? 98 : 138,
+            alignment: .leading
+        )
+        .pocoCard(cornerRadius: compact ? PocoTheme.cornerSmall : PocoTheme.cornerMedium)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(
-            "\(project.title)、\(project.creditedAuthorName)\(project.purpose == .event ? "、イベント・頒布用" : "")、感想\(project.feedbackCount)件"
+            "\(project.title)、\(project.creditedAuthorName)、\(project.purpose.title)、感想\(project.feedbackCount)件"
         )
     }
 }
@@ -104,12 +113,16 @@ struct ProjectPurposeBadge: View {
     var body: some View {
         Label(purpose.title, systemImage: purpose.symbolName)
             .pocoFont(compact ? .caption2 : .caption, weight: .medium)
-            .foregroundStyle(.orange)
+            .foregroundStyle(badgeColor)
             .padding(.horizontal, compact ? 7 : 9)
             .padding(.vertical, compact ? 3 : 5)
-            .background(Color.orange.opacity(0.10), in: Capsule())
+            .background(badgeColor.opacity(0.10), in: Capsule())
             .lineLimit(1)
             .accessibilityLabel("ページの使い方、\(purpose.title)")
+    }
+
+    private var badgeColor: Color {
+        purpose == .event ? .orange : .blue
     }
 }
 
@@ -131,7 +144,7 @@ struct ProjectArtworkThumbnail: View {
                     .foregroundStyle(PocoTheme.secondaryText)
                 }
                 .accessibilityLabel("年齢制限により画像を非表示")
-        } else if let imageURL = project.imageURL {
+        } else if let imageURL = project.artworkURLs.first {
             SecureRemoteImage(url: imageURL) { phase in
                 switch phase {
                 case .success(let image):
@@ -157,17 +170,21 @@ struct ProjectArtworkThumbnail: View {
 
 struct AvatarStack: View {
     let names: [String]
+    var compact = false
 
     var body: some View {
-        HStack(spacing: -7) {
+        HStack(spacing: compact ? -5 : -7) {
             ForEach(Array(names.enumerated()), id: \.offset) { index, name in
                 Text(name)
-                    .pocoFixedFont(size: 9, weight: .bold)
+                    .pocoFixedFont(size: compact ? 7 : 9, weight: .bold)
                     .foregroundStyle(.white)
-                    .frame(width: 25, height: 25)
+                    .frame(
+                        width: compact ? 19 : 25,
+                        height: compact ? 19 : 25
+                    )
                     .background(PocoTheme.bubble(BubbleColor.allCases[index % BubbleColor.allCases.count]).opacity(0.95))
                     .clipShape(Circle())
-                    .overlay(Circle().stroke(.white, lineWidth: 2))
+                    .overlay(Circle().stroke(.white, lineWidth: compact ? 1.5 : 2))
             }
         }
         .accessibilityHidden(true)

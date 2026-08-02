@@ -44,6 +44,10 @@ enum SupabaseErrorMapper {
                 return .questionPendingLimitReached
             case "P0013":
                 return .questionUnavailable
+            case "P0014":
+                return .insufficientBadgeQuantity
+            case "P0015":
+                return .cannotGiftToSelf
             case "P0021":
                 return .projectQuestionsDisabled
             case "22023":

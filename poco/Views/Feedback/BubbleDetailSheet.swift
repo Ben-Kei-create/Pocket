@@ -74,18 +74,18 @@ struct BubbleDetailSheet: View {
                                     : "ゲストにはいいね数は表示されません"
                         )
 
-                        if feedback.creatorReceivedAt != nil {
+                        if let creatorName = store.creatorLikeDisplayName(for: feedback) {
                             HStack(spacing: 10) {
                                 Image(PocoArtwork.creatorHeartReceived)
                                     .resizable()
                                     .scaledToFit()
                                     .frame(width: 44, height: 44)
                                     .accessibilityHidden(true)
-                                Text("作者もいいねしました")
+                                Text("\(creatorName)さんもいいねしました")
                                     .pocoFont(.subheadline, weight: .medium)
                                     .foregroundStyle(PocoTheme.primary)
                             }
-                                .accessibilityLabel("作者がこの感想にいいねしました")
+                                .accessibilityLabel("\(creatorName)さんがこの感想にいいねしました")
                         }
 
                         Spacer()

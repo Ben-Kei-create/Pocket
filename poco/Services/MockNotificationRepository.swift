@@ -9,31 +9,27 @@ actor MockNotificationRepository: NotificationRepository {
     ] = [:]
 
     init(notifications: [PocoNotification]? = nil) {
-        let feedback = MockData.feedbacks.first {
-            $0.projectID == MockData.forestProject.id
-                && $0.senderID != MockData.forestCreator.id
-        }
         let likeTarget = MockData.feedbacks.first {
-            $0.senderID == MockData.forestCreator.id
+            $0.senderID == MockData.previewUser.id
         }
         self.notifications = notifications ?? [
             PocoNotification(
                 id: UUID(uuidString: "60000000-0000-0000-0000-000000000001")!,
-                recipientID: MockData.forestCreator.id,
-                eventKey: "feedback:new:\(feedback?.id.uuidString ?? "preview")",
-                type: .newFeedback,
-                projectID: MockData.forestProject.id,
-                feedbackID: feedback?.id,
-                actorProfileID: feedback?.senderID,
+                recipientID: MockData.previewUser.id,
+                eventKey: "feedback:creator-heart:\(likeTarget?.id.uuidString ?? "preview")",
+                type: .creatorHeart,
+                projectID: likeTarget?.projectID,
+                feedbackID: likeTarget?.id,
+                actorProfileID: MockData.forestCreator.id,
                 projectTitle: MockData.forestProject.title,
-                actorDisplayName: feedback?.nickname,
-                messagePreview: feedback?.message,
+                actorDisplayName: MockData.forestCreator.name,
+                messagePreview: likeTarget?.message,
                 createdAt: Date.now.addingTimeInterval(-90),
                 readAt: nil
             ),
             PocoNotification(
                 id: UUID(uuidString: "60000000-0000-0000-0000-000000000002")!,
-                recipientID: MockData.forestCreator.id,
+                recipientID: MockData.previewUser.id,
                 eventKey: "feedback:like:\(likeTarget?.id.uuidString ?? "preview")",
                 type: .feedbackLike,
                 projectID: likeTarget?.projectID,
@@ -94,7 +90,7 @@ actor MockNotificationRepository: NotificationRepository {
             notifications.append(
                 PocoNotification(
                     id: id,
-                    recipientID: MockData.forestCreator.id,
+                    recipientID: MockData.previewUser.id,
                     eventKey: "achievement:\(rawValue)",
                     type: .achievement,
                     projectID: nil,

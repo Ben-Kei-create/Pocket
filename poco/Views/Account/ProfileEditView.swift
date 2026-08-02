@@ -8,7 +8,7 @@ struct ProfileEditView: View {
     @State private var handle = ""
     @State private var avatarName: String?
     @State private var avatarImageData: Data?
-    @State private var profileLinkTexts: [ProfileLinkService: String] = [:]
+    @State private var profileLinks: [EditableProfileLink] = []
     @State private var isSaving = false
     @State private var errorMessage: String?
     @State private var didLoadInitialValues = false
@@ -81,27 +81,38 @@ struct ProfileEditView: View {
                     )
 
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("外部リンク")
-                            .pocoFont(.headline, weight: .medium)
+                        HStack {
+                            Text("外部リンク")
+                                .pocoFont(.headline, weight: .medium)
+                            Spacer()
+                            Text("\(profileLinks.count)/\(store.maximumProfileLinkCount)")
+                                .pocoFont(.caption).monospacedDigit()
+                                .foregroundStyle(PocoTheme.tertiaryText)
+                        }
 
-                        ForEach(ProfileLinkService.allCases) { service in
-                            HStack(spacing: 12) {
-                                ProfileLinkIcon(service: service)
-                                    .frame(width: 28)
-                                TextField(service.placeholder, text: linkBinding(for: service))
-                                    .keyboardType(.URL)
-                                    .textInputAutocapitalization(.never)
-                                    .autocorrectionDisabled()
-                                    .textContentType(.URL)
+                        ForEach($profileLinks) { $link in
+                            ProfileLinkEditRow(link: $link) {
+                                profileLinks.removeAll { $0.id == link.id }
                             }
-                            .padding(14)
-                            .background(PocoTheme.cardBackground)
-                            .clipShape(
-                                RoundedRectangle(
-                                    cornerRadius: PocoTheme.cornerSmall,
-                                    style: .continuous
-                                )
-                            )
+                        }
+
+                        if profileLinks.count < store.maximumProfileLinkCount {
+                            Menu {
+                                ForEach(ProfileLinkService.allCases) { service in
+                                    Button {
+                                        profileLinks.append(
+                                            EditableProfileLink(service: service)
+                                        )
+                                    } label: {
+                                        Label(service.title, systemImage: service.symbolName)
+                                    }
+                                }
+                            } label: {
+                                Label("リンクを追加", systemImage: "plus.circle.fill")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(PocoTheme.primary)
                         }
 
                         if normalizedProfileLinks == nil {
@@ -150,9 +161,11 @@ struct ProfileEditView: View {
                 displayName = store.currentDisplayName
                 handle = store.currentProfile?.handle ?? ""
                 avatarName = store.currentProfile?.avatarName
-                profileLinkTexts = (store.currentProfile?.profileLinks ?? []).reduce(into: [:]) {
-                    values, link in
-                    values[link.service] = link.url.absoluteString
+                profileLinks = (store.currentProfile?.profileLinks ?? []).map {
+                    EditableProfileLink(
+                        service: $0.service,
+                        value: $0.url.absoluteString
+                    )
                 }
             }
         }
@@ -160,9 +173,15 @@ struct ProfileEditView: View {
     }
 
     private var previewCreator: Creator? {
-        guard var creator = store.currentProfile else { return nil }
+        var creator = store.currentProfile ?? Creator(
+            id: store.currentUserID ?? UUID(),
+            name: normalizedName.isEmpty ? store.currentDisplayName : normalizedName
+        )
         if let avatarName {
             creator.avatarName = avatarName
+            creator.avatarURL = nil
+        } else if avatarImageData != nil {
+            creator.avatarName = nil
             creator.avatarURL = nil
         }
         return creator
@@ -191,12 +210,16 @@ struct ProfileEditView: View {
     }
 
     private var normalizedProfileLinks: [ProfileSocialLink]? {
+        guard profileLinks.count <= store.maximumProfileLinkCount else { return nil }
         var links: [ProfileSocialLink] = []
-        for service in ProfileLinkService.allCases {
-            let value = profileLinkTexts[service, default: ""]
+        for editableLink in profileLinks {
+            let value = editableLink.value
                 .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !value.isEmpty else { continue }
-            guard let link = ProfileSocialLink(service: service, value: value) else {
+            guard !value.isEmpty,
+                  let link = ProfileSocialLink(
+                    service: editableLink.service,
+                    value: value
+                  ) else {
                 return nil
             }
             links.append(link)
@@ -207,13 +230,75 @@ struct ProfileEditView: View {
     private var linkValidationMessage: String {
         normalizedProfileLinks == nil
             ? "サービスに対応する正しいHTTPS URLを入力してください。"
-            : "https:// は省略できます。最大5件まで表示されます。"
+            : ""
     }
+}
 
-    private func linkBinding(for service: ProfileLinkService) -> Binding<String> {
-        Binding(
-            get: { profileLinkTexts[service, default: ""] },
-            set: { profileLinkTexts[service] = String($0.prefix(PocoExternalURL.maximumLength)) }
+private struct EditableProfileLink: Identifiable, Equatable {
+    let id: UUID
+    var service: ProfileLinkService
+    var value: String
+
+    init(
+        id: UUID = UUID(),
+        service: ProfileLinkService,
+        value: String = ""
+    ) {
+        self.id = id
+        self.service = service
+        self.value = value
+    }
+}
+
+private struct ProfileLinkEditRow: View {
+    @Binding var link: EditableProfileLink
+    let onDelete: () -> Void
+
+    var body: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 10) {
+                Menu {
+                    Picker("種類", selection: $link.service) {
+                        ForEach(ProfileLinkService.allCases) { service in
+                            Label(service.title, systemImage: service.symbolName)
+                                .tag(service)
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        ProfileLinkIcon(service: link.service)
+                            .frame(width: 24)
+                        Text(link.service.title)
+                            .pocoFont(.subheadline, weight: .medium)
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.caption2)
+                    }
+                }
+                .buttonStyle(.plain)
+
+                Spacer()
+
+                Button(role: .destructive, action: onDelete) {
+                    Image(systemName: "trash")
+                }
+                .accessibilityLabel("\(link.service.title)のリンクを削除")
+            }
+
+            TextField(link.service.placeholder, text: $link.value)
+                .keyboardType(.URL)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .textContentType(.URL)
+                .onChange(of: link.value) { _, value in
+                    if value.count > PocoExternalURL.maximumLength {
+                        link.value = String(value.prefix(PocoExternalURL.maximumLength))
+                    }
+                }
+        }
+        .padding(14)
+        .background(PocoTheme.cardBackground)
+        .clipShape(
+            RoundedRectangle(cornerRadius: PocoTheme.cornerSmall, style: .continuous)
         )
     }
 }

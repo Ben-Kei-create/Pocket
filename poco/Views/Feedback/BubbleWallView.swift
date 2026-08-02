@@ -8,6 +8,7 @@ struct BubbleWallView: View {
     @State private var selectedFeedback: Feedback?
     @State private var showsMembership = false
     @State private var focusFeedbackID: UUID?
+    @State private var highlightsOwnFeedbacks = false
     @State private var previousVisitDate: Date?
     @State private var selectedBadge: StarStoreItem?
 
@@ -68,11 +69,46 @@ struct BubbleWallView: View {
                     HStack(spacing: 10) {
                         if let ownLatest = ownFeedbacks.first {
                             Button {
-                                focusFeedbackID = ownLatest.id
+                                highlightsOwnFeedbacks.toggle()
+                                focusFeedbackID = highlightsOwnFeedbacks ? ownLatest.id : nil
                             } label: {
                                 Label("自分のことば", systemImage: "location.fill")
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .foregroundStyle(
+                                        highlightsOwnFeedbacks ? .white : PocoTheme.primary
+                                    )
+                                    .background {
+                                        Capsule()
+                                            .fill(
+                                                highlightsOwnFeedbacks
+                                                    ? PocoTheme.primary
+                                                    : PocoTheme.primary.opacity(0.10)
+                                            )
+                                    }
+                                    .overlay {
+                                        Capsule()
+                                            .stroke(
+                                                PocoTheme.primary.opacity(
+                                                    highlightsOwnFeedbacks ? 0.75 : 0.18
+                                                ),
+                                                lineWidth: 1
+                                            )
+                                    }
+                                    .shadow(
+                                        color: PocoTheme.primary.opacity(
+                                            highlightsOwnFeedbacks ? 0.42 : 0
+                                        ),
+                                        radius: highlightsOwnFeedbacks ? 9 : 0
+                                    )
                             }
-                            .accessibilityHint("最新の自分のフキダシへ移動します")
+                            .buttonStyle(.plain)
+                            .accessibilityValue(highlightsOwnFeedbacks ? "表示中" : "非表示")
+                            .accessibilityHint(
+                                highlightsOwnFeedbacks
+                                    ? "自分のフキダシの光を消します"
+                                    : "最新の自分のフキダシへ移動して光らせます"
+                            )
                         }
 
                         if newFeedbackCount > 0 {
@@ -91,7 +127,7 @@ struct BubbleWallView: View {
                 if mode == .everyone {
                     PhysicsBubbleFieldView(
                         feedbacks: displayedFeedbacks,
-                        highlightedFeedbackIDs: ownFeedbackIDs,
+                        highlightedFeedbackIDs: highlightsOwnFeedbacks ? ownFeedbackIDs : [],
                         focusFeedbackID: focusFeedbackID,
                         enablesCompanionEvolution: store.capabilities.canUseCompanionEvolution,
                         onSelect: { selectedFeedback = $0 },

@@ -28,15 +28,15 @@ final class SupabaseStarStoreRepository: StarStoreRepository, Sendable {
         }
     }
 
-    nonisolated func fetchOwnedItemIDs() async throws -> Set<String> {
-        guard await currentUserProvider.accountStatus() == .registered else { return [] }
+    nonisolated func fetchOwnedItemQuantities() async throws -> [String: Int] {
+        guard await currentUserProvider.accountStatus() == .registered else { return [:] }
         do {
             let rows: [OwnedStarItemDTO] = try await client
                 .from("user_owned_items")
-                .select("item_id")
+                .select("item_id,quantity")
                 .execute()
                 .value
-            return Set(rows.map(\.itemID))
+            return Dictionary(uniqueKeysWithValues: rows.map { ($0.itemID, $0.quantity) })
         } catch {
             throw SupabaseErrorMapper.map(error)
         }
@@ -167,6 +167,33 @@ final class SupabaseStarStoreRepository: StarStoreRepository, Sendable {
                     )
                 )
                 .execute()
+        } catch {
+            throw SupabaseErrorMapper.map(error)
+        }
+    }
+
+    nonisolated func giftBadge(
+        itemID: String,
+        recipientID: UUID,
+        requestID: UUID
+    ) async throws -> BadgeGiftResult {
+        guard await currentUserProvider.accountStatus() == .registered else {
+            throw AppError.unauthorized
+        }
+        do {
+            let rows: [BadgeGiftResultDTO] = try await client
+                .rpc(
+                    "gift_profile_badge",
+                    params: GiftBadgeParameters(
+                        recipientID: recipientID,
+                        itemID: itemID,
+                        requestID: requestID
+                    )
+                )
+                .execute()
+                .value
+            guard let result = rows.first else { throw AppError.decoding }
+            return result.domainModel
         } catch {
             throw SupabaseErrorMapper.map(error)
         }

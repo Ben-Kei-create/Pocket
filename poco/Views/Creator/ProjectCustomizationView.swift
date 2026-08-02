@@ -63,7 +63,7 @@ struct ProjectCustomizationView: View {
                     projectID: project.id,
                     slot: selection.slot,
                     selectedItemID: decoration.badgeItemID(slot: selection.slot),
-                    usedItemIDs: Set(decoration.badgeItemIDsBySlot.values),
+                    usedItemIDsBySlot: decoration.badgeItemIDsBySlot,
                     onFinished: { badgeSlotSelection = nil }
                 )
             }
@@ -271,7 +271,7 @@ private struct ProjectBadgePickerView: View {
     let projectID: UUID
     let slot: Int
     let selectedItemID: String?
-    let usedItemIDs: Set<String>
+    let usedItemIDsBySlot: [Int: String]
     let onFinished: () -> Void
 
     @State private var selectedBadge: StarStoreItem?
@@ -301,8 +301,11 @@ private struct ProjectBadgePickerView: View {
                         .foregroundStyle(PocoTheme.secondaryText)
                 } else {
                     ForEach(ownedBadges) { item in
-                        let isUsedElsewhere = usedItemIDs.contains(item.id)
-                            && selectedItemID != item.id
+                        let usedElsewhereCount = usedItemIDsBySlot.filter {
+                            $0.key != slot && $0.value == item.id
+                        }.count
+                        let ownedQuantity = store.ownedQuantity(for: item.id)
+                        let isUsedElsewhere = usedElsewhereCount >= ownedQuantity
                         HStack(spacing: 13) {
                             Button {
                                 equip(item.id)
@@ -313,7 +316,11 @@ private struct ProjectBadgePickerView: View {
                                         Text(item.title)
                                             .pocoFont(.subheadline, weight: .medium)
                                             .foregroundStyle(.primary)
-                                        Text(isUsedElsewhere ? "別の枠に飾っています" : item.summary)
+                                        Text(
+                                            isUsedElsewhere
+                                                ? "所持分はすべて飾っています"
+                                                : "所持 ×\(ownedQuantity)"
+                                        )
                                             .pocoFont(.caption)
                                             .foregroundStyle(PocoTheme.secondaryText)
                                             .lineLimit(2)

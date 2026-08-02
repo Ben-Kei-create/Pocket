@@ -58,7 +58,15 @@ nonisolated struct StarStorePurchaseResult: Equatable, Sendable {
     let balance: Int
     let chargedCoins: Int
     let walletRevision: Int64
+    let ownedQuantity: Int
     let purchased: Bool
+}
+
+nonisolated struct BadgeGiftResult: Equatable, Sendable {
+    let itemID: String
+    let senderQuantity: Int
+    let recipientQuantity: Int
+    let gifted: Bool
 }
 
 nonisolated struct ProjectSlotStatus: Equatable, Sendable {

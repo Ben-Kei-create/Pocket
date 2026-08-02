@@ -219,9 +219,11 @@ private struct BubbleWallPhysicsCanvas: UIViewRepresentable {
             }
 
 
-            if let focusFeedbackID, focusFeedbackID != handledFocusFeedbackID {
+            if focusFeedbackID != handledFocusFeedbackID {
                 handledFocusFeedbackID = focusFeedbackID
-                scene.scrollTo(feedbackID: focusFeedbackID)
+                if let focusFeedbackID {
+                    scene.scrollTo(feedbackID: focusFeedbackID)
+                }
             }
         }
 
