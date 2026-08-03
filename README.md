@@ -6,6 +6,8 @@ SwiftUIで作られた、クリエイターへパステルカラーのフキダ�
 [`Docs/PocoBasicDesign.md`](Docs/PocoBasicDesign.md)にまとめています。
 本番公開前のBot対策、App Attest、監視、Backup、インシデント対応は
 [`Docs/SecurityOperations.md`](Docs/SecurityOperations.md)を必須チェックリストとして使います。
+オーナーとCodexの担当、公開ブロッカー、実施順は
+[`Docs/ProductionReadinessChecklist.md`](Docs/ProductionReadinessChecklist.md)で管理します。
 
 ## Requirements
 
@@ -139,7 +141,7 @@ AASAテンプレート、Associated Domains、実機確認手順は[`Docs/Univer
 ## ゲスト・Pocoユーザー・Poco Pro・広告
 
 - ゲスト投稿者にはSupabase Anonymous Authを使用し、登録画面なしで端末固有のユーザーIDを付与します。これにより、ゲストもRLSを保ったまま1つのフキダシへ1回いいねできます。Supabase DashboardでAnonymous Sign-Insを有効にしてください。
-- ゲストの表示名はクライアント入力を信用せず、`submit_feedback` RPCが一律「名無しさん」へ固定します。ゲスト感想は作成から24時間後に公開Query・件数から外れますが、投稿上限の生涯3件には引き続き算入します。制作者本人ページで作品所有者が通常のいいねを付けた感想は`expires_at = NULL`へ昇格し、作者❤️とともに永続化します。許可あり・ファン作成ページの所有者による反応は通常いいねです。行自体は即時物理削除せず、通報・監査用の保持方針に従います。登録済みユーザーの感想に期限はありません。
+- ゲストの表示名はクライアント入力を信用せず、`submit_feedback` RPCが一律「名無し」へ固定します。ゲスト感想は作成から24時間後に公開Query・件数から外れますが、投稿上限の生涯3件には引き続き算入します。制作者本人ページで作品所有者が通常のいいねを付けた感想は`expires_at = NULL`へ昇格し、作者❤️とともに永続化します。許可あり・ファン作成ページの所有者による反応は通常いいねです。行自体は即時物理削除せず、通報・監査用の保持方針に従います。登録済みユーザーの感想に期限はありません。
 - 閲覧・感想投稿・いいねはゲストでも利用できます。作品作成はPocoユーザー以上で、自分の作品・感想に届いたいいね集計は登録ユーザーから確認できます。共感順・作品ごとの詳細分析・広告非表示はPoco Proだけが利用できます。Pocoユーザーは基本3作品、200⭐︎で4作品、追加400⭐︎で最大5作品まで永続拡張できます。Proは30作品が上限です。Migration `20260730100000`の冪等RPCがWallet・支出台帳・永続Entitlementを1Transactionで更新し、Pro中は⭐︎を減らす前に拒否します。作品作成Triggerも購入済み枠を参照し、複数端末からの同時作成をDB側で制限します。`006_registered_creators.sql`はAnonymous Authユーザーによる作品作成と画像更新をDB側でも拒否します。
 - PocoユーザーとPoco Proには、その日最初のHome表示時にログインボーナスを自動表示・受取します。QR／Universal Linkの作品着地、感想入力、Bubble Dropをシートで覆わず、Homeへ戻ってから遅延表示します。`014`のボーナスは日本時間で1日1回、DBのTransaction Advisory Lockで多重受取を防ぎます。達成スタンプはマイページから確認でき、条件はDBの所有権・いいね・作者❤️から評価されます。
 - `015`以降、感想送信・キャラタップ・レアキャラ誕生を含む⭐︎付与は`claim_star_coin_event`だけが更新します。アプリは金額を送らず、DBが感想所有権、15%／5%の決定的出現条件、Pro資格、重複、日次上限を再検証して`star_coin_transactions`へ記録します。通常のキャラ操作は1日30⭐︎、感想送信報酬は1日20件を上限とします。
@@ -163,7 +165,7 @@ AASAテンプレート、Associated Domains、実機確認手順は[`Docs/Univer
 
 `POCO_AD_PROVIDER`と`POCO_AD_UNIT_ID`は広告Adapter用の設定境界です。広告事業者を決めた後、SDKをSwift Package Managerで追加し、`PocoAdBanner`内部をProvider固有Viewへ差し替えてください。開発中は必ずテスト広告ユニットIDを使い、ATT同意・プライバシーマニフェスト・子ども向けコンテンツ設定・同意管理を審査前に確認します。広告認証情報が未設定の現在は、実広告を要求せずプレースホルダーを表示します。
 
-ゲストFeedbackの所有者は公開プロフィールへ出さず、`feedback_ownership`にAnonymous Auth IDを非公開保存します。これにより3件上限、Like重複防止、通報、将来の登録時Identity Linkを維持しながら、公開側では「名無しさん」と24時間期限だけを見せます。本番ではApp Attest／CAPTCHA Gatewayも併用してください。
+ゲストFeedbackの所有者は公開プロフィールへ出さず、`feedback_ownership`にAnonymous Auth IDを非公開保存します。これにより3件上限、Like重複防止、通報、将来の登録時Identity Linkを維持しながら、公開側では「名無し」と24時間期限だけを見せます。本番ではApp Attest／CAPTCHA Gatewayも併用してください。
 
 ## Storage
 

@@ -155,9 +155,6 @@ struct BubbleWallView: View {
         .padding(.horizontal, 8)
         .padding(.bottom, 8)
         .background(ProjectDecorationBackground(projectID: projectID))
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            PocoAdPlacementView(placement: .bubbleWall)
-        }
         .navigationTitle(project?.title ?? "みんなのフキダシ")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

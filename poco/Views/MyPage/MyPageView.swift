@@ -65,7 +65,7 @@ struct MyPageView: View {
                                 showsRegistration = true
                             } label: {
                                 Label("ユーザー登録する", systemImage: "person.badge.plus")
-                                    .pocoFont(.headline, weight: .medium)
+                                    .pocoActionLabelTypography()
                                     .foregroundStyle(PocoTheme.primary)
                             }
                         }
@@ -76,7 +76,7 @@ struct MyPageView: View {
                             showsMembership = true
                         } label: {
                             Label("Poco Proになる", systemImage: "heart.circle.fill")
-                                .pocoFont(.headline, weight: .medium)
+                                .pocoActionLabelTypography()
                                 .foregroundStyle(PocoTheme.primary)
                     }
                 }

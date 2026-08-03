@@ -107,13 +107,15 @@ struct FeedbackComposeView: View {
             .onAppear {
                 if let draft = store.feedbackDraft(for: project.id) {
                     message = draft.message
-                    nickname = draft.nickname
+                    nickname = store.canCreateProjects
+                        ? draft.nickname
+                        : PocoGuestIdentity.displayName
                     isPublic = draft.isPublic
                     publishesProfile = draft.publishesProfile
                 } else if nickname.isEmpty {
                     nickname = store.canCreateProjects
                         ? "名無し"
-                        : "名無しさん"
+                        : PocoGuestIdentity.displayName
                 }
                 hasLoadedDraft = true
                 focusedField = .message
@@ -202,7 +204,7 @@ struct FeedbackComposeView: View {
                 HStack(spacing: 10) {
                     Image(systemName: "person.crop.circle.dashed")
                         .foregroundStyle(PocoTheme.secondaryText)
-                    Text("名無しさん")
+                    Text(PocoGuestIdentity.displayName)
                         .pocoFont(.body, weight: .medium)
                     Spacer()
                     Text("ゲスト")
@@ -226,7 +228,7 @@ struct FeedbackComposeView: View {
     private var trimmedNickname: String {
         store.canCreateProjects
             ? nickname.trimmingCharacters(in: .whitespacesAndNewlines)
-            : "名無しさん"
+            : PocoGuestIdentity.displayName
     }
 
     private func makeFeedback() {

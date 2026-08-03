@@ -780,12 +780,10 @@ actor MockModerationRepository: ModerationRepository {
 
     init(ownedFeedbackIDs: Set<UUID>? = nil) {
         let feedbacks = MockData.feedbacks
-        self.ownedFeedbackIDs = ownedFeedbackIDs ?? Set(
-            feedbacks
-                .filter { $0.senderID == MockData.previewUser.id }
-                .prefix(2)
-                .map(\.id)
-        )
+        // Sample feedbacks make the wall feel populated, but none of them
+        // belongs to the person currently trying the app. Ownership starts
+        // empty and is added only after that person actually posts.
+        self.ownedFeedbackIDs = ownedFeedbackIDs ?? []
         projectByFeedbackID = Dictionary(
             uniqueKeysWithValues: feedbacks.map { ($0.id, $0.projectID) }
         )

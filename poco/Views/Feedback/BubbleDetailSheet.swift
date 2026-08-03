@@ -102,23 +102,25 @@ struct BubbleDetailSheet: View {
                 ToolbarItem(placement: .primaryAction) {
                     if let feedback {
                         Menu {
-                            Button {
-                                showsReport = true
-                            } label: {
-                                Label("通報する", systemImage: "exclamationmark.bubble")
-                            }
-
                             if store.owns(feedback) {
                                 Button(role: .destructive) {
                                     showsDeleteConfirmation = true
                                 } label: {
                                     Label("自分の感想を削除", systemImage: "trash")
                                 }
-                            } else if store.canHideAsCreator(feedback) {
-                                Button(role: .destructive) {
-                                    showsHideConfirmation = true
+                            } else {
+                                Button {
+                                    showsReport = true
                                 } label: {
-                                    Label("作品から非表示", systemImage: "eye.slash")
+                                    Label("通報する", systemImage: "exclamationmark.bubble")
+                                }
+
+                                if store.canHideAsCreator(feedback) {
+                                    Button(role: .destructive) {
+                                        showsHideConfirmation = true
+                                    } label: {
+                                        Label("作品から非表示", systemImage: "eye.slash")
+                                    }
                                 }
                             }
                         } label: {

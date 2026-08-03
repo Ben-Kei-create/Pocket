@@ -10,16 +10,32 @@
 		A5B2164530163B3100581200 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = A5B2164A30163B3100581200 /* Supabase */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		B5B2163730163B3000581207 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A5B2162F30163B2F00581200 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A5B2163630163B3000581200;
+			remoteInfo = poco;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		A5B2163730163B3000581200 /* poco.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = poco.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A5B2164730163B3100581200 /* Shared.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Shared.xcconfig; sourceTree = "<group>"; };
 		A5B2164830163B3100581200 /* Secrets.example.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.example.xcconfig; sourceTree = "<group>"; };
+		B5B2163730163B3000581201 /* pocoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = pocoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A5B2163930163B3000581200 /* poco */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = poco;
+			sourceTree = "<group>";
+		};
+		B5B2163730163B3000581202 /* pocoTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = pocoTests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -33,6 +49,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B5B2163730163B3000581203 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -40,6 +63,7 @@
 			isa = PBXGroup;
 			children = (
 				A5B2163930163B3000581200 /* poco */,
+				B5B2163730163B3000581202 /* pocoTests */,
 				A5B2164630163B3100581200 /* Config */,
 				A5B2163830163B3000581200 /* Products */,
 			);
@@ -49,6 +73,7 @@
 			isa = PBXGroup;
 			children = (
 				A5B2163730163B3000581200 /* poco.app */,
+				B5B2163730163B3000581201 /* pocoTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -88,6 +113,29 @@
 			productReference = A5B2163730163B3000581200 /* poco.app */;
 			productType = "com.apple.product-type.application";
 		};
+		B5B2163730163B3000581206 /* pocoTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B5B2163730163B300058120B /* Build configuration list for PBXNativeTarget "pocoTests" */;
+			buildPhases = (
+				B5B2163730163B3000581205 /* Sources */,
+				B5B2163730163B3000581203 /* Frameworks */,
+				B5B2163730163B3000581204 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B5B2163730163B3000581208 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				B5B2163730163B3000581202 /* pocoTests */,
+			);
+			name = pocoTests;
+			packageProductDependencies = (
+			);
+			productName = pocoTests;
+			productReference = B5B2163730163B3000581201 /* pocoTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -103,6 +151,10 @@
 				TargetAttributes = {
 					A5B2163630163B3000581200 = {
 						CreatedOnToolsVersion = 26.6;
+					};
+					B5B2163730163B3000581206 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = A5B2163630163B3000581200;
 					};
 				};
 			};
@@ -124,12 +176,20 @@
 			projectRoot = "";
 			targets = (
 				A5B2163630163B3000581200 /* poco */,
+				B5B2163730163B3000581206 /* pocoTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		A5B2163530163B3000581200 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B5B2163730163B3000581204 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -146,7 +206,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B5B2163730163B3000581205 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		B5B2163730163B3000581208 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A5B2163630163B3000581200 /* poco */;
+			targetProxy = B5B2163730163B3000581207 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		A5B2164030163B3100581200 /* Debug */ = {
@@ -346,6 +421,46 @@
 			};
 			name = Release;
 		};
+		B5B2163730163B3000581209 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 7R927F3U4V;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fumiakiMogi777.pocoTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/poco.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/poco";
+			};
+			name = Debug;
+		};
+		B5B2163730163B300058120A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 7R927F3U4V;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.fumiakiMogi777.pocoTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = nonisolated;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/poco.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/poco";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -363,6 +478,15 @@
 			buildConfigurations = (
 				A5B2164330163B3100581200 /* Debug */,
 				A5B2164430163B3100581200 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B5B2163730163B300058120B /* Build configuration list for PBXNativeTarget "pocoTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B5B2163730163B3000581209 /* Debug */,
+				B5B2163730163B300058120A /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

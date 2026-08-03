@@ -38,6 +38,8 @@ struct FeedbackActivityView: View {
     let kind: FeedbackActivityKind
 
     @State private var selectedFeedback: Feedback?
+    @State private var feedbackPendingDeletion: Feedback?
+    @State private var isDeleting = false
 
     private var feedbacks: [Feedback] {
         switch kind {
@@ -51,26 +53,44 @@ struct FeedbackActivityView: View {
             if feedbacks.isEmpty {
                 emptyContent
             } else {
-                ScrollView {
-                    LazyVStack(spacing: 12) {
-                        ForEach(feedbacks) { feedback in
-                            Button {
-                                selectedFeedback = feedback
-                            } label: {
-                                FeedbackActivityRow(
-                                    feedback: feedback,
-                                    projectTitle: store.project(id: feedback.projectID)?.title,
-                                    creatorLikeDisplayName: store.creatorLikeDisplayName(
-                                        for: feedback
-                                    ),
-                                    showsVisibility: kind == .sent
-                                )
+                List {
+                    ForEach(feedbacks) { feedback in
+                        Button {
+                            selectedFeedback = feedback
+                        } label: {
+                            FeedbackActivityRow(
+                                feedback: feedback,
+                                projectTitle: store.project(id: feedback.projectID)?.title,
+                                creatorLikeDisplayName: store.creatorLikeDisplayName(
+                                    for: feedback
+                                ),
+                                showsVisibility: kind == .sent
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .listRowInsets(
+                            EdgeInsets(
+                                top: 6,
+                                leading: PocoTheme.pagePadding,
+                                bottom: 6,
+                                trailing: PocoTheme.pagePadding
+                            )
+                        )
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            if kind == .sent {
+                                Button(role: .destructive) {
+                                    feedbackPendingDeletion = feedback
+                                } label: {
+                                    Label("削除", systemImage: "trash")
+                                }
                             }
-                            .buttonStyle(.plain)
                         }
                     }
-                    .padding(PocoTheme.pagePadding)
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
                 .refreshable {
                     await store.loadMyActivity()
                 }
@@ -84,6 +104,48 @@ struct FeedbackActivityView: View {
         }
         .sheet(item: $selectedFeedback) { feedback in
             BubbleDetailSheet(feedbackID: feedback.id)
+        }
+        .confirmationDialog(
+            "この感想を削除しますか？",
+            isPresented: deletionConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            Button("削除する", role: .destructive) {
+                deletePendingFeedback()
+            }
+            .disabled(isDeleting)
+            Button("キャンセル", role: .cancel) {
+                feedbackPendingDeletion = nil
+            }
+        } message: {
+            Text(
+                store.accountStatus == .guest
+                    ? "削除した感想は元に戻せません。ゲストは削除しても、この作品へ送れる残り件数が戻りません。"
+                    : "削除した感想は元に戻せません。"
+            )
+        }
+    }
+
+    private var deletionConfirmationPresented: Binding<Bool> {
+        Binding(
+            get: { feedbackPendingDeletion != nil },
+            set: { isPresented in
+                if !isPresented, !isDeleting {
+                    feedbackPendingDeletion = nil
+                }
+            }
+        )
+    }
+
+    private func deletePendingFeedback() {
+        guard let feedbackPendingDeletion, !isDeleting else { return }
+        isDeleting = true
+        Task {
+            let result = await store.deleteOwnFeedback(feedbackPendingDeletion)
+            isDeleting = false
+            if case .success = result {
+                self.feedbackPendingDeletion = nil
+            }
         }
     }
 

@@ -1014,9 +1014,10 @@ final class PocoStore {
     }
 
     var currentDisplayName: String {
+        if accountStatus == .guest { return PocoGuestIdentity.displayName }
         if let currentProfile { return currentProfile.name }
         if backendMode == .mock { return "そらのひつじ" }
-        return canCreateProjects ? "Pocoユーザー" : "Pocoゲスト"
+        return "Pocoユーザー"
     }
 
     var memberLikeSummary: MemberLikeSummary {

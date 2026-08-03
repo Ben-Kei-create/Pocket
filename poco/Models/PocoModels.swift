@@ -1,5 +1,9 @@
 import Foundation
 
+nonisolated enum PocoGuestIdentity {
+    static let displayName = "名無し"
+}
+
 nonisolated struct Creator: Identifiable, Hashable, Codable, Sendable {
     let id: UUID
     var name: String

@@ -5,7 +5,7 @@ struct PocoPrimaryButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .pocoFont(.headline, weight: .medium)
+            .pocoActionLabelTypography()
             .foregroundStyle(.white.opacity(isEnabled ? 1 : 0.82))
             .frame(maxWidth: .infinity)
             .frame(minHeight: 56)
@@ -27,10 +27,20 @@ struct PocoPrimaryButtonStyle: ButtonStyle {
 struct PocoSecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .pocoFont(.headline, weight: .medium)
+            .pocoActionLabelTypography()
             .foregroundStyle(PocoTheme.primary)
             .frame(maxWidth: .infinity)
             .frame(minHeight: 54)
             .background(PocoTheme.primary.opacity(configuration.isPressed ? 0.14 : 0.08), in: Capsule())
+    }
+}
+
+extension View {
+    /// Keeps action labels readable inside compact iPhone layouts and at larger Dynamic Type sizes.
+    func pocoActionLabelTypography() -> some View {
+        pocoFont(.callout, weight: .medium)
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
+            .allowsTightening(true)
     }
 }

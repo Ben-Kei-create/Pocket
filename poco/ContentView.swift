@@ -25,6 +25,9 @@ struct ContentView: View {
         }
         .environment(\.font, PocoTypography.font(.body))
         .background(PocoTheme.background)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            PocoAdPlacementView(placement: .app)
+        }
         .onOpenURL { url in
             openProjectURL(url, completesWelcome: true)
         }

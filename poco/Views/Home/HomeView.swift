@@ -3,44 +3,20 @@ import SwiftUI
 struct HomeView: View {
     @Environment(PocoStore.self) private var store
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var selectedFeed: ProjectFeed = .newest
-    @State private var selectedCategory: CategoryFilter = .all
+    @State private var selectedFeed: HomeProjectFeed = .newest
+    @State private var selectedCategory: HomeProjectCategoryFilter = .all
     @State private var showsScanner = false
     @State private var searchText = ""
     @State private var galleryProject: Project?
     @Namespace private var categorySelectionAnimation
 
     private var visibleProjects: [Project] {
-        let categoryProjects = switch selectedCategory {
-        case .all:
-            store.projects
-        case .category(let category):
-            store.projects.filter { $0.category == category }
-        }
-
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let handleQuery = CreatorHandle.normalize(query)
-        let searchedProjects = query.isEmpty ? categoryProjects : categoryProjects.filter { project in
-            project.title.localizedStandardContains(query)
-                || project.creditedAuthorName.localizedStandardContains(query)
-                || project.creator.name.localizedStandardContains(query)
-                || (!handleQuery.isEmpty
-                    && (project.creator.handle?.localizedStandardContains(handleQuery) ?? false))
-                || project.description.localizedStandardContains(query)
-                || project.category.title.localizedStandardContains(query)
-        }
-        return searchedProjects.sorted { first, second in
-            switch selectedFeed {
-            case .newest:
-                first.createdAt > second.createdAt
-            case .recommended:
-                if first.feedbackCount != second.feedbackCount {
-                    first.feedbackCount > second.feedbackCount
-                } else {
-                    first.createdAt > second.createdAt
-                }
-            }
-        }
+        HomeProjectQuery(
+            feed: selectedFeed,
+            category: selectedCategory,
+            searchText: searchText
+        )
+        .execute(projects: store.projects)
     }
 
     var body: some View {
@@ -55,7 +31,7 @@ struct HomeView: View {
                         .padding(.top, 8)
 
                     Picker("作品の並び順", selection: $selectedFeed) {
-                        ForEach(ProjectFeed.allCases) { feed in
+                        ForEach(HomeProjectFeed.allCases) { feed in
                             Text(feed.title).tag(feed)
                         }
                     }
@@ -104,9 +80,6 @@ struct HomeView: View {
                 .padding(.bottom, 24)
             }
             .background(PocoTheme.background)
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                PocoAdPlacementView(placement: .home)
-            }
             .searchable(
                 text: $searchText,
                 placement: .navigationBarDrawer(displayMode: .always),
@@ -193,7 +166,7 @@ struct HomeView: View {
     private var categoryFilters: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
-                ForEach(CategoryFilter.allCases) { filter in
+                ForEach(HomeProjectCategoryFilter.allCases) { filter in
                     Button {
                         withAnimation(reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.82)) {
                             selectedCategory = filter
@@ -540,33 +513,5 @@ private struct NotificationInboxRow: View {
         .accessibilityLabel(
             notification.isRead ? notification.title : "未読、\(notification.title)"
         )
-    }
-}
-
-private enum CategoryFilter: Hashable, Identifiable, CaseIterable {
-    case all
-    case category(ProjectCategory)
-
-    static let allCases: [CategoryFilter] = [.all] + ProjectCategory.allCases.map(CategoryFilter.category)
-    var id: String { title }
-    var title: String {
-        switch self {
-        case .all: "すべて"
-        case .category(let category): category.title
-        }
-    }
-}
-
-private enum ProjectFeed: String, CaseIterable, Identifiable {
-    case newest
-    case recommended
-
-    var id: Self { self }
-
-    var title: String {
-        switch self {
-        case .newest: "新着"
-        case .recommended: "おすすめ"
-        }
     }
 }

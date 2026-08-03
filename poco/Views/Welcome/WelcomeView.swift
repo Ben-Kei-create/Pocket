@@ -50,7 +50,7 @@ struct WelcomeView: View {
                         Button("無料登録・ログイン") {
                             showsRegistration = true
                         }
-                        .pocoFont(.subheadline, weight: .medium)
+                        .pocoActionLabelTypography()
                         .foregroundStyle(PocoTheme.primary)
                         .frame(minHeight: 44)
                     }

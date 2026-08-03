@@ -1,9 +1,7 @@
 import SwiftUI
 
 enum PocoAdPlacement: String, Sendable {
-    case home
-    case project
-    case bubbleWall
+    case app
 }
 
 struct PocoAdPlacementView: View {

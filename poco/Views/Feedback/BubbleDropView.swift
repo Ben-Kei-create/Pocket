@@ -125,7 +125,7 @@ struct BubbleDropView: View {
                 Button("もう一度送信する") {
                     deliver()
                 }
-                .pocoFont(.subheadline, weight: .medium)
+                .pocoActionLabelTypography()
                 .foregroundStyle(PocoTheme.primary)
                 .accessibilityHint("同じフキダシの送信を再試行します")
             } else if deliveryState == .sending {
@@ -139,7 +139,7 @@ struct BubbleDropView: View {
                     Button("無料登録してPocoを続ける") {
                         showsRegistration = true
                     }
-                    .pocoFont(.subheadline, weight: .medium)
+                    .pocoActionLabelTypography()
                     .foregroundStyle(PocoTheme.primary)
                     .accessibilityHint("プロフィールと作品の感想箱を作れる無料登録画面を開きます")
                 }

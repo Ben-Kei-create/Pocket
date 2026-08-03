@@ -150,9 +150,6 @@ struct ProjectDetailView: View {
                         .padding(.bottom, 24)
                     }
                     .background(ProjectDecorationBackground(projectID: project.id))
-                    .safeAreaInset(edge: .bottom, spacing: 0) {
-                        PocoAdPlacementView(placement: .project)
-                    }
                     .navigationTitle("")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
