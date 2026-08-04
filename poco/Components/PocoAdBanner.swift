@@ -1,9 +1,7 @@
 import SwiftUI
 
 enum PocoAdPlacement: String, Sendable {
-    case home
-    case project
-    case bubbleWall
+    case app
 }
 
 struct PocoAdPlacementView: View {
@@ -12,7 +10,7 @@ struct PocoAdPlacementView: View {
     let placement: PocoAdPlacement
 
     var body: some View {
-        if !store.isPocoMember {
+        if store.capabilities.shouldShowAds {
             PocoAdBanner {
                 showsMembership = true
             }
@@ -37,19 +35,14 @@ struct PocoAdBanner: View {
                         .foregroundStyle(PocoTheme.primary)
                 }
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text("スポンサー広告")
-                    .font(.caption2)
-                    .foregroundStyle(PocoTheme.secondaryText)
-                Text("ここに広告が表示されます")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.primary)
-            }
+            Text("スポンサー広告")
+                .pocoFont(.caption, weight: .medium)
+                .foregroundStyle(PocoTheme.secondaryText)
 
             Spacer(minLength: 8)
 
             Button("広告を消す", action: onRemoveAds)
-                .font(.caption.weight(.semibold))
+                .pocoFont(.caption, weight: .medium)
                 .foregroundStyle(PocoTheme.primary)
         }
         .padding(.horizontal, 14)
@@ -59,6 +52,6 @@ struct PocoAdBanner: View {
             Divider()
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("スポンサー広告。Pocoメンバーになると広告を非表示にできます")
+        .accessibilityLabel("スポンサー広告。Poco Proになると広告を非表示にできます")
     }
 }

@@ -37,6 +37,10 @@
 	<true/>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>作品のQRコードを写真ライブラリへ保存するために使用します。</string>
+	<key>NSCameraUsageDescription</key>
+	<string>作品のQRコードを読み取り、感想ページを開くために使用します。</string>
+	<key>PocoAppStoreURL</key>
+	<string>$(POCO_APP_STORE_URL)</string>
 	<key>PocoBackend</key>
 	<string>$(POCO_BACKEND)</string>
 	<key>PocoDevelopmentUserID</key>
@@ -60,6 +64,12 @@
 	</dict>
 	<key>UILaunchScreen</key>
 	<dict/>
+	<key>UIAppFonts</key>
+	<array>
+		<string>ZenMaruGothic-Regular.ttf</string>
+		<string>ZenMaruGothic-Medium.ttf</string>
+		<string>ZenMaruGothic-Bold.ttf</string>
+	</array>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

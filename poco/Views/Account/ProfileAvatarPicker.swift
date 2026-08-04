@@ -8,27 +8,28 @@ struct ProfileAvatarPicker: View {
 
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var isLoadingPhoto = false
+    @State private var showsSensitiveImageAlert = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("プロフィール画像")
-                    .font(.subheadline.weight(.semibold))
+                    .pocoFont(.subheadline, weight: .medium)
                 Spacer()
-                Text("5種＋自分の写真")
-                    .font(.caption)
+                Text("Poco＋自分の写真")
+                    .pocoFont(.caption)
                     .foregroundStyle(PocoTheme.tertiaryText)
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
-                    ForEach(BuiltInAvatar.allCases) { avatar in
+                    ForEach(BuiltInAvatar.selectableCases) { avatar in
                         Button {
                             avatarName = avatar.rawValue
                             avatarImageData = nil
                             selectedPhoto = nil
                         } label: {
-                            avatarImage(avatar.rawValue)
+                            avatarImage(avatar.companionAssetName)
                                 .overlay {
                                     selectionRing(isSelected: avatarName == avatar.rawValue)
                                 }
@@ -70,10 +71,28 @@ struct ProfileAvatarPicker: View {
             Task {
                 defer { isLoadingPhoto = false }
                 guard let data = try? await item.loadTransferable(type: Data.self),
-                      UIImage(data: data) != nil else { return }
-                avatarImageData = data
+                      let sanitizedData = try? ProjectImageProcessor.compressedJPEG(
+                        from: data,
+                        maximumDimension: 1_024,
+                        quality: 0.82
+                      ),
+                      RemoteImageDecoder.decode(
+                        sanitizedData,
+                        maximumPixelSize: 1_024
+                      ) != nil else { return }
+                guard await ImageSensitivityService.analyze(sanitizedData) != .sensitive else {
+                    showsSensitiveImageAlert = true
+                    selectedPhoto = nil
+                    return
+                }
+                avatarImageData = sanitizedData
                 avatarName = nil
             }
+        }
+        .alert("この画像は使用できません", isPresented: $showsSensitiveImageAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("安全に利用できるプロフィール画像を選んでください。")
         }
     }
 
@@ -105,7 +124,7 @@ struct ProfileAvatarPicker: View {
                 .frame(width: 58, height: 58)
                 .overlay {
                     Image(systemName: "photo.badge.plus")
-                        .font(.title3.weight(.semibold))
+                        .pocoFont(.title3, weight: .medium)
                         .foregroundStyle(PocoTheme.primary)
                 }
         }

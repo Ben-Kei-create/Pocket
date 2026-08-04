@@ -6,23 +6,22 @@ struct BubbleWallView: View {
 
     @State private var mode = WallMode.everyone
     @State private var selectedFeedback: Feedback?
-    @State private var selectedCreator: Creator?
     @State private var showsMembership = false
     @State private var focusFeedbackID: UUID?
+    @State private var highlightsOwnFeedbacks = false
     @State private var previousVisitDate: Date?
+    @State private var selectedBadge: StarStoreItem?
 
     private var project: Project? {
         store.project(id: projectID)
     }
 
     private var displayedFeedbacks: [Feedback] {
-        let values = store.feedbacks(for: projectID)
-        return mode == .resonated ? values.sorted { $0.likes > $1.likes } : values
+        store.feedbacks(for: projectID)
     }
 
     private var ownFeedbacks: [Feedback] {
-        guard let currentUserID = store.currentUserID else { return [] }
-        return store.feedbacks(for: projectID).filter { $0.senderID == currentUserID }
+        store.feedbacks(for: projectID).filter(store.owns)
     }
 
     private var ownFeedbackIDs: Set<UUID> {
@@ -39,30 +38,77 @@ struct BubbleWallView: View {
             if let project {
                 VStack(spacing: 5) {
                     Label("\(project.feedbackCount.formatted())", systemImage: "bubble.left")
-                        .font(.title3.weight(.bold))
+                        .pocoFont(.title3, weight: .bold)
                         .foregroundStyle(PocoTheme.primary)
                     Text("件の感想")
-                        .font(.caption)
+                        .pocoFont(.caption)
                         .foregroundStyle(PocoTheme.secondaryText)
+                }
+
+                if !equippedBadges.isEmpty {
+                    ProjectBadgeCaseView(
+                        items: equippedBadges,
+                        onSelect: { selectedBadge = $0 }
+                    )
                 }
 
                 Picker("表示するフキダシ", selection: modeSelection) {
                     ForEach(WallMode.allCases) { item in
-                        Text(item.title + (item == .resonated && !store.isPocoMember ? " 🔒" : ""))
+                        Text(
+                            item.title
+                                + (item == .insights && !store.capabilities.canSeePopularFeedbacks
+                                    ? " 🔒"
+                                    : "")
+                        )
                             .tag(item)
                     }
                 }
                 .pickerStyle(.segmented)
 
-                if !ownFeedbacks.isEmpty || newFeedbackCount > 0 {
+                if mode == .everyone && (!ownFeedbacks.isEmpty || newFeedbackCount > 0) {
                     HStack(spacing: 10) {
                         if let ownLatest = ownFeedbacks.first {
                             Button {
-                                focusFeedbackID = ownLatest.id
+                                highlightsOwnFeedbacks.toggle()
+                                focusFeedbackID = highlightsOwnFeedbacks ? ownLatest.id : nil
                             } label: {
                                 Label("自分のことば", systemImage: "location.fill")
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .foregroundStyle(
+                                        highlightsOwnFeedbacks ? .white : PocoTheme.primary
+                                    )
+                                    .background {
+                                        Capsule()
+                                            .fill(
+                                                highlightsOwnFeedbacks
+                                                    ? PocoTheme.primary
+                                                    : PocoTheme.primary.opacity(0.10)
+                                            )
+                                    }
+                                    .overlay {
+                                        Capsule()
+                                            .stroke(
+                                                PocoTheme.primary.opacity(
+                                                    highlightsOwnFeedbacks ? 0.75 : 0.18
+                                                ),
+                                                lineWidth: 1
+                                            )
+                                    }
+                                    .shadow(
+                                        color: PocoTheme.primary.opacity(
+                                            highlightsOwnFeedbacks ? 0.42 : 0
+                                        ),
+                                        radius: highlightsOwnFeedbacks ? 9 : 0
+                                    )
                             }
-                            .accessibilityHint("最新の自分のフキダシへ移動します")
+                            .buttonStyle(.plain)
+                            .accessibilityValue(highlightsOwnFeedbacks ? "表示中" : "非表示")
+                            .accessibilityHint(
+                                highlightsOwnFeedbacks
+                                    ? "自分のフキダシの光を消します"
+                                    : "最新の自分のフキダシへ移動して光らせます"
+                            )
                         }
 
                         if newFeedbackCount > 0 {
@@ -73,49 +119,56 @@ struct BubbleWallView: View {
                             }
                         }
                     }
-                    .font(.caption.weight(.semibold))
+                    .pocoFont(.caption, weight: .medium)
                     .buttonStyle(.bordered)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                PhysicsBubbleFieldView(
-                    feedbacks: displayedFeedbacks,
-                    highlightedFeedbackIDs: ownFeedbackIDs,
-                    focusFeedbackID: focusFeedbackID,
-                    onSelect: { selectedFeedback = $0 },
-                    onSelectAuthor: { feedback in
-                        selectedCreator = feedback.senderCreator
-                    }
-                )
-                .padding(.bottom, 8)
+                if mode == .everyone {
+                    PhysicsBubbleFieldView(
+                        feedbacks: displayedFeedbacks,
+                        highlightedFeedbackIDs: highlightsOwnFeedbacks ? ownFeedbackIDs : [],
+                        focusFeedbackID: focusFeedbackID,
+                        enablesCompanionEvolution: store.capabilities.canUseCompanionEvolution,
+                        onSelect: { selectedFeedback = $0 },
+                        onCompanionTapped: { eventKey in
+                            store.claimStarCoinReward(eventKey: eventKey)
+                        },
+                        onRareCompanionBorn: { eventKey in
+                            store.claimStarCoinReward(eventKey: eventKey)
+                        },
+                        onRareCompanionTapped: { eventKey in
+                            store.claimStarCoinReward(eventKey: eventKey)
+                        }
+                    )
+                    .padding(.bottom, 8)
+                } else {
+                    ProjectInsightSummaryView(
+                        project: project,
+                        feedbacks: displayedFeedbacks
+                    )
+                }
             } else {
                 ContentUnavailableView("作品が見つかりません", systemImage: "questionmark.folder")
             }
         }
         .padding(.horizontal, 8)
         .padding(.bottom, 8)
-        .background(PocoTheme.background)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            PocoAdPlacementView(placement: .bubbleWall)
-        }
+        .background(ProjectDecorationBackground(projectID: projectID))
         .navigationTitle(project?.title ?? "みんなのフキダシ")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                StarCoinBadge(balance: store.starCoinBalance)
+            }
+        }
         .sheet(item: $selectedFeedback) { feedback in
             BubbleDetailSheet(feedbackID: feedback.id)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
         }
-        .sheet(item: $selectedCreator) { creator in
-            NavigationStack {
-                PublicProfileView(creator: creator)
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("閉じる") {
-                                selectedCreator = nil
-                            }
-                        }
-                    }
-            }
+        .sheet(item: $selectedBadge) { item in
+            BadgeDetailSheet(item: item)
         }
         .sheet(isPresented: $showsMembership) {
             PocoMembershipView()
@@ -129,6 +182,7 @@ struct BubbleWallView: View {
                     ? Date(timeIntervalSince1970: timestamp)
                     : .now
             }
+            await store.loadProjectDecoration(projectID: projectID)
             await store.loadFeedbacks(for: projectID)
             guard !Task.isCancelled else { return }
             store.startObservingFeedbacks(for: projectID)
@@ -140,10 +194,17 @@ struct BubbleWallView: View {
             )
             store.stopObservingFeedbacks(for: projectID)
         }
-        .onChange(of: store.isPocoMember) { _, isMember in
-            if !isMember {
+        .onChange(of: store.capabilities.canSeePopularFeedbacks) { _, canSeePopular in
+            if !canSeePopular {
                 mode = .everyone
             }
+        }
+    }
+
+    private var equippedBadges: [StarStoreItem] {
+        let decoration = store.projectDecoration(for: projectID)
+        return (0..<3).compactMap { slot in
+            store.starStoreItem(id: decoration.badgeItemID(slot: slot))
         }
     }
 
@@ -151,7 +212,7 @@ struct BubbleWallView: View {
         Binding(
             get: { mode },
             set: { newValue in
-                if newValue == .resonated && !store.isPocoMember {
+                if newValue == .insights && !store.capabilities.canSeePopularFeedbacks {
                     showsMembership = true
                 } else {
                     mode = newValue
@@ -163,13 +224,120 @@ struct BubbleWallView: View {
 
 private enum WallMode: String, CaseIterable, Identifiable {
     case everyone
-    case resonated
+    case insights
 
     var id: Self { self }
     var title: String {
         switch self {
         case .everyone: "みんなのフキダシ"
-        case .resonated: "共感のフキダシ"
+        case .insights: "作品の記録"
         }
+    }
+}
+
+private struct ProjectInsightSummaryView: View {
+    let project: Project
+    let feedbacks: [Feedback]
+
+    private var totalLikes: Int {
+        feedbacks.reduce(0) { $0 + $1.likes }
+    }
+
+    private var receivedCount: Int {
+        feedbacks.filter { $0.creatorReceivedAt != nil }.count
+    }
+
+    private var recentCount: Int {
+        let sevenDaysAgo = Calendar.current.date(byAdding: .day, value: -7, to: .now) ?? .now
+        return feedbacks.filter { $0.createdAt >= sevenDaysAgo }.count
+    }
+
+    private var averageLength: Int {
+        guard !feedbacks.isEmpty else { return 0 }
+        return feedbacks.reduce(0) { $0 + $1.message.count } / feedbacks.count
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                LazyVGrid(
+                    columns: [GridItem(.flexible()), GridItem(.flexible())],
+                    spacing: 12
+                ) {
+                    insightCard(
+                        value: project.feedbackCount,
+                        title: "感想",
+                        symbol: "bubble.left.fill",
+                        color: PocoTheme.primary
+                    )
+                    insightCard(
+                        value: totalLikes,
+                        title: "共感",
+                        symbol: "heart.fill",
+                        color: .pink
+                    )
+                    insightCard(
+                        value: receivedCount,
+                        title: "作者のいいね",
+                        symbol: "heart.fill",
+                        color: PocoTheme.primary
+                    )
+                    insightCard(
+                        value: recentCount,
+                        title: "最近7日間",
+                        symbol: "calendar",
+                        color: .mint
+                    )
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("ことばの傾向", systemImage: "text.quote")
+                        .pocoFont(.headline, weight: .medium)
+                    Text("平均\(averageLength)文字")
+                        .pocoFont(.subheadline)
+                        .foregroundStyle(PocoTheme.secondaryText)
+                        .lineSpacing(4)
+                }
+                .padding(18)
+                .pocoCard()
+
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(project.title)
+                        .pocoFont(.headline, weight: .medium)
+                    Text("\(project.category.creatorPrefix)：\(project.creditedAuthorName)")
+                        .pocoFont(.subheadline)
+                        .foregroundStyle(PocoTheme.secondaryText)
+                    Text(project.description)
+                        .pocoFont(.footnote)
+                        .foregroundStyle(PocoTheme.secondaryText)
+                        .lineLimit(3)
+                }
+                .padding(18)
+                .pocoCard()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+        }
+    }
+
+    private func insightCard(
+        value: Int,
+        title: String,
+        symbol: String,
+        color: Color
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Image(systemName: symbol)
+                .foregroundStyle(color)
+            Text(value.formatted())
+                .pocoFont(.title2, weight: .bold).monospacedDigit()
+            Text(title)
+                .pocoFont(.caption)
+                .foregroundStyle(PocoTheme.secondaryText)
+        }
+        .frame(maxWidth: .infinity, minHeight: 92, alignment: .leading)
+        .padding(16)
+        .pocoCard()
+        .accessibilityElement(children: .combine)
     }
 }

@@ -5,6 +5,11 @@ struct BubbleDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
     let feedbackID: UUID
     @State private var selectedCreator: Creator?
+    @State private var showsReport = false
+    @State private var showsDeleteConfirmation = false
+    @State private var showsHideConfirmation = false
+    @State private var showsReportedConfirmation = false
+    @State private var isModerating = false
 
     private var feedback: Feedback? {
         store.feedbacks.first { $0.id == feedbackID }
@@ -26,13 +31,16 @@ struct BubbleDetailSheet: View {
                             .frame(maxWidth: .infinity, minHeight: 190)
 
                         HStack {
-                            Label(feedback.createdAt.formatted(date: .abbreviated, time: .shortened), systemImage: "clock")
+                            Label(
+                                PocoDateFormatting.feedbackTimestamp.string(from: feedback.createdAt),
+                                systemImage: "clock"
+                            )
                             Spacer()
-                            if store.isPocoMember {
+                            if store.capabilities.canSeePopularFeedbacks {
                                 Label("\(feedback.likes)", systemImage: "heart.fill")
                             }
                         }
-                        .font(.subheadline)
+                        .pocoFont(.subheadline)
                         .foregroundStyle(PocoTheme.secondaryText)
 
                         Button {
@@ -40,18 +48,45 @@ struct BubbleDetailSheet: View {
                                 await store.like(feedback)
                             }
                         } label: {
-                            Label(
-                                hasLiked ? "いいねを送りました" : "いいねを送る",
-                                systemImage: hasLiked ? "heart.fill" : "heart"
-                            )
+                            if store.canMarkReceived(feedback) {
+                                HStack(spacing: 8) {
+                                    Image(PocoArtwork.creatorHeart)
+                                        .resizable()
+                                        .scaledToFit()
+                                        .frame(width: 25, height: 25)
+                                        .accessibilityHidden(true)
+                                    Text(hasLiked ? "いいねを送りました" : "いいねを送る")
+                                }
+                            } else {
+                                Label(
+                                    hasLiked ? "いいねを送りました" : "いいねを送る",
+                                    systemImage: hasLiked ? "heart.fill" : "heart"
+                                )
+                            }
                         }
                         .buttonStyle(PocoPrimaryButtonStyle())
                         .disabled(hasLiked)
                         .accessibilityHint(
-                            store.isPocoMember
-                                ? "現在のいいね数は\(feedback.likes)件です"
-                                : "ゲストにはいいね数は表示されません"
+                            store.canMarkReceived(feedback)
+                                ? "作者としていいねし、フキダシに作者のハートを付けます"
+                                : store.capabilities.canSeePopularFeedbacks
+                                    ? "現在のいいね数は\(feedback.likes)件です"
+                                    : "ゲストにはいいね数は表示されません"
                         )
+
+                        if let creatorName = store.creatorLikeDisplayName(for: feedback) {
+                            HStack(spacing: 10) {
+                                Image(PocoArtwork.creatorHeartReceived)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 44, height: 44)
+                                    .accessibilityHidden(true)
+                                Text("\(creatorName)さんもいいねしました")
+                                    .pocoFont(.subheadline, weight: .medium)
+                                    .foregroundStyle(PocoTheme.primary)
+                            }
+                                .accessibilityLabel("\(creatorName)さんがこの感想にいいねしました")
+                        }
 
                         Spacer()
                     }
@@ -64,12 +99,99 @@ struct BubbleDetailSheet: View {
             .navigationTitle("フキダシ")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    if let feedback {
+                        Menu {
+                            if store.owns(feedback) {
+                                Button(role: .destructive) {
+                                    showsDeleteConfirmation = true
+                                } label: {
+                                    Label("自分の感想を削除", systemImage: "trash")
+                                }
+                            } else {
+                                Button {
+                                    showsReport = true
+                                } label: {
+                                    Label("通報する", systemImage: "exclamationmark.bubble")
+                                }
+
+                                if store.canHideAsCreator(feedback) {
+                                    Button(role: .destructive) {
+                                        showsHideConfirmation = true
+                                    } label: {
+                                        Label("作品から非表示", systemImage: "eye.slash")
+                                    }
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                        }
+                        .disabled(isModerating)
+                        .accessibilityLabel("フキダシのその他の操作")
+                    }
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("閉じる", action: dismiss.callAsFunction)
                 }
             }
             .navigationDestination(item: $selectedCreator) { creator in
                 PublicProfileView(creator: creator)
+            }
+            .sheet(isPresented: $showsReport) {
+                if let feedback {
+                    FeedbackReportSheet(feedback: feedback) {
+                        showsReportedConfirmation = true
+                    }
+                }
+            }
+            .alert("通報を受け付けました", isPresented: $showsReportedConfirmation) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("ご協力ありがとうございます。Poco運営が確認します。")
+            }
+            .confirmationDialog(
+                "この感想を削除しますか？",
+                isPresented: $showsDeleteConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("削除する", role: .destructive) {
+                    guard let feedback else { return }
+                    moderate { await store.deleteOwnFeedback(feedback) }
+                }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text(
+                    store.accountStatus == .guest
+                        ? "削除した感想は元に戻せません。ゲストは削除しても、この作品へ送れる残り件数が戻りません。"
+                        : "削除した感想は元に戻せません。"
+                )
+            }
+            .confirmationDialog(
+                "この感想を作品から非表示にしますか？",
+                isPresented: $showsHideConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("非表示にする", role: .destructive) {
+                    guard let feedback else { return }
+                    moderate { await store.hideAsCreator(feedback) }
+                }
+                Button("キャンセル", role: .cancel) {}
+            } message: {
+                Text("投稿者の記録は保持され、Poco運営による確認と復旧が可能です。")
+            }
+        }
+    }
+
+    private func moderate(
+        operation: @escaping @MainActor () async -> Result<Void, AppError>
+    ) {
+        guard !isModerating else { return }
+        isModerating = true
+        Task {
+            let result = await operation()
+            isModerating = false
+            if case .success = result {
+                dismiss()
             }
         }
     }

@@ -2,7 +2,6 @@ import SwiftUI
 
 struct MyPageView: View {
     @Environment(PocoStore.self) private var store
-    @AppStorage("poco.hasCompletedWelcome") private var hasCompletedWelcome = true
     @State private var showsMembership = false
     @State private var showsRegistration = false
     @State private var showsProfileEdit = false
@@ -18,9 +17,14 @@ struct MyPageView: View {
                         )
                         VStack(alignment: .leading, spacing: 4) {
                             Text(store.currentDisplayName)
-                                .font(.headline)
+                                .pocoFont(.headline, weight: .medium)
+                            if let handle = store.currentProfile?.handle {
+                                Text("@\(handle)")
+                                    .pocoFont(.caption, weight: .medium)
+                                    .foregroundStyle(PocoTheme.primary)
+                            }
                             Text(accountLabel)
-                                .font(.caption)
+                                .pocoFont(.caption)
                                 .foregroundStyle(PocoTheme.secondaryText)
                         }
                         Spacer()
@@ -28,20 +32,20 @@ struct MyPageView: View {
                             Button("編集") {
                                 showsProfileEdit = true
                             }
-                            .font(.subheadline.weight(.semibold))
+                            .pocoFont(.subheadline, weight: .medium)
                             .foregroundStyle(PocoTheme.primary)
                             .accessibilityLabel("プロフィールを編集")
                         }
                         if store.isPocoMember {
                             Image(systemName: "checkmark.seal.fill")
                                 .foregroundStyle(PocoTheme.primary)
-                                .accessibilityLabel("Pocoメンバー")
+                                .accessibilityLabel("Poco Pro")
                         }
                     }
                     .padding(.vertical, 6)
                 }
 
-                if store.isPocoMember {
+                if store.capabilities.canSeeOwnReactionCounts {
                     Section("もらったいいね") {
                         LikeSummaryRow(
                             title: "自分の作品",
@@ -61,11 +65,9 @@ struct MyPageView: View {
                                 showsRegistration = true
                             } label: {
                                 Label("ユーザー登録する", systemImage: "person.badge.plus")
-                                    .font(.headline)
+                                    .pocoActionLabelTypography()
                                     .foregroundStyle(PocoTheme.primary)
                             }
-                        } footer: {
-                            Text("登録すると作品ページを作成できます。感想投稿はゲストのまま利用できます。")
                         }
                     }
 
@@ -73,35 +75,79 @@ struct MyPageView: View {
                         Button {
                             showsMembership = true
                         } label: {
-                            Label("Pocoメンバーになる", systemImage: "heart.circle.fill")
-                                .font(.headline)
+                            Label("Poco Proになる", systemImage: "heart.circle.fill")
+                                .pocoActionLabelTypography()
                                 .foregroundStyle(PocoTheme.primary)
+                    }
+                }
+                }
+
+                if store.canCreateProjects {
+                    Section("ごほうび") {
+                        NavigationLink {
+                            AchievementStampsView()
+                        } label: {
+                            HStack {
+                                Label("達成スタンプ", systemImage: "seal.fill")
+                                Spacer()
+                                Text(
+                                    "\(store.memberRewardSnapshot.unlockedStamps.count)"
+                                        + "/\(AchievementStamp.allCases.count)"
+                                )
+                                .pocoFont(.subheadline).monospacedDigit()
+                                .foregroundStyle(PocoTheme.secondaryText)
+                            }
                         }
-                    } footer: {
-                        Text("共感のフキダシ、受け取ったいいね、広告なしを利用できます。")
+
+                        NavigationLink {
+                            StarStoreView()
+                        } label: {
+                            HStack {
+                                Label("スターショップ", systemImage: "bag.fill")
+                                Spacer()
+                                StarCoinBadge(balance: store.starCoinBalance)
+                            }
+                        }
                     }
                 }
 
                 Section("Poco") {
-                    Label("送った感想", systemImage: "bubble.left")
-                    Label("いいねしたフキダシ", systemImage: "heart")
-                    Label("通知", systemImage: "bell")
-                }
-
-                Section {
-                    Button("Welcomeをもう一度見る") {
-                        hasCompletedWelcome = false
-                    }
-                    .foregroundStyle(PocoTheme.primary)
-                }
-
-                if store.canCreateProjects {
-                    Section {
-                        Button("ログアウト", role: .destructive) {
-                            Task { await store.signOut() }
+                    if !store.currentFeedbackDrafts.isEmpty {
+                        NavigationLink {
+                            FeedbackDraftListView()
+                        } label: {
+                            HStack {
+                                Label("感想の下書き", systemImage: "doc.text")
+                                Spacer()
+                                Text(store.currentFeedbackDrafts.count.formatted())
+                                    .pocoFont(.subheadline).monospacedDigit()
+                                    .foregroundStyle(PocoTheme.secondaryText)
+                            }
                         }
-                    } footer: {
-                        Text("ログアウト後も、閲覧と新しい感想の投稿はゲストとして利用できます。")
+                    }
+
+                    NavigationLink {
+                        FeedbackActivityView(kind: .sent)
+                    } label: {
+                        Label("送った感想", systemImage: "bubble.left")
+                    }
+
+                    NavigationLink {
+                        FeedbackActivityView(kind: .liked)
+                    } label: {
+                        Label("いいねしたフキダシ", systemImage: "heart")
+                    }
+
+                    NavigationLink {
+                        QAndAView()
+                    } label: {
+                        Label("Q&A", systemImage: "questionmark.bubble")
+                    }
+
+                    NavigationLink {
+                        PocoSettingsView()
+                    } label: {
+                        Label("設定", systemImage: "gearshape")
                     }
                 }
 
@@ -114,22 +160,25 @@ struct MyPageView: View {
                 }
             }
             .listStyle(.insetGrouped)
-            .navigationTitle("マイページ")
             .sheet(isPresented: $showsMembership) {
                 PocoMembershipView()
             }
             .sheet(isPresented: $showsRegistration) {
-                RegistrationGateView()
+                RegistrationGateView(context: .account)
             }
             .sheet(isPresented: $showsProfileEdit) {
                 ProfileEditView()
+            }
+            .task(id: store.canCreateProjects) {
+                if store.canCreateProjects {
+                    await store.loadMemberRewards()
+                }
             }
         }
     }
 
     private var accountLabel: String {
-        if store.isPocoMember { return "Pocoメンバー" }
-        return store.canCreateProjects ? "登録ユーザー" : "Pocoゲスト"
+        store.role.title
     }
 }
 
@@ -146,7 +195,7 @@ private struct LikeSummaryRow: View {
             Text(title)
             Spacer()
             Label(value.formatted(), systemImage: "heart.fill")
-                .font(.headline.monospacedDigit())
+                .pocoFont(.headline).monospacedDigit()
                 .foregroundStyle(PocoTheme.primary)
         }
         .accessibilityElement(children: .combine)

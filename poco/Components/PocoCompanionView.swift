@@ -1,17 +1,25 @@
 import SwiftUI
 
 nonisolated enum PocoCompanion {
-    static func assetName(for feedback: Feedback) -> String {
-        if let avatarName = feedback.senderAvatarName,
-           let avatar = BuiltInAvatar(rawValue: avatarName) {
-            return avatar.companionAssetName
-        }
+    static let appearanceProbability = 0.15
 
-        let avatars = BuiltInAvatar.allCases
+    static func shouldAppear(for feedback: Feedback) -> Bool {
         let seed = feedback.id.uuidString.unicodeScalars.reduce(0) { partial, scalar in
             (partial &* 31 &+ Int(scalar.value)) & 0x7fff_ffff
         }
-        return avatars[seed % avatars.count].companionAssetName
+        return seed % 100 < Int(appearanceProbability * 100)
+    }
+
+    static func assetName(for feedback: Feedback) -> String {
+        avatar(for: feedback).companionAssetName
+    }
+
+    static func avatar(for feedback: Feedback) -> BuiltInAvatar {
+        guard let avatarName = feedback.senderAvatarName,
+              let avatar = BuiltInAvatar(rawValue: avatarName) else {
+            return .cat
+        }
+        return avatar
     }
 }
 

@@ -4,6 +4,7 @@ import UIKit
 struct BubbleDropView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(PocoStore.self) private var store
     let project: Project
     let feedback: Feedback
     let existingFeedbacks: [Feedback]
@@ -11,9 +12,8 @@ struct BubbleDropView: View {
 
     @State private var isDropped = false
     @State private var showsSuccess = false
-    @State private var showsScrollableHistory = false
-    @State private var showsWall = false
-    @State private var selectedCreator: Creator?
+    @State private var showsRegistration = false
+    @State private var selectedFeedback: Feedback?
     @State private var deliveryState = DeliveryState.idle
     @State private var dropTrigger = 0
 
@@ -21,46 +21,43 @@ struct BubbleDropView: View {
         NavigationStack {
             GeometryReader { proxy in
                 ZStack(alignment: .bottom) {
-                    PocoTheme.background.ignoresSafeArea()
+                    ProjectDecorationBackground(projectID: project.id)
 
-                    VStack(spacing: 5) {
-                        Text(isDropped ? "あなたのことばが届きました" : "フキダシをおとそう")
-                            .font(.title2.weight(.bold))
-                        Text(instructionText)
-                            .font(.subheadline)
-                            .foregroundStyle(PocoTheme.secondaryText)
-                            .multilineTextAlignment(.center)
-                    }
-                    .frame(maxHeight: .infinity, alignment: .top)
-                    .padding(.top, 20)
-
-                    Group {
-                        if showsScrollableHistory {
-                            PhysicsBubbleFieldView(
-                                feedbacks: feedbackHistory,
-                                highlightedFeedbackIDs: [feedback.id],
-                                focusFeedbackID: feedback.id,
-                                onSelectAuthor: { selectedFeedback in
-                                    selectedCreator = selectedFeedback.senderCreator
-                                }
-                            )
-                                .transition(.opacity)
-                        } else {
-                            PhysicsBubbleDropFieldView(
-                                feedback: feedback,
-                                existingFeedbacks: existingFeedbacks,
-                                reduceMotion: reduceMotion,
-                                dropTrigger: $dropTrigger,
-                                onLanded: handleLanding
-                            )
-                            .transition(.opacity)
+                    if !isDropped {
+                        VStack(spacing: 5) {
+                            Text("フキダシをおとそう")
+                            .pocoFont(.title2, weight: .bold)
+                            Text("左右に動かして、空いている場所へおとしてみよう")
+                                .pocoFont(.subheadline)
+                                .foregroundStyle(PocoTheme.secondaryText)
+                                .multilineTextAlignment(.center)
                         }
+                        .frame(maxHeight: .infinity, alignment: .top)
+                        .padding(.top, 20)
                     }
+
+                    PhysicsBubbleDropFieldView(
+                        feedback: feedback,
+                        existingFeedbacks: existingFeedbacks,
+                        reduceMotion: shouldReduceMotion,
+                        isScrollEnabled: isDropped,
+                        enablesCompanionEvolution: store.capabilities.canUseCompanionEvolution,
+                        dropTrigger: $dropTrigger,
+                        onLanded: handleLanding,
+                        onSelect: { selectedFeedback = $0 },
+                        onCompanionTapped: { eventKey in
+                            store.claimStarCoinReward(eventKey: eventKey)
+                        },
+                        onRareCompanionBorn: { eventKey in
+                            store.claimStarCoinReward(eventKey: eventKey)
+                        },
+                        onRareCompanionTapped: { eventKey in
+                            store.claimStarCoinReward(eventKey: eventKey)
+                        }
+                    )
                     .frame(
                         width: proxy.size.width,
-                        height: showsScrollableHistory
-                            ? min(520, proxy.size.height * 0.67)
-                            : min(700, proxy.size.height * 0.84)
+                        height: min(700, proxy.size.height * 0.84)
                     )
 
                     if showsSuccess {
@@ -82,48 +79,33 @@ struct BubbleDropView: View {
                     }
                     .accessibilityLabel("閉じる")
                 }
-            }
-            .fullScreenCover(isPresented: $showsWall) {
-                NavigationStack {
-                    BubbleWallView(projectID: project.id)
-                        .toolbar {
-                            ToolbarItem(placement: .cancellationAction) {
-                                Button("閉じる") {
-                                    showsWall = false
-                                    dismiss()
-                                }
-                            }
-                        }
+                ToolbarItem(placement: .topBarTrailing) {
+                    StarCoinBadge(balance: store.starCoinBalance)
                 }
             }
-            .sheet(item: $selectedCreator) { creator in
-                NavigationStack {
-                    PublicProfileView(creator: creator)
-                        .toolbar {
-                            ToolbarItem(placement: .cancellationAction) {
-                                Button("閉じる") {
-                                    selectedCreator = nil
-                                }
-                            }
-                        }
-                }
+            .sheet(item: $selectedFeedback) { selectedFeedback in
+                BubbleDetailSheet(feedbackID: selectedFeedback.id)
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $showsRegistration) {
+                RegistrationGateView(context: .afterFeedback)
             }
         }
         .interactiveDismissDisabled(!isDropped)
-    }
-
-    private var instructionText: String {
-        if showsScrollableHistory {
-            return "上が最新です。下へスクロールすると最初の感想まで見られます"
+        .task(id: project.id) {
+            await store.loadProjectDecoration(projectID: project.id)
         }
-        if isDropped {
-            return "クリエイターのチカラになります"
-        }
-        return "左右に動かして、空いている場所へおとしてみよう"
-    }
+        .task(id: deliveryState) {
+            guard deliveryState == .delivered else { return }
 
-    private var feedbackHistory: [Feedback] {
-        [feedback] + existingFeedbacks.filter { $0.id != feedback.id }
+            try? await Task.sleep(for: .seconds(1.8))
+            guard !Task.isCancelled, deliveryState == .delivered else { return }
+
+            withAnimation(shouldReduceMotion ? nil : .easeOut(duration: 0.22)) {
+                showsSuccess = false
+            }
+        }
     }
 
     private var successCard: some View {
@@ -132,18 +114,18 @@ struct BubbleDropView: View {
                 Image(systemName: deliveryState.symbolName)
                     .foregroundStyle(deliveryState == .failed ? .orange : PocoTheme.primary)
                 Text(deliveryState.title)
-                    .font(.headline)
+                    .pocoFont(.headline, weight: .medium)
             }
 
             if deliveryState == .failed {
                 Text("フキダシは画面に残っています")
-                    .font(.caption)
+                    .pocoFont(.caption)
                     .foregroundStyle(PocoTheme.secondaryText)
 
                 Button("もう一度送信する") {
                     deliver()
                 }
-                .font(.subheadline.weight(.semibold))
+                .pocoActionLabelTypography()
                 .foregroundStyle(PocoTheme.primary)
                 .accessibilityHint("同じフキダシの送信を再試行します")
             } else if deliveryState == .sending {
@@ -151,11 +133,16 @@ struct BubbleDropView: View {
                     .controlSize(.small)
                     .accessibilityLabel("感想を送信中")
             } else {
-                Button("みんなのフキダシを見る") {
-                    showsWall = true
+                if !store.canCreateProjects {
+                    Divider()
+
+                    Button("無料登録してPocoを続ける") {
+                        showsRegistration = true
+                    }
+                    .pocoActionLabelTypography()
+                    .foregroundStyle(PocoTheme.primary)
+                    .accessibilityHint("プロフィールと作品の感想箱を作れる無料登録画面を開きます")
                 }
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(PocoTheme.primary)
             }
         }
         .padding(.horizontal, 24)
@@ -171,19 +158,19 @@ struct BubbleDropView: View {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
 
         Task {
-            let landingDelay = reduceMotion ? 80 : 220
+            let landingDelay = shouldReduceMotion ? 80 : 220
             try? await Task.sleep(for: .milliseconds(landingDelay))
             deliver()
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.78)) {
+            withAnimation(
+                shouldReduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.78)
+            ) {
                 showsSuccess = true
             }
-
-            let historyDelay = reduceMotion ? 80 : 420
-            try? await Task.sleep(for: .milliseconds(historyDelay))
-            withAnimation(reduceMotion ? .easeOut(duration: 0.15) : .easeInOut(duration: 0.28)) {
-                showsScrollableHistory = true
-            }
         }
+    }
+
+    private var shouldReduceMotion: Bool {
+        reduceMotion
     }
 
     private func deliver() {

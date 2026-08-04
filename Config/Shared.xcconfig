@@ -7,6 +7,9 @@ POCO_MEMBERSHIP_PRODUCT_ID = com.fumiakiMogi777.poco.member.monthly
 POCO_MEMBERSHIP_SYNC_FUNCTION =
 POCO_AD_PROVIDER = placeholder
 POCO_AD_UNIT_ID =
+// Replace this search URL with Poco's permanent App Store URL after the app
+// record receives its Apple ID.
+POCO_APP_STORE_URL = https:/$()/apps.apple.com/jp/search?term=Poco
 CODE_SIGN_ENTITLEMENTS = poco/poco.entitlements
 
 #include? "Secrets.xcconfig"

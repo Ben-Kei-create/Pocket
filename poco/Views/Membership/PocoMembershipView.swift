@@ -11,27 +11,26 @@ struct PocoMembershipView: View {
                     memberMark
 
                     VStack(spacing: 8) {
-                        Text("Pocoメンバー")
-                            .font(.largeTitle.bold())
+                        Text("Poco Pro")
+                            .pocoFont(.largeTitle, weight: .bold)
                         Text("届いたことばの反響を、もっと近くに。")
-                            .font(.subheadline)
+                            .pocoFont(.subheadline)
                             .foregroundStyle(PocoTheme.secondaryText)
                     }
                     .multilineTextAlignment(.center)
 
                     VStack(spacing: 12) {
                         benefit("共感が集まったフキダシがわかる", symbol: "heart.text.square")
-                        benefit("自分の作品が受け取ったいいねを確認", symbol: "heart.text.square")
-                        benefit("自分の感想についたいいねを確認", symbol: "bubble.left.and.text.bubble.right")
+                        benefit("作品の反響と傾向を詳しく確認", symbol: "chart.bar.xaxis")
+                        benefit("作品のハコを最大30件まで作れる", symbol: "shippingbox.fill")
+                        benefit("同じ顔ぷよの合体とレア誕生", symbol: "sparkles")
+                        benefit("活動で受け取るスターが2倍", symbol: "star.circle.fill")
                         benefit("広告なしで楽しめる", symbol: "rectangle.badge.xmark")
                     }
 
                     VStack(spacing: 5) {
                         Text(priceText)
-                            .font(.title3.bold())
-                        Text("いつでも解約できます")
-                            .font(.caption)
-                            .foregroundStyle(PocoTheme.secondaryText)
+                            .pocoFont(.title3, weight: .bold)
                     }
 
                     if store.backendMode == .mock {
@@ -50,7 +49,7 @@ struct PocoMembershipView: View {
                                 ProgressView()
                                     .tint(.white)
                             } else {
-                                Text(store.canCreateProjects ? "Pocoメンバーになる" : "登録後に利用できます")
+                                Text(store.canCreateProjects ? "Poco Proになる" : "登録後に利用できます")
                             }
                         }
                         .buttonStyle(PocoPrimaryButtonStyle())
@@ -63,27 +62,27 @@ struct PocoMembershipView: View {
                         Button("購入を復元") {
                             Task { await store.restoreMembership() }
                         }
-                        .font(.subheadline.weight(.semibold))
+                        .pocoFont(.subheadline, weight: .medium)
                         .foregroundStyle(PocoTheme.primary)
                         .disabled(!store.canCreateProjects || store.membershipPurchaseState == .loading)
                     }
 
                     if case .error(let message) = store.membershipPurchaseState {
                         Text(message)
-                            .font(.caption)
+                            .pocoFont(.caption)
                             .foregroundStyle(.red)
                             .multilineTextAlignment(.center)
                     }
 
                     if store.membershipSyncState == .deferred {
                         Text("購入は確認できました。会員情報はネットワーク復帰後に同期されます。")
-                            .font(.caption)
+                            .pocoFont(.caption)
                             .foregroundStyle(PocoTheme.secondaryText)
                             .multilineTextAlignment(.center)
                     }
 
                     Text("購入はApple IDに請求され、設定からいつでも解約できます。")
-                        .font(.caption)
+                        .pocoFont(.caption)
                         .foregroundStyle(PocoTheme.tertiaryText)
                         .multilineTextAlignment(.center)
                 }
@@ -109,14 +108,12 @@ struct PocoMembershipView: View {
     }
 
     private var memberMark: some View {
-        Circle()
-            .fill(PocoTheme.bubble(.pink))
-            .frame(width: 92, height: 92)
-            .overlay {
-                Image(systemName: "heart.fill")
-                    .font(.system(size: 34, weight: .semibold))
-                    .foregroundStyle(.white)
-            }
+        PocoCharacterView(
+            size: 138,
+            expression: .pro,
+            playsIdleAnimation: true,
+            isInteractive: false
+        )
             .shadow(color: PocoTheme.primary.opacity(0.16), radius: 20, y: 8)
             .accessibilityHidden(true)
     }
@@ -127,7 +124,7 @@ struct PocoMembershipView: View {
                 .frame(width: 28)
                 .foregroundStyle(PocoTheme.primary)
             Text(title)
-                .font(.subheadline.weight(.medium))
+                .pocoFont(.subheadline, weight: .medium)
             Spacer()
             Image(systemName: "checkmark.circle.fill")
                 .foregroundStyle(PocoTheme.bubble(.mint))

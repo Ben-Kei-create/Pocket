@@ -18,7 +18,8 @@ final class PhysicsBubbleNode: SKNode {
     init(
         feedback: Feedback,
         size: CGSize,
-        highlighted: Bool = false
+        highlighted: Bool = false,
+        rotationEnabled: Bool = true
     ) {
         feedbackID = feedback.id
         visualSize = size
@@ -38,14 +39,44 @@ final class PhysicsBubbleNode: SKNode {
         physicsBody?.restitution = 0.22
         physicsBody?.friction = 0.78
         physicsBody?.linearDamping = 0.68
-        physicsBody?.angularDamping = 0.82
+        physicsBody?.angularDamping = 0.72
         let relativeArea = (size.width * size.height) / (116 * 60)
         physicsBody?.mass = min(0.28, max(0.14, 0.18 * relativeArea))
-        physicsBody?.allowsRotation = false
+        physicsBody?.allowsRotation = rotationEnabled
+        if rotationEnabled {
+            let maximumTilt = CGFloat.pi / 15
+            constraints = [
+                SKConstraint.zRotation(
+                    SKRange(lowerLimit: -maximumTilt, upperLimit: maximumTilt)
+                )
+            ]
+        }
     }
 
     required init?(coder aDecoder: NSCoder) {
         nil
+    }
+
+    func prepareForDrop(in sceneWidth: CGFloat) {
+        guard physicsBody?.allowsRotation == true else { return }
+        let horizontalOffset = position.x - sceneWidth / 2
+        let direction: CGFloat
+        if abs(horizontalOffset) > 10 {
+            direction = horizontalOffset < 0 ? -1 : 1
+        } else {
+            direction = stableUnit(feedbackID, salt: 113) < 0.5 ? -1 : 1
+        }
+        zRotation = direction * .pi / 90
+        physicsBody?.angularVelocity = direction * 0.20
+    }
+
+    func addLandingRock() {
+        guard let physicsBody, physicsBody.allowsRotation else { return }
+        let fallbackDirection: CGFloat = stableUnit(feedbackID, salt: 127) < 0.5 ? -1 : 1
+        let direction: CGFloat = abs(physicsBody.angularVelocity) > 0.02
+            ? (physicsBody.angularVelocity < 0 ? -1 : 1)
+            : fallbackDirection
+        physicsBody.angularVelocity += direction * 0.38
     }
 
     func playPoyon() {
@@ -76,6 +107,9 @@ final class PhysicsBubbleNode: SKNode {
         if highlighted {
             addOwnerHighlight(size: size)
         }
+        if feedback.creatorReceivedAt != nil {
+            addCreatorReceipt(size: size)
+        }
 
         let tier = BubbleSizeTier(message: feedback.message)
         let fontSize: CGFloat = switch tier {
@@ -83,7 +117,7 @@ final class PhysicsBubbleNode: SKNode {
         case .medium: 9.8
         case .large: 10.4
         }
-        let messageFont = UIFont.systemFont(ofSize: fontSize, weight: .semibold)
+        let messageFont = PocoTypography.uiFont(size: fontSize, weight: .medium)
         let lines = wrappedLines(
             feedback.message,
             font: messageFont,
@@ -128,7 +162,10 @@ final class PhysicsBubbleNode: SKNode {
 
         let initial = makeLabel(
             text: String(feedback.nickname.prefix(1)),
-            font: .systemFont(ofSize: tier == .large ? 7.2 : 6.5, weight: .bold),
+            font: PocoTypography.uiFont(
+                size: tier == .large ? 7.2 : 6.5,
+                weight: .bold
+            ),
             color: .white
         )
         initial.verticalAlignmentMode = .center
@@ -137,8 +174,8 @@ final class PhysicsBubbleNode: SKNode {
 
         let avatarDiameter = avatarRadius * 2
         if let avatarName = feedback.senderAvatarName,
-           BuiltInAvatar(rawValue: avatarName) != nil,
-           let image = UIImage(named: avatarName) {
+           let builtInAvatar = BuiltInAvatar(rawValue: avatarName),
+           let image = UIImage(named: builtInAvatar.companionAssetName) {
             addAvatarImage(image, to: avatar, diameter: avatarDiameter)
         } else if let avatarURL = feedback.senderAvatarURL {
             loadRemoteAvatar(avatarURL, into: avatar, diameter: avatarDiameter)
@@ -146,7 +183,10 @@ final class PhysicsBubbleNode: SKNode {
 
         let nickname = makeLabel(
             text: feedback.nickname,
-            font: .systemFont(ofSize: tier == .large ? 9 : 8, weight: .medium),
+            font: PocoTypography.uiFont(
+                size: tier == .large ? 9 : 8,
+                weight: .medium
+            ),
             color: UIColor.secondaryLabel.withAlphaComponent(0.86)
         )
         nickname.horizontalAlignmentMode = .left
@@ -170,7 +210,7 @@ final class PhysicsBubbleNode: SKNode {
     private func loadRemoteAvatar(_ url: URL, into container: SKNode, diameter: CGFloat) {
         Task { [weak self, weak container] in
             guard let data = await RemoteAvatarDataCache.shared.data(for: url),
-                  let image = UIImage(data: data),
+                  let image = RemoteImageDecoder.decode(data, maximumPixelSize: 128),
                   let self,
                   let container,
                   container.parent != nil else { return }
@@ -217,11 +257,30 @@ final class PhysicsBubbleNode: SKNode {
 
         let label = makeLabel(
             text: "あなた",
-            font: .systemFont(ofSize: 7, weight: .bold),
+            font: PocoTypography.uiFont(size: 7, weight: .bold),
             color: .white
         )
         label.position = .zero
         badge.addChild(label)
+    }
+
+    private func addCreatorReceipt(size: CGSize) {
+        let mark = SKShapeNode(circleOfRadius: 9)
+        mark.fillColor = UIColor(PocoTheme.primary).withAlphaComponent(0.96)
+        mark.strokeColor = UIColor.white.withAlphaComponent(0.95)
+        mark.lineWidth = 1.5
+        mark.glowWidth = 2
+        mark.position = CGPoint(x: size.width * 0.39, y: size.height * 0.31)
+        mark.zPosition = 4
+        visualContainer.addChild(mark)
+
+        let symbol = makeLabel(
+            text: "♥︎",
+            font: .systemFont(ofSize: 10, weight: .bold),
+            color: .white
+        )
+        symbol.position = .zero
+        mark.addChild(symbol)
     }
 
     private func makeLabel(text: String, font: UIFont, color: UIColor) -> SKLabelNode {
@@ -348,6 +407,7 @@ struct BubbleFieldLayout: Equatable {
         }
 
         var placements: [BubbleFieldPlacement] = []
+        var collisionCandidates: [BubbleFieldPlacement] = []
         var highestEdge = BubblePhysicsMetrics.wallBottomStartY
 
         for feedback in feedbacks.reversed() {
@@ -362,6 +422,12 @@ struct BubbleFieldLayout: Equatable {
                 BubblePhysicsMetrics.wallBottomStartY,
                 highestEdge - bubbleSize.height * 0.72
             )
+            // Placements far below the active band cannot raise this bubble.
+            // Keeping only a generous nearby window avoids O(n²) layout work
+            // when a project has hundreds of feedbacks.
+            collisionCandidates.removeAll { existing in
+                existing.position.y + existing.size.height < lowerBand - 120
+            }
             var bestPosition = CGPoint(x: availableWidth / 2, y: lowerBand)
             var bestScore = CGFloat.greatestFiniteMagnitude
 
@@ -370,7 +436,7 @@ struct BubbleFieldLayout: Equatable {
                     + stableUnit(feedback.id, salt: attempt) * (maximumX - minimumX)
                 var y = lowerBand
 
-                for existing in placements {
+                for existing in collisionCandidates {
                     let deltaX = abs(x - existing.position.x)
                     let horizontalClearance = (bubbleSize.width + existing.size.width) * 0.44
                     guard deltaX < horizontalClearance else { continue }
@@ -396,6 +462,7 @@ struct BubbleFieldLayout: Equatable {
                 size: bubbleSize
             )
             placements.append(placement)
+            collisionCandidates.append(placement)
             highestEdge = max(highestEdge, bestPosition.y + bubbleSize.height / 2)
         }
 
@@ -416,9 +483,11 @@ enum PhysicsCategory {
 struct ConfigurationKey: Equatable {
     let ids: [UUID]
     var highlightedIDs: [UUID] = []
+    var creatorReceivedIDs: [UUID] = []
     let width: Int
     let height: Int
     var worldHeight = 0
+    var enablesCompanionEvolution = false
     let reduceMotion: Bool
 }
 

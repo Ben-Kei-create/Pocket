@@ -9,11 +9,15 @@ struct PhysicsBubbleFieldView: View {
     let feedbacks: [Feedback]
     var highlightedFeedbackIDs: Set<UUID> = []
     var focusFeedbackID: UUID?
+    var enablesCompanionEvolution = false
     var onSelect: ((Feedback) -> Void)?
-    var onSelectAuthor: ((Feedback) -> Void)?
+    var onCompanionTapped: ((String) -> Void)?
+    var onRareCompanionBorn: ((String) -> Void)?
+    var onRareCompanionTapped: ((String) -> Void)?
 
     var body: some View {
         GeometryReader { proxy in
+            let shouldReduceMotion = reduceMotion
             let layout = BubbleFieldLayout.make(
                 feedbacks: feedbacks,
                 availableWidth: proxy.size.width
@@ -25,28 +29,18 @@ struct PhysicsBubbleFieldView: View {
                 layout: layout,
                 size: proxy.size,
                 worldHeight: worldHeight,
-                reduceMotion: reduceMotion,
+                reduceMotion: shouldReduceMotion,
                 scrollTrigger: scrollTrigger,
                 highlightedFeedbackIDs: highlightedFeedbackIDs,
                 focusFeedbackID: focusFeedbackID,
+                enablesCompanionEvolution: enablesCompanionEvolution,
                 onSelect: onSelect,
-                onSelectAuthor: onSelectAuthor
+                onCompanionTapped: onCompanionTapped,
+                onRareCompanionBorn: onRareCompanionBorn,
+                onRareCompanionTapped: onRareCompanionTapped
             )
             .background {
                 PocoTheme.cardBackground.opacity(0.28)
-            }
-            .overlay(alignment: .topTrailing) {
-                Label(
-                    worldHeight > proxy.size.height ? "上下にスクロール" : "最新",
-                    systemImage: worldHeight > proxy.size.height ? "arrow.up.arrow.down" : "arrow.up"
-                )
-                    .font(.caption2.weight(.semibold))
-                    .foregroundStyle(PocoTheme.secondaryText)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 6)
-                    .background(.thinMaterial, in: Capsule())
-                    .padding(12)
-                    .allowsHitTesting(false)
             }
             .accessibilityRepresentation {
                 Button {
@@ -71,30 +65,45 @@ struct PhysicsBubbleDropFieldView: View {
     let feedback: Feedback
     let existingFeedbacks: [Feedback]
     let reduceMotion: Bool
+    let isScrollEnabled: Bool
+    let enablesCompanionEvolution: Bool
     @Binding var dropTrigger: Int
     let onLanded: () -> Void
+    var onSelect: ((Feedback) -> Void)?
+    var onCompanionTapped: ((String) -> Void)?
+    var onRareCompanionBorn: ((String) -> Void)?
+    var onRareCompanionTapped: ((String) -> Void)?
 
     var body: some View {
         GeometryReader { canvas in
             BubbleDropPhysicsCanvas(
                 feedback: feedback,
-                existingFeedbacks: Array(
-                    existingFeedbacks
-                        .filter { $0.id != feedback.id }
-                        .prefix(BubblePhysicsMetrics.dropPreviewLimit)
-                ),
+                existingFeedbacks: existingFeedbacks.filter { $0.id != feedback.id },
                 size: canvas.size,
                 reduceMotion: reduceMotion,
+                isScrollEnabled: isScrollEnabled,
+                enablesCompanionEvolution: enablesCompanionEvolution,
                 dropTrigger: dropTrigger,
-                onLanded: onLanded
+                onLanded: onLanded,
+                onSelect: onSelect,
+                onCompanionTapped: onCompanionTapped,
+                onRareCompanionBorn: onRareCompanionBorn,
+                onRareCompanionTapped: onRareCompanionTapped
             )
         }
         .background(PocoTheme.cardBackground.opacity(0.28))
         .accessibilityRepresentation {
-            Button("フキダシをおとす") {
-                dropTrigger += 1
+            if isScrollEnabled {
+                Button("感想のフキダシ、\(existingFeedbacks.count + 1)件") {
+                    onSelect?(feedback)
+                }
+                .accessibilityHint("上下にスクロールできます。実行すると送った感想の詳細を開きます")
+            } else {
+                Button("フキダシをおとす") {
+                    dropTrigger += 1
+                }
+                .accessibilityHint("フキダシが上から落下し、ほかのフキダシに着地します")
             }
-            .accessibilityHint("フキダシが上から落下し、ほかのフキダシに着地します")
         }
     }
 }
@@ -108,8 +117,11 @@ private struct BubbleWallPhysicsCanvas: UIViewRepresentable {
     let scrollTrigger: Int
     let highlightedFeedbackIDs: Set<UUID>
     let focusFeedbackID: UUID?
+    let enablesCompanionEvolution: Bool
     let onSelect: ((Feedback) -> Void)?
-    let onSelectAuthor: ((Feedback) -> Void)?
+    let onCompanionTapped: ((String) -> Void)?
+    let onRareCompanionBorn: ((String) -> Void)?
+    let onRareCompanionTapped: ((String) -> Void)?
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -139,8 +151,11 @@ private struct BubbleWallPhysicsCanvas: UIViewRepresentable {
             scrollTrigger: scrollTrigger,
             highlightedFeedbackIDs: highlightedFeedbackIDs,
             focusFeedbackID: focusFeedbackID,
+            enablesCompanionEvolution: enablesCompanionEvolution,
             onSelect: onSelect,
-            onSelectAuthor: onSelectAuthor
+            onCompanionTapped: onCompanionTapped,
+            onRareCompanionBorn: onRareCompanionBorn,
+            onRareCompanionTapped: onRareCompanionTapped
         )
     }
 
@@ -177,8 +192,11 @@ private struct BubbleWallPhysicsCanvas: UIViewRepresentable {
             scrollTrigger: Int,
             highlightedFeedbackIDs: Set<UUID>,
             focusFeedbackID: UUID?,
+            enablesCompanionEvolution: Bool,
             onSelect: ((Feedback) -> Void)?,
-            onSelectAuthor: ((Feedback) -> Void)?
+            onCompanionTapped: ((String) -> Void)?,
+            onRareCompanionBorn: ((String) -> Void)?,
+            onRareCompanionTapped: ((String) -> Void)?
         ) {
             scene.configure(
                 feedbacks: feedbacks,
@@ -186,9 +204,12 @@ private struct BubbleWallPhysicsCanvas: UIViewRepresentable {
                 size: size,
                 worldHeight: worldHeight,
                 reduceMotion: reduceMotion,
+                enablesCompanionEvolution: enablesCompanionEvolution,
                 highlightedFeedbackIDs: highlightedFeedbackIDs,
                 onSelect: onSelect,
-                onSelectAuthor: onSelectAuthor
+                onCompanionTapped: onCompanionTapped,
+                onRareCompanionBorn: onRareCompanionBorn,
+                onRareCompanionTapped: onRareCompanionTapped
             )
 
             if scrollTrigger != handledScrollTrigger {
@@ -198,9 +219,11 @@ private struct BubbleWallPhysicsCanvas: UIViewRepresentable {
             }
 
 
-            if let focusFeedbackID, focusFeedbackID != handledFocusFeedbackID {
+            if focusFeedbackID != handledFocusFeedbackID {
                 handledFocusFeedbackID = focusFeedbackID
-                scene.scrollTo(feedbackID: focusFeedbackID)
+                if let focusFeedbackID {
+                    scene.scrollTo(feedbackID: focusFeedbackID)
+                }
             }
         }
 
@@ -218,8 +241,14 @@ private struct BubbleDropPhysicsCanvas: UIViewRepresentable {
     let existingFeedbacks: [Feedback]
     let size: CGSize
     let reduceMotion: Bool
+    let isScrollEnabled: Bool
+    let enablesCompanionEvolution: Bool
     let dropTrigger: Int
     let onLanded: () -> Void
+    let onSelect: ((Feedback) -> Void)?
+    let onCompanionTapped: ((String) -> Void)?
+    let onRareCompanionBorn: ((String) -> Void)?
+    let onRareCompanionTapped: ((String) -> Void)?
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
@@ -234,6 +263,7 @@ private struct BubbleDropPhysicsCanvas: UIViewRepresentable {
         view.isAsynchronous = true
         view.preferredFramesPerSecond = reduceMotion ? 30 : 60
         context.coordinator.present(in: view)
+        context.coordinator.attachPanGesture(to: view)
         return view
     }
 
@@ -244,8 +274,14 @@ private struct BubbleDropPhysicsCanvas: UIViewRepresentable {
             existingFeedbacks: existingFeedbacks,
             size: size,
             reduceMotion: reduceMotion,
+            isScrollEnabled: isScrollEnabled,
+            enablesCompanionEvolution: enablesCompanionEvolution,
             dropTrigger: dropTrigger,
-            onLanded: onLanded
+            onLanded: onLanded,
+            onSelect: onSelect,
+            onCompanionTapped: onCompanionTapped,
+            onRareCompanionBorn: onRareCompanionBorn,
+            onRareCompanionTapped: onRareCompanionTapped
         )
     }
 
@@ -255,8 +291,9 @@ private struct BubbleDropPhysicsCanvas: UIViewRepresentable {
     }
 
     @MainActor
-    final class Coordinator {
+    final class Coordinator: NSObject {
         private let scene = BubbleDropPhysicsScene()
+        private weak var view: SKView?
         private var handledDropTrigger = 0
 
         func present(in view: SKView) {
@@ -264,26 +301,52 @@ private struct BubbleDropPhysicsCanvas: UIViewRepresentable {
             view.presentScene(scene)
         }
 
+        func attachPanGesture(to view: SKView) {
+            self.view = view
+            let panGesture = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+            panGesture.cancelsTouchesInView = false
+            view.addGestureRecognizer(panGesture)
+        }
+
         func update(
             feedback: Feedback,
             existingFeedbacks: [Feedback],
             size: CGSize,
             reduceMotion: Bool,
+            isScrollEnabled: Bool,
+            enablesCompanionEvolution: Bool,
             dropTrigger: Int,
-            onLanded: @escaping () -> Void
+            onLanded: @escaping () -> Void,
+            onSelect: ((Feedback) -> Void)?,
+            onCompanionTapped: ((String) -> Void)?,
+            onRareCompanionBorn: ((String) -> Void)?,
+            onRareCompanionTapped: ((String) -> Void)?
         ) {
             scene.configure(
                 feedback: feedback,
                 existingFeedbacks: existingFeedbacks,
                 size: size,
                 reduceMotion: reduceMotion,
-                onLanded: onLanded
+                enablesCompanionEvolution: enablesCompanionEvolution,
+                onLanded: onLanded,
+                onSelect: onSelect,
+                onCompanionTapped: onCompanionTapped,
+                onRareCompanionBorn: onRareCompanionBorn,
+                onRareCompanionTapped: onRareCompanionTapped
             )
+            scene.setScrollEnabled(isScrollEnabled)
 
             if dropTrigger > handledDropTrigger {
                 handledDropTrigger = dropTrigger
                 scene.releasePendingBubble()
             }
+        }
+
+        @objc private func handlePan(_ gesture: UIPanGestureRecognizer) {
+            guard let view else { return }
+            let translation = gesture.translation(in: view)
+            scene.scrollBy(translation.y)
+            gesture.setTranslation(.zero, in: view)
         }
     }
 }

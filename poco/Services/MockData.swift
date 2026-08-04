@@ -1,51 +1,117 @@
 import Foundation
 
-enum MockData {
+nonisolated enum MockData {
     static let forestCreator = Creator(
         id: UUID(uuidString: "10000000-0000-0000-0000-000000000001")!,
         name: "もりのなかまたち",
-        avatarName: nil
+        avatarName: nil,
+        handle: "morinonakama",
+        profileLinks: [
+            ProfileSocialLink(service: .x, value: "https://x.com/morinonakama")!,
+            ProfileSocialLink(service: .website, value: "https://example.com")!
+        ]
     )
     static let tetraCreator = Creator(
         id: UUID(uuidString: "10000000-0000-0000-0000-000000000002")!,
         name: "Tetra Games",
-        avatarName: nil
+        avatarName: nil,
+        handle: "tetra_games"
     )
-    static let hoshikoCreator = Creator(
+    static let starFanCreator = Creator(
         id: UUID(uuidString: "10000000-0000-0000-0000-000000000003")!,
-        name: "Hoshiko",
-        avatarName: nil
+        name: "星の子応援部",
+        avatarName: BuiltInAvatar.pinkCat.rawValue,
+        handle: "hoshinoko_fan"
     )
+    static let previewUser = Creator(
+        id: UUID(uuidString: "10000000-0000-0000-0000-000000000009")!,
+        name: "そらのひつじ",
+        avatarName: BuiltInAvatar.cat.rawValue,
+        handle: "sora_no_hitsuji"
+    )
+    static let feedbackAuthors: [String: Creator] = [
+        "はな": Creator(
+            id: UUID(uuidString: "10000000-0000-0000-0000-000000000010")!,
+            name: "はな",
+            avatarName: BuiltInAvatar.cat.rawValue,
+            handle: "hana"
+        ),
+        "rena": Creator(
+            id: UUID(uuidString: "10000000-0000-0000-0000-000000000011")!,
+            name: "rena",
+            avatarName: BuiltInAvatar.pig.rawValue,
+            handle: "rena"
+        ),
+        "パパくま": Creator(
+            id: UUID(uuidString: "10000000-0000-0000-0000-000000000012")!,
+            name: "パパくま",
+            avatarName: BuiltInAvatar.bear.rawValue,
+            handle: "papa_kuma"
+        ),
+        "さくら": Creator(
+            id: UUID(uuidString: "10000000-0000-0000-0000-000000000013")!,
+            name: "さくら",
+            avatarName: BuiltInAvatar.dog.rawValue,
+            handle: "sakura"
+        ),
+        "みどり": Creator(
+            id: UUID(uuidString: "10000000-0000-0000-0000-000000000014")!,
+            name: "みどり",
+            avatarName: BuiltInAvatar.lion.rawValue,
+            handle: "midori"
+        ),
+        "そらのひつじ": previewUser,
+        "ちい": Creator(
+            id: UUID(uuidString: "10000000-0000-0000-0000-000000000015")!,
+            name: "ちい",
+            avatarName: BuiltInAvatar.cat.rawValue,
+            handle: "chii"
+        )
+    ]
 
     static let forestProject = Project(
         id: UUID(uuidString: "20000000-0000-0000-0000-000000000001")!,
         title: "絵本「森のこえ」",
         creator: forestCreator,
+        authorName: "もりのなかまたち",
         category: .book,
         description: "やさしい気持ちになれる、森の小さな仲間たちの物語。絵本を届けたい。",
         imageName: nil,
-        feedbackCount: 1_234,
-        createdAt: Date(timeIntervalSince1970: 1_750_000_000)
+        externalURL: URL(string: "https://example.com/forest-voice"),
+        feedbackCount: 100,
+        createdAt: Date(timeIntervalSince1970: 1_750_000_000),
+        relationship: .creator,
+        verificationStatus: .verified,
+        acceptsQuestions: true
     )
     static let tetraProject = Project(
         id: UUID(uuidString: "20000000-0000-0000-0000-000000000002")!,
         title: "ゲーム「テトラの冒険」",
         creator: tetraCreator,
+        authorName: "Tetra Games",
         category: .game,
         description: "ドット絵の世界で冒険する、心あたたまるインディーRPGです。",
         imageName: nil,
-        feedbackCount: 2_891,
-        createdAt: Date(timeIntervalSince1970: 1_749_000_000)
+        feedbackCount: 6,
+        createdAt: Date(timeIntervalSince1970: 1_749_000_000),
+        relationship: .authorized,
+        purpose: .event,
+        verificationStatus: .unverified,
+        acceptsQuestions: true
     )
     static let starProject = Project(
         id: UUID(uuidString: "20000000-0000-0000-0000-000000000003")!,
         title: "マンガ「星の子」",
-        creator: hoshikoCreator,
+        creator: starFanCreator,
+        authorName: "Hoshiko",
         category: .manga,
         description: "心にそっとよりそう物語を描いています。",
         imageName: nil,
-        feedbackCount: 987,
-        createdAt: Date(timeIntervalSince1970: 1_748_000_000)
+        feedbackCount: 6,
+        createdAt: Date(timeIntervalSince1970: 1_748_000_000),
+        relationship: .fan,
+        verificationStatus: .unverified,
+        acceptsQuestions: false
     )
 
     static let projects = [forestProject, tetraProject, starProject]
@@ -69,6 +135,7 @@ enum MockData {
 
         return messages.enumerated().map { index, message in
             let nickname = nicknames[index % nicknames.count]
+            let author = feedbackAuthors[nickname]
             return Feedback(
                 id: UUID(uuidString: String(format: "30000000-0000-0000-0000-%012d", index + 1))!,
                 projectID: projectIDs[index],
@@ -78,7 +145,9 @@ enum MockData {
                 createdAt: Date(timeIntervalSinceNow: TimeInterval(-index * 3_700)),
                 likes: (index * 7 + 3) % 48,
                 bubbleColor: BubbleColor.allCases[index % BubbleColor.allCases.count],
-                senderID: nickname == "そらのひつじ" ? forestCreator.id : nil
+                senderID: author?.id,
+                senderAvatarName: author?.avatarName,
+                senderAvatarURL: author?.avatarURL
             )
         }
     }()

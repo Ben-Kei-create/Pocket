@@ -14,18 +14,22 @@ struct ProfileAvatarView: View {
                     .resizable()
                     .scaledToFill()
             } else if let avatarName = creator?.avatarName,
-                      BuiltInAvatar(rawValue: avatarName) != nil {
-                Image(avatarName)
+                      let avatar = BuiltInAvatar(rawValue: avatarName) {
+                Image(avatar.companionAssetName)
                     .resizable()
                     .scaledToFill()
             } else if let avatarURL = creator?.avatarURL {
-                AsyncImage(url: avatarURL) { phase in
+                SecureRemoteImage(
+                    url: avatarURL,
+                    maximumBytes: 2_097_152,
+                    maximumPixelSize: max(256, size * 3)
+                ) { phase in
                     switch phase {
                     case .success(let image):
                         image
                             .resizable()
                             .scaledToFill()
-                    default:
+                    case .empty, .failure:
                         placeholder
                     }
                 }
