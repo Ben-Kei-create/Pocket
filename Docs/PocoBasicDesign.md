@@ -124,15 +124,16 @@ flowchart TD
     MP --> PRO["Poco Pro"]
 ```
 
-### 4.1 Deep Link
+### 4.1 QR・Deep Link
 
-- 対応URL: `poco://project/{projectID}`、`https://{domain}/project/{projectID}`、`https://{domain}/p/{projectID}`
+- 対応URL: `poco://project/{projectID}`
 - 入口: iOS `onOpenURL`、QR Scanner、URL手入力
 - 動作: Welcome未完了でもWelcomeを完了し、対象Project Detailを開く。
-- Universal Links公開後は、インストール済み端末で`https://{domain}/project/{projectID}`から対象Project Detailを直接開く。
-- 未インストール時は同じHTTPS URLのWebランディングでApp Storeへ案内する。App Store経由後にインストール前URLが自動復元されることは前提にしない。
-- 初回起動のWelcomeには「QRコードを読み取る」「検索する」「@クリエイターIDから探す」を置き、同じQRを再読込して登録前のゲストでも感想投稿へ進める。
-- アプリ内解析、Associated Domains、AASAは実装済み。公開完了には所有HTTPSドメインとWebランディングが必要である。
+- QR表示は「アプリで開く」と「インストール」の2種類をボタンで切り替え、初期値はアプリ用とする。
+- アプリ用QRは`poco://project/{projectID}`、インストール用QRはApp StoreのPoco検索URLを使う。
+- App Store公開後は設定値だけを正式な製品URLへ差し替える。保存・コピー・共有は選択中のQRと同じURLを扱う。
+- 初回起動のWelcomeには「QRコードを読み取る」「検索する」「@クリエイターIDから探す」を置き、インストール後に作品QRを読み取れば登録前のゲストでも感想投稿へ進める。
+- GitHub Pages、Universal Links、Associated Domains、AASAは現在の公開導線では使用しない。
 
 ### 4.2 通知・「届いたことば」
 
@@ -266,7 +267,7 @@ flowchart LR
 |---|---|---|---|---|
 | APP-001 | App Launch | アプリ起動 | Store生成、アカウント・会員・作品・Moderation読込 | 実装済み |
 | APP-002 | Welcome Complete | 「はじめる」 | `hasCompletedWelcome`保存、Main Tab表示 | 実装済み |
-| APP-003 | Deep / Universal Link Open | `poco://`または許可HTTPS URL | UUID検証、公開作品の単体RPC取得後、Home Navigation Pathへ追加 | 実装済み |
+| APP-003 | Custom Link Open | `poco://project/{projectID}` | UUID検証、公開作品の単体RPC取得後、Home Navigation Pathへ追加 | 実装済み |
 | APP-004 | QR Scan | QR読取 | Poco URLをDeep Link処理へ渡す | 実装済み |
 | APP-005 | Manual URL Open | ScannerのURL入力 | Poco URL検証後に作品を開く | 実装済み |
 | APP-006 | Project Search | 検索文字変更 | 作品名、作者名、`@handle`、説明、カテゴリを端末内絞込 | 実装済み |
@@ -467,7 +468,7 @@ flowchart LR
 | 運営Moderation | DB監査情報、権利者削除申請の受付まで実装済み | 管理画面、Status更新、異議申立て |
 | アカウント削除 | iOS導線、Repository、匿名化Migration、Edge Functionまで実装済み | 本番Migration／Function適用、実機で再ログイン不可とStorage削除を確認 |
 | 利用規約／Privacy | 作品登録ルールのみ | 法務文面、アプリ内リンク、同意Version管理 |
-| Universal Links | アプリ解析・AASA・Associated Domains実装済み。暫定ホストは`ben-kei-create.github.io` | `Ben-Kei-create.github.io`リポジトリのPages公開、AASA配信、実機検証。独自ドメインは反響後に追加 |
+| QR配布導線 | アプリ用QRとApp Store用QRの切替、Custom URL解析を実装済み | App Store公開後に製品URLへ差替え、2種類のQRを実機検証 |
 | 成人向け閲覧許可 | DB設定と安全なロックRPCのみ | Web設定画面、本人確認、Edge Function、運営レビュー |
 | 画像の最終Moderation | iOS端末内の任意一次判定のみ | Edge Function、クラウド判定または目視キュー、異議申立て |
 
@@ -493,7 +494,7 @@ flowchart LR
 6. **匿名履歴の寿命と登録誘導**
    ゲストの名前はサーバー側でも一律「名無し」にし、感想は24時間後に公開一覧と件数から外す。ただし、期限後も同一Auth Identity・同一作品の生涯3件上限には算入し、通知目的の再投稿を防ぐ。制作者本人ページで所有者が通常のいいねを付けた場合のみ、作者❤️として`expires_at`を解除し、感想と反応を永続化する。許可あり・ファン作成ページの所有者による反応は通常いいねとする。行は通報・監査方針に従って保持する。着地直後に「名前と一緒に残す」価値として登録を案内する。
 
-   登録ユーザーのログインボーナスは当日の最初のHome表示で自動提示する。QR／Universal Linkから作品へ着地している間、Feedback Compose、Bubble Dropでは表示せず、作品導線を閉じてHomeへ戻った後に遅延表示する。
+   登録ユーザーのログインボーナスは当日の最初のHome表示で自動提示する。QR／Custom URLから作品へ着地している間、Feedback Compose、Bubble Dropでは表示せず、作品導線を閉じてHomeへ戻った後に遅延表示する。
 
 7. **通知の優先順位**
    自作品へ届いた新着感想を最優先とし、作者❤️、通常Likeを続ける。通知タップは対象フキダシ詳細へ直接遷移する。
@@ -521,8 +522,8 @@ flowchart LR
 
 ## 20. 確定した開発順
 
-1. GitHub Pages用URL変更をcommit・pushする。
-2. GitHub PagesとAASAを公開し、インストール済み／未インストールの両方で検証する。
+1. App Store ConnectでPocoのアプリレコードを作成し、正式URLの取得後にインストール用QR設定を差し替える。
+2. アプリ用QRとインストール用QRを、インストール済み／未インストールの実機で検証する。
 3. Supabase本番接続とMigration適用を行い、Feedback等のカーソルページング用Index設計もこの時点で確定する。
 4. App Attest、CAPTCHA、Edge Function Gatewayを完成する。無料作品枠の⭐︎Redeemと装飾購入はDBのServer Authority RPCへ実装済みのため、ここではAttestation Gatewayとの統合を行う。
 5. 利用規約、Privacy、アカウント削除を完成する。法務文面のDraftは1〜4と並行する。

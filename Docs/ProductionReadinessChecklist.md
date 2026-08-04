@@ -36,7 +36,7 @@
 - [ ] Apple Developer Programの契約状態を確認する。
 - [ ] App Store ConnectでBundle ID `com.fumiakiMogi777.poco`のアプリを作成する。
 - [ ] Paid Applications Agreement、税務情報、入金口座を登録する。
-- [ ] App IDへSign in with Apple、Associated Domains、Push Notifications、Sensitive Content Analysisを設定する。
+- [ ] App IDへSign in with Apple、Push Notifications、Sensitive Content Analysisを設定する。
 - [ ] 本番用Development／Distribution証明書とProvisioning Profileを更新する。
 - [ ] App Storeの商品名、サブタイトル、説明、キーワード、サポートURL、Privacy Policy URL、スクリーンショットを準備する。
 - [ ] 年齢レーティング、UGC、広告、課金、データ収集の質問へ実態どおり回答する。
@@ -47,21 +47,20 @@
 - [~] `PrivacyInfo.xcprivacy`へUserDefaultsのRequired Reasonを追加済み。収集データ宣言、広告SDK、Capabilitiesとの最終一致は本番SDK確定後に再検査する。
 - [~] iOS 17指定のDebug／Releaseビルドを検証済み。Archive Validationと審査用の動作説明が残る。
 
-## 2. Webページ・QR・Universal Links
+## 2. 法務Webページ・QR
 
 ### オーナー
 
-- [ ] GitHub Pagesで `https://ben-kei-create.github.io` を公開する。
-- [ ] `Web/.well-known/apple-app-site-association`を正しいTeam ID／Bundle IDで配信する。
-- [ ] 利用規約、Privacy Policy、サポート、権利者向け削除申請窓口をWebで公開する。
-- [ ] App Store公開後、未インストール時にApp Storeへ遷移する案内ページを公開する。
-- [ ] 将来独自ドメインへ移行しても、印刷済みQRのGitHub Pages URLはリダイレクト元として維持する。
+- [ ] 利用規約、Privacy Policy、サポート、権利者向け削除申請窓口を任意のHTTPSホストで公開する。
+- [ ] App Store Connectでアプリレコードを作成し、正式なPoco製品URLを取得する。
+- [ ] `POCO_APP_STORE_URL`を検索用仮URLから正式な製品URLへ差し替える。
+- [ ] 印刷物には用途を明記したアプリ用QRとインストール用QRを用意する。
 
 ### Codex
 
-- [x] `poco://project/{projectID}`とHTTPS Project URLの解析基盤を実装済み。
-- [~] GitHub Pages用AASAと案内ページの素材を用意済み。実際の配信・実機検証は未完了。
-- [ ] iPhone実機で「インストール済み」「未インストール」「無効ID」「非公開作品」「削除済み作品」を検証する。
+- [x] `poco://project/{projectID}`の解析基盤を実装済み。
+- [x] QR画面でアプリ用／App Store用の切替と、選択中URLの保存・コピー・共有を実装済み。
+- [ ] iPhone実機で「アプリ用QR」「インストール用QR」「無効ID」「非公開作品」「削除済み作品」を検証する。
 
 ## 3. Supabase本番・ステージング環境
 
@@ -208,7 +207,7 @@
 
 ## 推奨実施順
 
-1. 漏洩Token失効、Apple／Supabase／GitHub Pagesのアカウント準備
+1. 漏洩Token失効、Apple／Supabaseのアカウント準備
 2. Migration・RLS・GRANT監査とStaging適用
 3. App Attest／CAPTCHA／Edge Function Gateway、画像検疫
 4. 法務ページ、Admin Moderation、Retention Job

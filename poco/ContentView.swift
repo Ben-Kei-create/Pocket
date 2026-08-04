@@ -93,7 +93,7 @@ struct ContentView: View {
     private func openProjectURL(_ url: URL, completesWelcome: Bool) {
         guard ProjectDeepLink.projectID(from: url) != nil else { return }
 
-        // A QR / Universal Link landing is the user's primary intent. Never
+        // A project QR / custom-link landing is the user's primary intent. Never
         // cover the destination with the daily reward sheet.
         defersDailyLoginBonusForProjectLink = true
         deferredProjectWasPresented = false

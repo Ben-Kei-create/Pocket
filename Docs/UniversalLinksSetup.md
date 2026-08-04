@@ -1,6 +1,12 @@
-# Poco Universal Links セットアップ
+# アーカイブ: Poco Universal Links セットアップ
 
-アプリ側は次のURLを同じProject Detailへ解決します。
+> 2026-08-03の仕様変更により、この方式は現在使用しません。作品画面では
+> `poco://project/{UUID}`のアプリ用QRと、App Store製品URLのインストール用QRを
+> 切り替えて表示します。GitHub Pages、AASA、Associated Domainsの設定は不要です。
+> 以下は将来Universal Linksを再検討する場合の参考資料として残しています。
+
+この資料が作成された当時は、次のURLを同じProject Detailへ解決する構想でした。
+現在のアプリはHTTPS形式を受け付けず、`poco://`だけを解決します。
 
 - `poco://project/{UUID}`
 - `https://{domain}/project/{UUID}`
@@ -16,7 +22,8 @@ ProjectはUUIDを保ったまま編集されるため、公開済みURLとQRコ�
 https://ben-kei-create.github.io/project/{projectID}
 ```
 
-アプリ側の`POCO_PUBLIC_BASE_URL`と`POCO_ASSOCIATED_DOMAIN`は設定済みです。
+当時はアプリ側へ`POCO_PUBLIC_BASE_URL`と`POCO_ASSOCIATED_DOMAIN`を設定する想定でした。
+現在これらの設定は削除済みです。
 Web側は別リポジトリ`Ben-Kei-create.github.io`をGitHub Pagesとして公開し、
 このリポジトリの`Web/`にあるAASAを配置します。
 

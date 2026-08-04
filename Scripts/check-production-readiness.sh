@@ -43,16 +43,16 @@ else
   warn 'Local Secrets.xcconfig is missing; Supabase builds cannot connect to production'
 fi
 
-if [ -f Web/.well-known/apple-app-site-association ]; then
-  pass 'AASA source file exists'
+if rg -q '^POCO_APP_STORE_URL = https:\/\$\(\)\/apps\.apple\.com/' Config/Shared.xcconfig; then
+  pass 'App Store QR URL uses an Apple HTTPS host'
 else
-  fail 'AASA source file is missing'
+  fail 'POCO_APP_STORE_URL must use apps.apple.com'
 fi
 
-if rg -q 'YOUR_TEAM_ID|TEAM_ID_PLACEHOLDER|APP_ID_PLACEHOLDER' Web/.well-known/apple-app-site-association 2>/dev/null; then
-  warn 'AASA still contains a placeholder Team/App ID'
+if rg -q '^POCO_APP_STORE_URL = .*\/search\?term=Poco$' Config/Shared.xcconfig; then
+  warn 'App Store QR still uses the temporary Poco search URL'
 else
-  pass 'AASA does not contain a known placeholder marker'
+  pass 'App Store QR no longer uses the temporary search URL'
 fi
 
 if [ -f supabase/functions/sync-storekit-membership/index.ts ]; then

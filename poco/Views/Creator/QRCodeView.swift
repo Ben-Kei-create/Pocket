@@ -4,25 +4,50 @@ import SwiftUI
 import UIKit
 
 struct QRCodeView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let project: Project
+    @State private var destination: QRCodeDestination = .installedApp
     @State private var showsSavedConfirmation = false
     @State private var showsCopiedConfirmation = false
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 26) {
+            VStack(spacing: 22) {
                 Text(project.title)
                     .pocoFont(.title2, weight: .bold)
                     .multilineTextAlignment(.center)
 
-                QRCodeImage(data: project.deepLinkURL.absoluteString)
+                Picker("QRコードの種類", selection: $destination) {
+                    ForEach(QRCodeDestination.allCases) { destination in
+                        Label(destination.title, systemImage: destination.symbolName)
+                            .tag(destination)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .accessibilityHint("アプリ用とインストール用のQRコードを切り替えます")
+
+                VStack(spacing: 8) {
+                    Label(destination.heading, systemImage: destination.symbolName)
+                        .pocoFont(.headline, weight: .bold)
+                        .foregroundStyle(PocoTheme.primary)
+
+                    Text(destination.caption)
+                        .pocoFont(.caption)
+                        .foregroundStyle(PocoTheme.secondaryText)
+                        .multilineTextAlignment(.center)
+                }
+
+                QRCodeImage(data: selectedURL.absoluteString)
+                    .id(destination)
                     .frame(width: 260, height: 260)
                     .padding(22)
                     .background(.white, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
                     .shadow(color: .black.opacity(0.07), radius: 18, y: 8)
-                    .accessibilityLabel("\(project.title)のQRコード")
+                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                    .accessibilityLabel("\(project.title)の\(destination.accessibilityName)")
 
-                Text(project.deepLinkURL.absoluteString)
+                Text(selectedURL.absoluteString)
                     .font(.caption.monospaced())
                     .foregroundStyle(PocoTheme.secondaryText)
                     .textSelection(.enabled)
@@ -42,7 +67,7 @@ struct QRCodeView: View {
                     }
                     .buttonStyle(PocoSecondaryButtonStyle())
 
-                    ShareLink(item: project.deepLinkURL) {
+                    ShareLink(item: selectedURL) {
                         Label("共有", systemImage: "square.and.arrow.up")
                     }
                     .buttonStyle(PocoSecondaryButtonStyle())
@@ -53,6 +78,7 @@ struct QRCodeView: View {
         .background(PocoTheme.background)
         .navigationTitle("作品を共有")
         .navigationBarTitleDisplayMode(.inline)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: destination)
         .alert("写真に保存しました", isPresented: $showsSavedConfirmation) {
             Button("OK", role: .cancel) {}
         }
@@ -72,8 +98,17 @@ struct QRCodeView: View {
         }
     }
 
+    private var selectedURL: URL {
+        switch destination {
+        case .installedApp:
+            project.deepLinkURL
+        case .appStore:
+            PocoAppStoreLink.url()
+        }
+    }
+
     private func copyProjectLink() {
-        UIPasteboard.general.url = project.deepLinkURL
+        UIPasteboard.general.url = selectedURL
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         UIAccessibility.post(notification: .announcement, argument: "リンクをコピーしました")
 
@@ -91,12 +126,54 @@ struct QRCodeView: View {
 
     private func saveQRCode() {
         guard let image = QRCodeGenerator.makeImage(
-            from: project.deepLinkURL.absoluteString,
+            from: selectedURL.absoluteString,
             scale: 12
         ) else { return }
         UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         showsSavedConfirmation = true
+    }
+}
+
+private enum QRCodeDestination: String, CaseIterable, Identifiable {
+    case installedApp
+    case appStore
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .installedApp: "アプリで開く"
+        case .appStore: "インストール"
+        }
+    }
+
+    var heading: String {
+        switch self {
+        case .installedApp: "Pocoを持っている人用"
+        case .appStore: "Pocoをまだ持っていない人用"
+        }
+    }
+
+    var caption: String {
+        switch self {
+        case .installedApp: "読み取ると、この作品の感想ページが開きます。"
+        case .appStore: "読み取ると、App StoreのPoco検索が開きます。"
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .installedApp: "iphone"
+        case .appStore: "arrow.down.app"
+        }
+    }
+
+    var accessibilityName: String {
+        switch self {
+        case .installedApp: "アプリ用QRコード"
+        case .appStore: "インストール用QRコード"
+        }
     }
 }
 
